@@ -38,9 +38,13 @@ create table cotizaciones (
   version int not null default 1,
   cliente_id uuid not null references clientes (id),
   descripcion text not null,
-  tipo_contrato tipo_contrato not null,
-  contrato_firmado boolean not null default false,
   estado estado_cotizacion not null default 'BORRADOR',
+
+  -- Interruptor maestro de IVA (decisión de Jhojan: se elige primero, condiciona todo el
+  -- cálculo de abajo). tipo_contrato queda como metadata descriptiva, ya NO determina el IVA.
+  esquema_iva esquema_iva not null default 'IVA_FULL',
+  tipo_contrato tipo_contrato,
+  contrato_firmado boolean not null default false,
 
   -- Porcentajes de armado de precio (AIU + recargo de proyecto)
   pct_admin numeric(6,4) not null default 0.05,

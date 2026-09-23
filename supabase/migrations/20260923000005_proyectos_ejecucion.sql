@@ -6,7 +6,7 @@ create table proyectos (
   nombre text not null,
   cliente_id uuid not null references clientes (id),
   cotizacion_aprobada_id uuid not null references cotizaciones (id),
-  tipo_contrato tipo_contrato not null, -- copia inmutable de la cotización al momento de crear el proyecto
+  tipo_contrato tipo_contrato, -- copia informativa de la cotización (ya no determina el IVA, ver esquema_iva)
   contrato_firmado boolean not null default false,
   estado estado_proyecto not null default 'EN_EJECUCION',
   fecha_inicio date,

@@ -1,5 +1,6 @@
 -- Rollback de 20260923000001_enums_extensions.sql
 drop type if exists estado_hito;
+drop type if exists esquema_iva;
 drop type if exists estado_proyecto;
 drop type if exists estado_cotizacion;
 drop type if exists tipo_contrato;

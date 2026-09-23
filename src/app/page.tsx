@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "./logout/actions";
@@ -21,14 +22,18 @@ export default async function Home() {
         <p className="text-sm text-slate-500">
           Sesión iniciada como <span className="font-medium">{user.email}</span>
         </p>
-        <p className="text-sm text-slate-500">
-          Todavía no hay pantallas de cotización ni proyectos: primero se
-          valida el modelo de datos y las decisiones abiertas.
-        </p>
+
+        <Link
+          href="/cotizaciones/nueva"
+          className="block rounded-md bg-slate-900 px-4 py-3 text-center text-base font-medium text-white"
+        >
+          + Nueva cotización
+        </Link>
+
         <form action={logout}>
           <button
             type="submit"
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700"
           >
             Cerrar sesión
           </button>

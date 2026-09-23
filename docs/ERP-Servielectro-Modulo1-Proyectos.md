@@ -2,6 +2,8 @@
 
 Reconstrucción del modelo a partir de la descripción de Jhojan Poveda (Servielectro SAS) y del análisis del archivo `CSE-026-151 FASE I MANTO PUERTAS Tintala Fase 6.xlsm`. No se encontró en este equipo el documento de diseño previo (`ERP-Servielectro-Modulo1-Proyectos.md` de otra sesión), así que este documento es la reconstrucción vigente.
 
+> **Prioridad de construcción (2026-09-23):** se arranca por el sub-módulo de **Cotizaciones**, mobile-first para tablet, porque el dolor real de Jhojan es "estoy perdiendo mucho tiempo en realizar cotizaciones a clientes" y quiere cotizar en vivo frente al cliente. Proyectos, ejecución, hitos de cobro y flujo de caja (secciones 7-9) quedan con su modelo de datos listo pero su UI se construye después.
+
 ## 1. Objetivo del módulo
 
 Cotizar proyectos (obras de seguridad electrónica), ejecutarlos, y comparar lo presupuestado contra lo real, incluyendo el flujo de caja (cobros vs. gastos en el tiempo).
@@ -28,14 +30,14 @@ Subtotal CALCULO (suma de líneas)
   → Total cotización
 ```
 
-## 4. IVA según tipo de contrato
+## 4. Esquema de IVA (interruptor maestro de la cotización)
 
-`tipo_contrato` es un campo del proyecto/cotización: `OBRA_CIVIL` | `MANTENIMIENTO` | `SUMINISTRO`.
+**Actualización 2026-09-23:** Jhojan pidió que esto sea lo primero que se elige en cada cotización, visible siempre, porque "cambia todo de ahí para abajo". Se reemplazó la derivación automática desde `tipo_contrato` por una elección explícita: `esquema_iva` = `IVA_FULL` | `IVA_AIU`.
 
-- Si `OBRA_CIVIL` + `contrato_firmado = true`: IVA se aplica **solo sobre la línea de Utilidad** (base especial, validada con el contador, 5 años de vigencia).
-- En los demás casos: IVA sobre el subtotal general completo.
+- `IVA_AIU`: el IVA se aplica **solo sobre la línea de Utilidad** (base especial, validada con el contador, 5 años de vigencia — corresponde al caso de obra civil con contrato firmado).
+- `IVA_FULL`: IVA sobre el subtotal general completo.
 
-El sistema registra `iva_base` (motivo/base aplicada) junto al cálculo, para auditoría.
+`tipo_contrato` sigue existiendo en la tabla como metadata descriptiva (para reportes futuros) pero **ya no determina el cálculo**. El sistema registra `iva_base_motivo` junto al cálculo, para auditoría.
 
 ## 5. Gastos internos (se descuentan de la Utilidad, no cambian el precio al cliente)
 
