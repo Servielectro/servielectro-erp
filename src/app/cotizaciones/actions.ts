@@ -89,7 +89,12 @@ export interface LineaGuardarInput {
 
 export interface GuardarCotizacionInput {
   clienteNombre: string;
+  clienteNit: string;
+  clienteDireccion: string;
+  clienteEmail: string;
+  clienteContacto: string;
   descripcion: string;
+  comercial: string;
   esquemaIva: "IVA_FULL" | "IVA_AIU";
   factorRecargoProyecto: number;
   pctAdmin: number;
@@ -126,6 +131,11 @@ export async function guardarCotizacion(
       valor_compra_unitario: l.valorCompraUnitario,
       factor_rentabilidad_linea: l.factorRentabilidadLinea,
     })),
+    p_comercial: input.comercial || null,
+    p_cliente_nit: input.clienteNit || null,
+    p_cliente_direccion: input.clienteDireccion || null,
+    p_cliente_email: input.clienteEmail || null,
+    p_cliente_contacto: input.clienteContacto || null,
   });
 
   if (error) {

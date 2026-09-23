@@ -28,9 +28,27 @@ const DRAFT_KEY = "se-erp:cotizacion-draft:v1";
 
 type LineaUI = LineaCotizacion;
 
+export interface DatosIniciales {
+  clienteNombre: string;
+  clienteNit: string;
+  clienteDireccion: string;
+  clienteEmail: string;
+  clienteContacto: string;
+  descripcion: string;
+  comercial: string;
+  esquemaIva: EsquemaIva;
+  config: Omit<ConfigPrecio, "esquemaIva">;
+  lineas: Omit<LineaUI, "id">[];
+}
+
 interface Draft {
   clienteNombre: string;
+  clienteNit: string;
+  clienteDireccion: string;
+  clienteEmail: string;
+  clienteContacto: string;
   descripcion: string;
+  comercial: string;
   config: ConfigPrecio;
   lineas: LineaUI[];
   guardadoEn: string;
@@ -51,17 +69,51 @@ function nuevaLinea(categoria: Categoria): LineaUI {
 
 export function CotizacionBuilder({
   catalogoInicial,
+  datosIniciales,
 }: {
   catalogoInicial: CatalogoItem[];
+  datosIniciales?: DatosIniciales;
 }) {
   const [catalogo, setCatalogo] = useState(catalogoInicial);
-  const [clienteNombre, setClienteNombre] = useState("");
-  const [descripcion, setDescripcion] = useState("");
-  const [esquemaIva, setEsquemaIva] = useState<EsquemaIva>("IVA_FULL");
-  const [config, setConfig] = useState<ConfigPrecio>(CONFIG_PRECIO_DEFAULT);
-  const [lineas, setLineas] = useState<LineaUI[]>([]);
+  const [clienteNombre, setClienteNombre] = useState(
+    datosIniciales?.clienteNombre ?? "",
+  );
+  const [clienteNit, setClienteNit] = useState(datosIniciales?.clienteNit ?? "");
+  const [clienteDireccion, setClienteDireccion] = useState(
+    datosIniciales?.clienteDireccion ?? "",
+  );
+  const [clienteEmail, setClienteEmail] = useState(
+    datosIniciales?.clienteEmail ?? "",
+  );
+  const [clienteContacto, setClienteContacto] = useState(
+    datosIniciales?.clienteContacto ?? "",
+  );
+  const [comercial, setComercial] = useState(datosIniciales?.comercial ?? "");
+  const [descripcion, setDescripcion] = useState(
+    datosIniciales?.descripcion ?? "",
+  );
+  const [esquemaIva, setEsquemaIva] = useState<EsquemaIva>(
+    datosIniciales?.esquemaIva ?? "IVA_FULL",
+  );
+  const [config, setConfig] = useState<Omit<ConfigPrecio, "esquemaIva">>(
+    datosIniciales?.config ?? CONFIG_PRECIO_DEFAULT,
+  );
+  const [lineas, setLineas] = useState<LineaUI[]>(
+    () =>
+      datosIniciales?.lineas.map((l) => ({ ...l, id: crypto.randomUUID() })) ??
+      [],
+  );
   const [activeTab, setActiveTab] = useState<Categoria>("EQUIPO");
   const [avanzadoAbierto, setAvanzadoAbierto] = useState(false);
+  const [datosClienteAbierto, setDatosClienteAbierto] = useState(
+    Boolean(
+      datosIniciales?.comercial ||
+        datosIniciales?.clienteNit ||
+        datosIniciales?.clienteDireccion ||
+        datosIniciales?.clienteEmail ||
+        datosIniciales?.clienteContacto,
+    ),
+  );
   const [detalleAbierto, setDetalleAbierto] = useState(false);
   const [modal, setModal] = useState<{
     categoria: Categoria;
@@ -80,12 +132,20 @@ export function CotizacionBuilder({
   // no hay forma de derivarlo sin efecto (localStorage no existe durante el render en el servidor).
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
+    // Al duplicar una cotización existente, esa es la intención explícita del usuario:
+    // no pisarla con un borrador local viejo que haya quedado guardado.
+    if (datosIniciales) return;
     try {
       const raw = window.localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
       const draft = JSON.parse(raw) as Draft;
       if (draft.lineas?.length) {
         setClienteNombre(draft.clienteNombre ?? "");
+        setClienteNit(draft.clienteNit ?? "");
+        setClienteDireccion(draft.clienteDireccion ?? "");
+        setClienteEmail(draft.clienteEmail ?? "");
+        setClienteContacto(draft.clienteContacto ?? "");
+        setComercial(draft.comercial ?? "");
         setDescripcion(draft.descripcion ?? "");
         setConfig(draft.config ?? CONFIG_PRECIO_DEFAULT);
         setEsquemaIva(draft.config?.esquemaIva ?? "IVA_FULL");
@@ -95,6 +155,7 @@ export function CotizacionBuilder({
     } catch {
       // borrador corrupto o localStorage no disponible: se ignora
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -109,6 +170,11 @@ export function CotizacionBuilder({
     try {
       const draft: Draft = {
         clienteNombre,
+        clienteNit,
+        clienteDireccion,
+        clienteEmail,
+        clienteContacto,
+        comercial,
         descripcion,
         config: configConEsquema,
         lineas,
@@ -118,7 +184,17 @@ export function CotizacionBuilder({
     } catch {
       // localStorage lleno o no disponible: no es crítico, se sigue trabajando en memoria
     }
-  }, [clienteNombre, descripcion, configConEsquema, lineas]);
+  }, [
+    clienteNombre,
+    clienteNit,
+    clienteDireccion,
+    clienteEmail,
+    clienteContacto,
+    comercial,
+    descripcion,
+    configConEsquema,
+    lineas,
+  ]);
 
   const totales = useMemo(
     () => calcularTotales(lineas, configConEsquema),
@@ -153,6 +229,11 @@ export function CotizacionBuilder({
     )
       return;
     setClienteNombre("");
+    setClienteNit("");
+    setClienteDireccion("");
+    setClienteEmail("");
+    setClienteContacto("");
+    setComercial("");
     setDescripcion("");
     setConfig(CONFIG_PRECIO_DEFAULT);
     setEsquemaIva("IVA_FULL");
@@ -186,6 +267,11 @@ export function CotizacionBuilder({
     setGuardando(true);
     const res = await guardarCotizacion({
       clienteNombre: clienteNombre.trim(),
+      clienteNit: clienteNit.trim(),
+      clienteDireccion: clienteDireccion.trim(),
+      clienteEmail: clienteEmail.trim(),
+      clienteContacto: clienteContacto.trim(),
+      comercial: comercial.trim(),
       descripcion: descripcion.trim() || clienteNombre.trim(),
       esquemaIva,
       factorRecargoProyecto: config.factorRecargoProyecto,
@@ -301,6 +387,52 @@ export function CotizacionBuilder({
         >
           {avanzadoAbierto ? "▾" : "▸"} Configuración avanzada (AIU / recargo)
         </button>
+
+        <button
+          type="button"
+          onClick={() => setDatosClienteAbierto((v) => !v)}
+          className="text-sm font-medium text-slate-500"
+        >
+          {datosClienteAbierto ? "▾" : "▸"} Datos para la cotización impresa
+          (opcional)
+        </button>
+
+        {datosClienteAbierto && (
+          <div className="space-y-2 rounded-md bg-slate-100 p-3 text-sm">
+            <input
+              value={comercial}
+              onChange={(e) => setComercial(e.target.value)}
+              placeholder="Comercial"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                value={clienteNit}
+                onChange={(e) => setClienteNit(e.target.value)}
+                placeholder="NIT del cliente"
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+              <input
+                value={clienteContacto}
+                onChange={(e) => setClienteContacto(e.target.value)}
+                placeholder="Contacto"
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <input
+              value={clienteDireccion}
+              onChange={(e) => setClienteDireccion(e.target.value)}
+              placeholder="Dirección"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+            <input
+              value={clienteEmail}
+              onChange={(e) => setClienteEmail(e.target.value)}
+              placeholder="Correo del cliente"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+        )}
 
         {avanzadoAbierto && (
           <div className="grid grid-cols-2 gap-2 rounded-md bg-slate-100 p-3 text-sm">

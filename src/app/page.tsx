@@ -30,6 +30,13 @@ export default async function Home() {
           + Nueva cotización
         </Link>
 
+        <Link
+          href="/cotizaciones"
+          className="block rounded-md border border-slate-300 px-4 py-3 text-center text-base font-medium text-slate-700"
+        >
+          Ver cotizaciones
+        </Link>
+
         <form action={logout}>
           <button
             type="submit"
