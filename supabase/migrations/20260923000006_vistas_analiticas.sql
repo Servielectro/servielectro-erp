@@ -2,7 +2,7 @@
 -- Totales de cotización, capas de utilidad, presupuesto vs ejecución, flujo de caja.
 
 -- 1) Totales de una cotización, con la base de IVA según tipo de contrato
-create view v_cotizacion_totales as
+create or replace view v_cotizacion_totales as
 select
   c.id as cotizacion_id,
   c.codigo,
@@ -39,7 +39,7 @@ left join cotizacion_items ci on ci.cotizacion_id = c.id
 group by c.id;
 
 -- agrega valor de IVA y total, ya con la base resuelta arriba
-create view v_cotizacion_totales_iva as
+create or replace view v_cotizacion_totales_iva as
 select
   t.*,
   round(t.iva_base_valor * t.iva_pct, 2) as valor_iva,
@@ -50,7 +50,7 @@ from v_cotizacion_totales t;
 -- Base de las deducciones internas (admin interno, renta, ICA, comisión) = utilidad_aiu bruta.
 -- Pendiente de confirmar con Jhojan (ver Decisión abierta #2): ICA normalmente se calcula sobre
 -- ingresos brutos en Colombia, no sobre la utilidad; aquí se deja configurable a nivel de vista.
-create view v_capas_utilidad as
+create or replace view v_capas_utilidad as
 select
   c.id as cotizacion_id,
   c.codigo,
@@ -85,7 +85,7 @@ from cotizaciones c
 join v_cotizacion_totales t on t.cotizacion_id = c.id;
 
 -- 3) Presupuesto vs. Ejecución por proyecto (comparación por línea)
-create view v_presupuesto_vs_ejecucion as
+create or replace view v_presupuesto_vs_ejecucion as
 select
   p.id as proyecto_id,
   p.codigo as proyecto_codigo,
@@ -106,7 +106,7 @@ left join proyecto_ejecucion_items ej on ej.presupuesto_item_id = ci.id
 group by p.id, ci.id;
 
 -- Gastos ejecutados sin línea de presupuesto asociada (imprevistos reales no cotizados)
-create view v_ejecucion_sin_presupuesto as
+create or replace view v_ejecucion_sin_presupuesto as
 select
   ej.proyecto_id,
   ej.id as ejecucion_id,
@@ -120,7 +120,7 @@ from proyecto_ejecucion_items ej
 where ej.presupuesto_item_id is null;
 
 -- 4) Flujo de caja del proyecto: ingresos (hitos cobrados) vs egresos (ejecución real), por fecha
-create view v_flujo_caja as
+create or replace view v_flujo_caja as
 select
   proyecto_id,
   fecha,
@@ -149,7 +149,7 @@ from (
 ) movimientos
 order by fecha;
 
-create view v_flujo_caja_saldo as
+create or replace view v_flujo_caja_saldo as
 select
   proyecto_id,
   fecha,
@@ -161,7 +161,7 @@ select
 from v_flujo_caja;
 
 -- Resumen de cobros pendientes por proyecto
-create view v_cobros_pendientes as
+create or replace view v_cobros_pendientes as
 select
   proyecto_id,
   count(*) filter (where estado <> 'COBRADO') as hitos_pendientes,

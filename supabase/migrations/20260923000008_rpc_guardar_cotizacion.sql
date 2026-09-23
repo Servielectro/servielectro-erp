@@ -2,8 +2,9 @@
 -- Se usa desde la pantalla de cotización: todo el trabajo se arma en el navegador (localStorage)
 -- y solo se toca la base de datos una vez, al presionar "Guardar". Si la conexión falla a mitad
 -- de camino no debe quedar una cotización parcial.
+-- Idempotente: se puede correr más de una vez sin romper.
 
-create function fn_guardar_cotizacion_completa(
+create or replace function fn_guardar_cotizacion_completa(
   p_cliente_nombre text,
   p_cliente_id uuid,
   p_esquema_iva esquema_iva,

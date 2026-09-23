@@ -4,9 +4,9 @@ ERP interno de Servielectro SAS. Next.js + Supabase + Vercel, PWA instalable (fu
 
 ## Estado actual
 
-Solo hay andamiaje: login contra Supabase, esqueleto de la app, y el modelo de datos completo en `supabase/migrations/`. Todavía no hay pantalla de cotización — ver decisiones abiertas antes de construirla.
+Login contra Supabase, pantalla de cotización mobile-first (`/cotizaciones/nueva`), y el modelo de datos completo en `supabase/migrations/`. Proyectos, ejecución, hitos de cobro y flujo de caja tienen su modelo de datos listo pero todavía no tienen pantalla.
 
-Diseño del modelo de costos: `docs/ERP-Servielectro-Modulo1-Proyectos.md`.
+Diseño del modelo de costos y pendientes: `docs/ERP-Servielectro-Modulo1-Proyectos.md`.
 
 ## 1. Crear el proyecto en Supabase
 
@@ -14,9 +14,9 @@ Diseño del modelo de costos: `docs/ERP-Servielectro-Modulo1-Proyectos.md`.
 2. Guardar la contraseña de la base de datos en un lugar seguro (no se comparte con el asistente).
 3. En **Project Settings → API**, copiar:
    - `Project URL`
-   - `anon` / `public` key (la "publishable key")
-   - Pasar esas dos al asistente. **La `service_role` (secret) key NO se comparte por chat** — esa se pega directamente en Vercel cuando haga falta.
-4. En **SQL Editor**, ejecutar en orden los archivos de `supabase/migrations/` (del número más bajo al más alto). Cada uno es independiente y puede pegarse y correrse tal cual.
+   - `Publishable key` (Supabase renombró la antigua `anon`/`public` key a **`publishable`** — es la misma idea, se puede exponer al navegador).
+   - Pasar esas dos al asistente. **La `secret key` (antes `service_role`) NO se comparte por chat** — esa se pega directamente en Vercel cuando haga falta.
+4. En **SQL Editor**, ejecutar en orden los archivos de `supabase/migrations/` (del número más bajo al más alto). Cada uno es idempotente: se puede volver a correr sin romper si algo falla a mitad de camino.
 5. Si algo sale mal y hay que deshacer una migración, está su contraparte en `supabase/rollbacks/` con el mismo número.
 
 ## 2. Variables de entorno locales
@@ -25,7 +25,9 @@ Diseño del modelo de costos: `docs/ERP-Servielectro-Modulo1-Proyectos.md`.
 cp .env.local.example .env.local
 ```
 
-Completar `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` con los valores del paso anterior.
+Completar `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` con los valores del paso anterior.
+
+> **Nombres unificados:** en el código y en `.env` siempre se usa `PUBLISHABLE_KEY` (nunca `ANON_KEY`), siguiendo el renombre que hizo Supabase. Si en el dashboard de Supabase todavía aparece como "anon" / "public", es la misma clave.
 
 ## 3. Crear el primer usuario
 
@@ -46,7 +48,7 @@ Abrir http://localhost:3000 — debería pedir login y luego mostrar la pantalla
 vercel
 ```
 
-(la PC ya tiene Vercel autenticado). Agregar las mismas variables de entorno (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) en el proyecto de Vercel, en Settings → Environment Variables.
+(la PC ya tiene Vercel autenticado). Agregar las mismas variables de entorno (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`) en el proyecto de Vercel, en Settings → Environment Variables.
 
 ## Estructura
 

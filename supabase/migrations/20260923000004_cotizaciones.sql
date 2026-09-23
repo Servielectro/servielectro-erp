@@ -1,19 +1,21 @@
 -- Módulo 1: Proyectos — cotizaciones y líneas de cotización
+-- Idempotente: se puede correr más de una vez sin romper.
 --
--- IMPORTANTE (ver Decisión abierta #1 en la conversación con Jhojan):
+-- IMPORTANTE (ver docs/ERP-Servielectro-Modulo1-Proyectos.md §13):
 -- factor_recargo_proyecto se calcula a partir de administración, renta e ICA del
 -- proyecto, pero la fórmula exacta usada en el Excel (CSE-026-151) todavía no está
--- confirmada. Mientras se valida con un ejemplo real, el campo queda como numérico
--- editable (no autogenerado) y se registra en formula_recargo_nota cómo se obtuvo.
--- Cuando se confirme la fórmula, esta migración se reemplaza por una función
--- fn_calcular_factor_recargo_proyecto(...) + trigger, sin cambiar la forma de la tabla.
+-- confirmada (se probaron ~20 combinaciones con los porcentajes reales de Tintalá
+-- y ninguna cuadra exactamente). Mientras se valida con un ejemplo real, el campo
+-- queda como numérico editable (no autogenerado) y se registra en formula_recargo_nota
+-- cómo se obtuvo. Cuando se confirme la fórmula, se agrega una función + trigger,
+-- sin cambiar la forma de la tabla.
 
-create table cotizacion_consecutivos (
+create table if not exists cotizacion_consecutivos (
   anio smallint primary key,
   ultimo_numero int not null default 0
 );
 
-create function fn_siguiente_codigo_cotizacion(p_anio smallint)
+create or replace function fn_siguiente_codigo_cotizacion(p_anio smallint)
 returns text
 language plpgsql
 as $$
@@ -31,7 +33,7 @@ begin
 end;
 $$;
 
-create table cotizaciones (
+create table if not exists cotizaciones (
   id uuid primary key default gen_random_uuid(),
   codigo text not null unique,
   anio smallint not null,
@@ -73,14 +75,15 @@ create table cotizaciones (
   unique (anio, version, cliente_id, descripcion)
 );
 
-create index idx_cotizaciones_cliente on cotizaciones (cliente_id);
-create index idx_cotizaciones_estado on cotizaciones (estado);
+create index if not exists idx_cotizaciones_cliente on cotizaciones (cliente_id);
+create index if not exists idx_cotizaciones_estado on cotizaciones (estado);
 
+drop trigger if exists trg_cotizaciones_updated_at on cotizaciones;
 create trigger trg_cotizaciones_updated_at
   before update on cotizaciones
   for each row execute function extensions.moddatetime(updated_at);
 
-create table cotizacion_items (
+create table if not exists cotizacion_items (
   id uuid primary key default gen_random_uuid(),
   cotizacion_id uuid not null references cotizaciones (id) on delete cascade,
   item_catalogo_id uuid references items_catalogo (id),
@@ -104,15 +107,16 @@ create table cotizacion_items (
   updated_at timestamptz not null default now()
 );
 
-create index idx_cotizacion_items_cotizacion on cotizacion_items (cotizacion_id, orden);
+create index if not exists idx_cotizacion_items_cotizacion on cotizacion_items (cotizacion_id, orden);
 
+drop trigger if exists trg_cotizacion_items_updated_at on cotizacion_items;
 create trigger trg_cotizacion_items_updated_at
   before update on cotizacion_items
   for each row execute function extensions.moddatetime(updated_at);
 
 -- Calcula valor_calculo_unitario = valor_venta_unitario / factor_recargo_proyecto de la cotización.
 -- Se recalcula: al insertar/actualizar una línea, y al cambiar el factor de la cotización (ver trigger abajo).
-create function fn_calcular_valor_calculo_item()
+create or replace function fn_calcular_valor_calculo_item()
 returns trigger
 language plpgsql
 as $$
@@ -129,13 +133,14 @@ begin
 end;
 $$;
 
+drop trigger if exists trg_cotizacion_items_calculo on cotizacion_items;
 create trigger trg_cotizacion_items_calculo
   before insert or update of valor_compra_unitario, factor_rentabilidad_linea, cotizacion_id
   on cotizacion_items
   for each row execute function fn_calcular_valor_calculo_item();
 
 -- Si cambia el factor de recargo de la cotización (mientras está en BORRADOR), recalcular sus líneas
-create function fn_recalcular_items_por_cambio_factor()
+create or replace function fn_recalcular_items_por_cambio_factor()
 returns trigger
 language plpgsql
 as $$
@@ -149,12 +154,13 @@ begin
 end;
 $$;
 
+drop trigger if exists trg_cotizaciones_recalcular_items on cotizaciones;
 create trigger trg_cotizaciones_recalcular_items
   after update of factor_recargo_proyecto on cotizaciones
   for each row execute function fn_recalcular_items_por_cambio_factor();
 
 -- No permitir editar líneas de una cotización ya aprobada (el presupuesto queda congelado)
-create function fn_bloquear_edicion_cotizacion_aprobada()
+create or replace function fn_bloquear_edicion_cotizacion_aprobada()
 returns trigger
 language plpgsql
 as $$
@@ -172,6 +178,7 @@ begin
 end;
 $$;
 
+drop trigger if exists trg_cotizacion_items_bloqueo on cotizacion_items;
 create trigger trg_cotizacion_items_bloqueo
   before insert or update or delete on cotizacion_items
   for each row execute function fn_bloquear_edicion_cotizacion_aprobada();

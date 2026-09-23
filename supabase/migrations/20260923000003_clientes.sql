@@ -1,5 +1,7 @@
 -- Módulo 1: Proyectos — clientes
-create table clientes (
+-- Idempotente: se puede correr más de una vez sin romper.
+
+create table if not exists clientes (
   id uuid primary key default gen_random_uuid(),
   nombre text not null,
   nit text,
@@ -12,8 +14,9 @@ create table clientes (
   updated_at timestamptz not null default now()
 );
 
-create index idx_clientes_nombre on clientes (nombre);
+create index if not exists idx_clientes_nombre on clientes (nombre);
 
+drop trigger if exists trg_clientes_updated_at on clientes;
 create trigger trg_clientes_updated_at
   before update on clientes
   for each row execute function extensions.moddatetime(updated_at);

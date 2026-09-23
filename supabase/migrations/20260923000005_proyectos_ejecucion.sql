@@ -1,6 +1,7 @@
 -- Módulo 1: Proyectos — proyectos, ejecución real e hitos de cobro
+-- Idempotente: se puede correr más de una vez sin romper.
 
-create table proyectos (
+create table if not exists proyectos (
   id uuid primary key default gen_random_uuid(),
   codigo text not null unique, -- por defecto el mismo código de la cotización aprobada
   nombre text not null,
@@ -16,15 +17,16 @@ create table proyectos (
   updated_at timestamptz not null default now()
 );
 
-create index idx_proyectos_cliente on proyectos (cliente_id);
-create index idx_proyectos_estado on proyectos (estado);
+create index if not exists idx_proyectos_cliente on proyectos (cliente_id);
+create index if not exists idx_proyectos_estado on proyectos (estado);
 
+drop trigger if exists trg_proyectos_updated_at on proyectos;
 create trigger trg_proyectos_updated_at
   before update on proyectos
   for each row execute function extensions.moddatetime(updated_at);
 
 -- Solo se puede crear un proyecto a partir de una cotización APROBADA
-create function fn_validar_proyecto_desde_cotizacion_aprobada()
+create or replace function fn_validar_proyecto_desde_cotizacion_aprobada()
 returns trigger
 language plpgsql
 as $$
@@ -39,12 +41,13 @@ begin
 end;
 $$;
 
+drop trigger if exists trg_proyectos_validar_cotizacion on proyectos;
 create trigger trg_proyectos_validar_cotizacion
   before insert on proyectos
   for each row execute function fn_validar_proyecto_desde_cotizacion_aprobada();
 
 -- Ejecución real: lo efectivamente comprado/gastado. Independiente del presupuesto congelado.
-create table proyecto_ejecucion_items (
+create table if not exists proyecto_ejecucion_items (
   id uuid primary key default gen_random_uuid(),
   proyecto_id uuid not null references proyectos (id) on delete cascade,
   presupuesto_item_id uuid references cotizacion_items (id), -- vínculo opcional para comparar desviación
@@ -63,15 +66,16 @@ create table proyecto_ejecucion_items (
   updated_at timestamptz not null default now()
 );
 
-create index idx_ejecucion_proyecto on proyecto_ejecucion_items (proyecto_id, fecha);
-create index idx_ejecucion_presupuesto_item on proyecto_ejecucion_items (presupuesto_item_id);
+create index if not exists idx_ejecucion_proyecto on proyecto_ejecucion_items (proyecto_id, fecha);
+create index if not exists idx_ejecucion_presupuesto_item on proyecto_ejecucion_items (presupuesto_item_id);
 
+drop trigger if exists trg_ejecucion_updated_at on proyecto_ejecucion_items;
 create trigger trg_ejecucion_updated_at
   before update on proyecto_ejecucion_items
   for each row execute function extensions.moddatetime(updated_at);
 
 -- Hitos de cobro (esquema configurable, N hitos que suman 100%)
-create table hitos_cobro (
+create table if not exists hitos_cobro (
   id uuid primary key default gen_random_uuid(),
   proyecto_id uuid not null references proyectos (id) on delete cascade,
   orden int not null,
@@ -88,14 +92,15 @@ create table hitos_cobro (
   unique (proyecto_id, orden)
 );
 
-create index idx_hitos_proyecto on hitos_cobro (proyecto_id, orden);
+create index if not exists idx_hitos_proyecto on hitos_cobro (proyecto_id, orden);
 
+drop trigger if exists trg_hitos_updated_at on hitos_cobro;
 create trigger trg_hitos_updated_at
   before update on hitos_cobro
   for each row execute function extensions.moddatetime(updated_at);
 
 -- Los porcentajes de los hitos de un proyecto deben sumar 100% (validación diferida al final de la transacción)
-create function fn_validar_suma_hitos()
+create or replace function fn_validar_suma_hitos()
 returns trigger
 language plpgsql
 as $$
@@ -114,6 +119,7 @@ begin
 end;
 $$;
 
+drop trigger if exists trg_hitos_validar_suma on hitos_cobro;
 create constraint trigger trg_hitos_validar_suma
   after insert or update or delete on hitos_cobro
   deferrable initially deferred

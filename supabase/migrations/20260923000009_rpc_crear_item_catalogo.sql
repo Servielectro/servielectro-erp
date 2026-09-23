@@ -1,7 +1,8 @@
 -- Módulo 1: Proyectos — alta rápida de un ítem nuevo al catálogo desde el popup de la cotización.
 -- Inserta el ítem y su primer precio histórico en un solo paso.
+-- Idempotente: se puede correr más de una vez sin romper.
 
-create function fn_crear_item_catalogo(
+create or replace function fn_crear_item_catalogo(
   p_codigo text,
   p_descripcion text,
   p_unidad text,
