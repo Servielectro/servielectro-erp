@@ -157,10 +157,14 @@ export function formatCOP(valor: number): string {
   }).format(valor);
 }
 
+// No hay regla por categoría: en la práctica Jhojan fija el factor línea a línea
+// (0.85 es lo más frecuente, 0.88 para algunos ítems, 0.80 para otros de mano de
+// obra). 0.85 como default en las tres categorías es la mejor aproximación hasta
+// que aparezca una lógica — siempre editable por línea.
 export const FACTORES_RENTABILIDAD_DEFAULT: Record<Categoria, number> = {
   EQUIPO: 0.85,
-  MATERIAL: 0.88,
-  MANO_DE_OBRA: 0.8,
+  MATERIAL: 0.85,
+  MANO_DE_OBRA: 0.85,
 };
 
 export const UNIDADES_SUGERIDAS = ["UNI", "GL", "ML", "M2", "M3", "HR", "GLB"];

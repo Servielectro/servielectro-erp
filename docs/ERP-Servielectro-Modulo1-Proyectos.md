@@ -13,10 +13,12 @@ Diferencia clave frente al Excel actual: **el presupuesto (cotización aprobada)
 ## 2. Cadena de precios (3 niveles) — por línea de ítem
 
 1. **Compra con IVA**: costo unitario real de compra.
-2. **Venta** = Compra ÷ `factor_rentabilidad_linea` (0.85 / 0.88 / 0.80 según el ítem). Margen sobre venta.
+2. **Venta** = Compra ÷ `factor_rentabilidad_linea`. Margen sobre venta.
 3. **CALCULO** = Venta ÷ `factor_recargo_proyecto`. Es lo que ve el cliente en la cotización.
 
-`factor_recargo_proyecto` (ej. 0.8852934680 → +12.96%) se calcula a partir de los porcentajes de administración, renta e ICA del proyecto. **Ver Decisión abierta #1** — la fórmula exacta de este factor no está confirmada; se implementa como campo calculado con función marcada como pendiente de validar.
+**Actualización 2026-09-23:** `factor_rentabilidad_linea` **no sigue una regla por categoría** — Jhojan lo fija línea a línea a su criterio (0.85 es lo más frecuente en Tintalá, 0.88 para algunos ítems puntuales de EQUIPOS/MATERIALES, 0.80 para parte de MANO DE OBRA). El sistema usa **0.85 como default editable** en las tres categorías; no hay lógica automática de asignación todavía.
+
+`factor_recargo_proyecto` (ej. 0.8852934680 → +12.96%) se calcula a partir de los porcentajes de administración, renta e ICA del proyecto — ver **§13 Pendientes** para el estado de esa fórmula (todavía no confirmada, campo editable manualmente mientras tanto).
 
 ## 3. Sobre el subtotal (AIU)
 
@@ -95,4 +97,15 @@ Cotizaciones: `CSE-AA-NNN` (ej. CSE-26-151). Consecutivo automático por año.
 ## 12. Ver también
 
 - Modelo de datos y migraciones: `supabase/migrations/`
-- Decisiones abiertas: ver mensaje de la sesión / `docs/DECISIONES-ABIERTAS.md`
+
+## 13. Pendientes / decisiones abiertas
+
+**Fórmula de `factor_recargo_proyecto` (crítico).** Con Admin 14%, Renta 36%, ICA 12.05‰ (datos reales de Tintalá) se probaron ~20 fórmulas algebraicas a mano más una búsqueda automatizada por fuerza bruta sobre combinaciones lineales de esos tres porcentajes — ninguna reproduce 0.8852934680 de forma confiable. Con un solo proyecto de referencia el problema está subdeterminado: cualquier fórmula que "cuadre" es coincidencia numérica, no la real. Falta una de estas dos cosas para cerrarlo:
+1. El texto literal de la fórmula de esa celda en el Excel, o
+2. Los porcentajes + factor resultante de un **segundo proyecto real** (distinto de Tintalá).
+
+Mientras tanto, `factor_recargo_proyecto` es un campo numérico editable a mano por cotización (con `formula_recargo_nota` para anotar cómo se obtuvo cada vez).
+
+**Pantalla de clientes con NIT (pendiente de construir).** La cotización rápida solo pide el nombre del cliente (alta automática si no existe) — a propósito, por velocidad frente al cliente. Riesgo señalado por Jhojan: nombres como "Agrupación de Vivienda Tintalá" y sus variantes van a generar clientes duplicados. Hace falta una pantalla de administración de clientes que use **NIT como identificador**, y una limpieza posterior de duplicados. La tabla `clientes` ya tiene nit/contacto/telefono/email/direccion — falta la UI. Esos datos además son necesarios para poder imprimir la cotización (su formato real los incluye).
+
+**Importación del catálogo (860 ítems).** Falta el archivo real (hoja "CuadroItems") para escribir el importador contra las columnas exactas.
