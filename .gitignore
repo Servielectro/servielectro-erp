@@ -37,6 +37,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# archivos de origen del catálogo (datos de negocio, no van a git)
+/catalogo/*
+!/catalogo/README.md
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
