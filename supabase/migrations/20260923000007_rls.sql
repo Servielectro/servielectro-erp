@@ -3,6 +3,13 @@
 -- Servielectro es de uso interno con pocos usuarios. Por ahora: cualquier usuario autenticado
 -- tiene acceso completo (lectura/escritura). Si más adelante hay roles distintos (ej. solo
 -- lectura para contador), se refinan estas políticas por tabla (ver docs §13 - pendientes).
+--
+-- ADVERTENCIA DE SEGURIDAD (revisar antes de dar de alta un segundo usuario):
+-- esto le da acceso total a costos de compra, márgenes de línea, recargo de proyecto y
+-- utilidad neta de TODAS las obras a cualquiera que inicie sesión, sin distinción de rol.
+-- Aceptable con un solo usuario (Jhojan). En cuanto entre un comercial, técnico o cualquier
+-- persona que no deba ver esa información financiera interna, hay que refinar esto ANTES
+-- de crearle el usuario, no después.
 
 do $$
 declare
