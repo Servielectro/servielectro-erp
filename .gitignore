@@ -41,6 +41,9 @@ yarn-error.log*
 /catalogo/*
 !/catalogo/README.md
 
+# SQL generado con datos reales del catálogo (scripts/generar-sql-descripciones.mjs)
+/scripts/output/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

@@ -37,6 +37,13 @@ export default async function Home() {
           Ver cotizaciones
         </Link>
 
+        <Link
+          href="/catalogo"
+          className="block rounded-md border border-slate-300 px-4 py-3 text-center text-base font-medium text-slate-700"
+        >
+          Catálogo de ítems
+        </Link>
+
         <form action={logout}>
           <button
             type="submit"
