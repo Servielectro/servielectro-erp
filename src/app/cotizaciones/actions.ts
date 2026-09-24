@@ -87,6 +87,11 @@ export interface LineaGuardarInput {
   factorRentabilidadLinea: number;
 }
 
+export interface HitoGuardarInput {
+  nombre: string;
+  porcentaje: number;
+}
+
 export interface GuardarCotizacionInput {
   clienteNombre: string;
   clienteNit: string;
@@ -96,12 +101,13 @@ export interface GuardarCotizacionInput {
   descripcion: string;
   comercial: string;
   esquemaIva: "IVA_FULL" | "IVA_AIU";
-  factorRecargoProyecto: number;
   pctAdmin: number;
   pctImprevistos: number;
   pctUtilidadAiu: number;
-  ivaPct: number;
+  pctAdminGasto: number;
+  pctComision: number;
   lineas: LineaGuardarInput[];
+  hitos: HitoGuardarInput[];
 }
 
 export async function guardarCotizacion(
@@ -117,11 +123,11 @@ export async function guardarCotizacion(
     p_cliente_id: null,
     p_esquema_iva: input.esquemaIva,
     p_descripcion: input.descripcion,
-    p_factor_recargo_proyecto: input.factorRecargoProyecto,
     p_pct_admin: input.pctAdmin,
     p_pct_imprevistos: input.pctImprevistos,
     p_pct_utilidad_aiu: input.pctUtilidadAiu,
-    p_iva_pct: input.ivaPct,
+    p_pct_admin_gasto: input.pctAdminGasto,
+    p_pct_comision: input.pctComision,
     p_lineas: input.lineas.map((l) => ({
       categoria: l.categoria,
       item_catalogo_id: l.itemCatalogoId ?? "",
@@ -131,6 +137,13 @@ export async function guardarCotizacion(
       valor_compra_unitario: l.valorCompraUnitario,
       factor_rentabilidad_linea: l.factorRentabilidadLinea,
     })),
+    p_hitos:
+      input.hitos.length > 0
+        ? input.hitos.map((h) => ({
+            nombre: h.nombre,
+            porcentaje: h.porcentaje,
+          }))
+        : null,
     p_comercial: input.comercial || null,
     p_cliente_nit: input.clienteNit || null,
     p_cliente_direccion: input.clienteDireccion || null,

@@ -18,7 +18,13 @@ Diferencia clave frente al Excel actual: **el presupuesto (cotización aprobada)
 
 **Actualización 2026-09-23:** `factor_rentabilidad_linea` **no sigue una regla por categoría** — Jhojan lo fija línea a línea a su criterio (0.85 es lo más frecuente en Tintalá, 0.88 para algunos ítems puntuales de EQUIPOS/MATERIALES, 0.80 para parte de MANO DE OBRA). El sistema usa **0.85 como default editable** en las tres categorías; no hay lógica automática de asignación todavía.
 
-`factor_recargo_proyecto` (ej. 0.8852934680 → +12.96%) se calcula a partir de los porcentajes de administración, renta e ICA del proyecto — ver **§13 Pendientes** para el estado de esa fórmula (todavía no confirmada, campo editable manualmente mientras tanto).
+**Resuelto 2026-09-23:** `factor_recargo_proyecto` (ej. 0.8852934680 → +12.96%) ya no se escribe a mano — se calcula por **iteración de punto fijo** (`fn_calcular_factor_recargo` / `calcularFactorRecargo`):
+
+```
+factor = 1 − (Total Gastos internos ÷ Total del proyecto con IVA)
+```
+
+Es circular (el total depende del factor, el factor depende del total), así que se itera desde factor=1 hasta que converge (tolerancia 0.0000001, tope 30 vueltas — Tintalá converge en ~13). Verificado exacto contra Tintalá: ver §13.
 
 ## 3. Sobre el subtotal (AIU)
 
@@ -41,32 +47,36 @@ Subtotal CALCULO (suma de líneas)
 
 `tipo_contrato` sigue existiendo en la tabla como metadata descriptiva (para reportes futuros) pero **ya no determina el cálculo**. El sistema registra `iva_base_motivo` junto al cálculo, para auditoría.
 
-## 5. Gastos internos (se descuentan de la Utilidad, no cambian el precio al cliente)
+## 5. Gastos internos (no cambian el precio al cliente, son análisis interno)
 
-- Administración interna: 14%
-- Renta: 36%
-- ICA: 12.05 por mil
-- Comisión comercial: variable
+**Resuelto 2026-09-23** — cada uno sobre su base real, verificada exacta contra Tintalá (ver §13):
 
-Estos se restan de la capa de Utilidad (AIU) para mostrar la utilidad **neta** real del proyecto.
+- **Admin** (14%, editable por cotización) = 14% × **Compra total** (sí se suma de vuelta a la utilidad — es provisión para administración propia, no una salida real de caja).
+- **Renta** (36%, tasa fija de la empresa) = 36% × la utilidad que corresponda según el esquema: **utilidad del AIU** si `esquema_iva = IVA_AIU`, **utilidad total del bloque venta** (las 3 capas del AIU combinadas) si `esquema_iva = IVA_FULL` (este segundo caso sigue el mismo patrón de nombres pero no está verificado con un ejemplo real todavía).
+- **ICA** (12.05 por mil, tasa fija) = 12.05‰ × Subtotal general del **bloque Venta** (venta + AIU sobre venta, sin el recargo de proyecto).
+- **Comisión comercial** (variable, editable por cotización) = % × Total del proyecto con IVA. **Sin verificar** — en Tintalá siempre fue 0%, no hay ejemplo real con comisión distinta de cero.
 
-## 6. Las 5 capas de utilidad
+## 6. Las 5 capas de utilidad + utilidad real del proyecto
 
 1. Margen de línea (Venta − Compra, sumado)
 2. Recargo de proyecto (CALCULO − Venta, sumado)
 3. Administración (5% del subtotal)
 4. Imprevistos (6% del subtotal)
-5. Utilidad AIU (5% del subtotal) → menos gastos internos (admin 14%, renta 36%, ICA, comisión) = utilidad neta
+5. Utilidad AIU (5% del subtotal)
 
-Pantalla dedicada: mostrar aporte de cada capa al total, y comparar % bruto visible (capa 1 sola) vs. % neto real (todas las capas).
+**Utilidad Total** (resuelto 2026-09-23, distinto de sumar las 5 capas): `(Subtotal general del bloque Venta − Compra total) + Admin del gasto`. El Admin se suma de vuelta porque no sale de caja. Verificado exacto contra Tintalá. Se muestra junto con **Impuestos a transferir** (Renta + ICA + IVA) como referencia de cuánto hay que girarle al Estado.
+
+Vista en pantalla: dentro del detalle de la cotización (`v_capas_utilidad`), no en una pantalla separada.
 
 ## 7. Esquemas de cobro
+
+**Actualización 2026-09-23:** se arman **en la cotización**, no después en el proyecto — Jhojan necesita verlos y editarlos en la misma visita. `hitos_cobro` se repuntó de `proyecto_id` a `cotizacion_id`.
 
 N hitos configurables que suman 100% del contrato. Ejemplos reales:
 - Anticipo 50% + Pago final 50%
 - Anticipo 50% + Corte 1 (20%) + Corte 2 (30%) + Entrega
 
-Cada hito: nombre, porcentaje, valor programado, estado (pendiente/facturado/cobrado), fechas.
+Cada hito: nombre, porcentaje, valor programado (calculado sobre el total de la cotización), estado (pendiente/facturado/cobrado), fechas.
 
 ## 8. Presupuesto vs. Ejecución
 
@@ -100,15 +110,24 @@ Cotizaciones: `CSE-AA-NNN` (ej. CSE-26-151). Consecutivo automático por año.
 
 ## 13. Pendientes / decisiones abiertas
 
-**Fórmula de `factor_recargo_proyecto` (crítico).** Con Admin 14%, Renta 36%, ICA 12.05‰ (datos reales de Tintalá) se probaron ~20 fórmulas algebraicas a mano más una búsqueda automatizada por fuerza bruta sobre combinaciones lineales de esos tres porcentajes — ninguna reproduce 0.8852934680 de forma confiable. Con un solo proyecto de referencia el problema está subdeterminado: cualquier fórmula que "cuadre" es coincidencia numérica, no la real.
+**✅ RESUELTO 2026-09-23 — Fórmula de `factor_recargo_proyecto` y bases de los gastos internos.** Jhojan mandó la captura de la hoja real de Tintalá con todos los valores intermedios (bloques CALCULO y VENTA, gastos desglosados en Admin/Renta/ICA por separado). Se verificaron las 6 fórmulas contra esos números — **coinciden exactas, al peso**:
 
-**Intento 2026-09-23 (segunda vuelta):** con `utilidad_aiu = $725.547` y asumiendo AIU estándar 5/6/5, se deriva `subtotal_calculo ≈ $14.510.940` y, usando el factor real (0.8852934680), `subtotal_venta ≈ $12.846.440`. Eso da un "recargo" (Calculo − Venta) de **≈$1.664.500**. Comparado contra los gastos reales de Tintalá (**$1.946.631** = admin+renta+ICA), la hipótesis "el recargo se calcula para financiar exactamente esos gastos" queda cerca pero no exacta (diferencia de ~$282.000, 14.5%) — probablemente porque `subtotal_calculo` se derivó asumiendo AIU 5/6/5 en vez de tomarlo del dato real, y/o porque comisión comercial (variable, no incluida en los $1.946.631 dados) también entra en la cuenta. No se puede cerrar sin más precisión. Falta una de estas dos cosas:
-1. El texto literal de la fórmula de esa celda en el Excel, o
-2. El desglose exacto de subtotal_venta y subtotal_calculo reales de Tintalá (no derivados/asumidos) + cuánto de los $1.946.631 es específicamente Admin, cuánto Renta y cuánto ICA (tres números separados, no el total).
+| Cálculo | Fórmula | Verificado |
+|---|---|---|
+| Admin (gasto) | 14% × Compra total | $1.535.828 exacto |
+| Renta | 36% × utilidad AIU del bloque Venta (esquema AIU) | $231.236 exacto |
+| ICA | 12,05‰ × Subtotal general del bloque Venta | $179.567 exacto |
+| Utilidad Total | (Subtotal gral. Venta − Compra total) + Admin del gasto | $5.467.491 exacto |
+| Impuestos a transferir | Renta + ICA + IVA | $548.657 exacto |
+| Factor de recargo | 1 − (Total Gastos ÷ Total con IVA), iterativo | 0.8852934706 (real: 0.8852934680) |
 
-Mientras tanto, `factor_recargo_proyecto` es un campo numérico editable a mano por cotización (con `formula_recargo_nota` para anotar cómo se obtuvo cada vez).
+Implementado en `fn_calcular_factor_recargo` (SQL, migración `20260923000012`) y `calcularFactorRecargo` (TypeScript, `src/lib/pricing.ts`) — reproducido con un script y confirmado idéntico a mano antes de tocar el código. `v_capas_utilidad` corregida en la misma migración con las bases reales, reemplazando los `null` de la migración `20260923000010`.
 
-**Deducciones internas (`v_capas_utilidad`) — implementación anterior matemáticamente imposible, corregida en `20260923000010`.** El diseño original deducía admin/renta/ICA de `utilidad_aiu` únicamente. Con los datos reales de Tintalá eso es imposible: admin(14%)+renta(36%)+ICA(12.05‰) = 51.205% combinado, que sobre `utilidad_aiu` ($725.547) da un máximo de **$371.516** — pero los gastos reales son **$1.946.631** (2.68 veces más). La vista ahora deja esos campos en `null` con una nota explícita en vez de mostrar una "utilidad neta" que se sabe falsa. Dato de contexto a favor de que la base correcta es más amplia: si se deducen esos $1.946.631 del total de las 5 capas combinadas (no solo de la capa 5), la utilidad neta resultante ronda 23-24% sobre el subtotal general — coherente con el "gana 23.3% neto" que Jhojan mencionó al principio. Para implementarlo bien falta el mismo desglose que el punto anterior: cuánto de esos $1.946.631 es Admin, cuánto Renta, cuánto ICA, y sobre qué base exacta se calcula cada uno (ICA en Colombia normalmente es sobre ingresos brutos, no sobre utilidad — eso ya es un indicio fuerte, pero no alcanza para los otros dos).
+**Sin verificar todavía (no bloquea, son casos que no aparecieron en Tintalá):**
+- **Base de Renta con `esquema_iva = IVA_FULL`.** Se implementó siguiendo el mismo patrón de nombres que el caso AIU (utilidad total del bloque Venta = las 3 capas del AIU combinadas, en vez de solo la utilidad), pero Tintalá es esquema AIU — no hay un ejemplo real con IVA_FULL para confirmarlo.
+- **Base de la Comisión comercial.** Siempre fue 0% en Tintalá. Se asumió % × Total del proyecto con IVA (convención habitual de comisión sobre venta), sin poder verificarla contra un número real.
+
+Si aparece un proyecto real con IVA_FULL o con comisión distinta de cero, vale la pena revisar estos dos contra los números reales antes de confiar en ellos para un caso así.
 
 **RLS demasiado permisiva (riesgo de seguridad, revisar antes del segundo usuario).** La migración `20260923000007_rls.sql` le da acceso total (lectura y escritura) a **cualquier usuario autenticado**, sin distinción de rol. Es una decisión consciente para arrancar con un solo usuario (Jhojan), pero significa literalmente que **cualquiera que entre a la cuenta ve los costos de compra, los márgenes de línea, el recargo de proyecto y la rentabilidad neta de todas las obras** — no solo el precio final que ve el cliente. Si en algún momento entra un comercial, un técnico o cualquier persona que no deba ver esa información financiera interna, hay que refinar las políticas de RLS **antes** de darle acceso, no después. Candidatos obvios para diferenciar: separar "ver precio CALCULO/cotización" de "ver compra/venta/márgenes/capas de utilidad", y mover ese segundo grupo a políticas restringidas a un rol admin.
 

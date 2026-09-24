@@ -150,6 +150,28 @@ export default async function ImprimirCotizacionPage(
             </div>
           </section>
         )}
+
+        {cotizacion.hitos.length > 0 && (
+          <section className="mt-6">
+            <h2 className="mb-1 text-sm font-bold uppercase text-slate-700">
+              Esquema de pagos
+            </h2>
+            <table className="w-full max-w-sm border-collapse text-sm">
+              <tbody>
+                {cotizacion.hitos.map((h) => (
+                  <tr key={h.id} className="border-b border-slate-100">
+                    <td className="py-1">
+                      {h.nombre} ({(h.porcentaje * 100).toFixed(0)}%)
+                    </td>
+                    <td className="py-1 text-right font-medium">
+                      {formatCOP(h.valorProgramado)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )}
       </div>
     </div>
   );

@@ -120,6 +120,47 @@ export default async function CotizacionDetallePage(
             </div>
           </section>
         )}
+
+        {cotizacion.hitos.length > 0 && (
+          <section>
+            <h2 className="mb-2 text-sm font-semibold text-slate-700">
+              Esquema de pagos
+            </h2>
+            <div className="space-y-2">
+              {cotizacion.hitos.map((h) => (
+                <div
+                  key={h.id}
+                  className="flex justify-between rounded-lg border border-slate-200 bg-white p-3"
+                >
+                  <span className="text-sm text-slate-900">
+                    {h.nombre} ({(h.porcentaje * 100).toFixed(0)}%)
+                  </span>
+                  <span className="text-sm font-semibold text-slate-900">
+                    {formatCOP(h.valorProgramado)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {cotizacion.capas && (
+          <section className="space-y-1 rounded-lg border border-green-200 bg-green-50 p-4 text-sm">
+            <h2 className="mb-1 text-sm font-semibold text-green-800">
+              Utilidad real del proyecto
+            </h2>
+            <FilaTotal label="Gasto admin" valor={cotizacion.capas.gastoAdmin} />
+            <FilaTotal label="Gasto renta" valor={cotizacion.capas.gastoRenta} />
+            <FilaTotal label="Gasto ICA" valor={cotizacion.capas.gastoIca} />
+            <div className="flex justify-between border-t border-green-200 pt-1 font-semibold text-green-800">
+              <span>Utilidad total</span>
+              <span>
+                {formatCOP(cotizacion.capas.utilidadTotal)} (
+                {cotizacion.capas.pctUtilidadTotal.toFixed(1)}%)
+              </span>
+            </div>
+          </section>
+        )}
       </main>
     </div>
   );

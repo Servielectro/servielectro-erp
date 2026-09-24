@@ -28,6 +28,30 @@ const DRAFT_KEY = "se-erp:cotizacion-draft:v1";
 
 type LineaUI = LineaCotizacion;
 
+interface HitoUI {
+  id: string;
+  nombre: string;
+  porcentaje: number; // 0-100 para la UI
+}
+
+const PLANTILLAS_PAGO: { label: string; hitos: Omit<HitoUI, "id">[] }[] = [
+  {
+    label: "Anticipo 50 / Final 50",
+    hitos: [
+      { nombre: "Anticipo", porcentaje: 50 },
+      { nombre: "Pago final", porcentaje: 50 },
+    ],
+  },
+  {
+    label: "Anticipo 50 / Corte 20 / Corte 30",
+    hitos: [
+      { nombre: "Anticipo", porcentaje: 50 },
+      { nombre: "Primer corte", porcentaje: 20 },
+      { nombre: "Segundo corte", porcentaje: 30 },
+    ],
+  },
+];
+
 export interface DatosIniciales {
   clienteNombre: string;
   clienteNit: string;
@@ -39,6 +63,7 @@ export interface DatosIniciales {
   esquemaIva: EsquemaIva;
   config: Omit<ConfigPrecio, "esquemaIva">;
   lineas: Omit<LineaUI, "id">[];
+  hitos: Omit<HitoUI, "id">[];
 }
 
 interface Draft {
@@ -51,6 +76,7 @@ interface Draft {
   comercial: string;
   config: ConfigPrecio;
   lineas: LineaUI[];
+  hitos: HitoUI[];
   guardadoEn: string;
 }
 
@@ -103,8 +129,16 @@ export function CotizacionBuilder({
       datosIniciales?.lineas.map((l) => ({ ...l, id: crypto.randomUUID() })) ??
       [],
   );
+  const [hitos, setHitos] = useState<HitoUI[]>(
+    () =>
+      datosIniciales?.hitos.map((h) => ({ ...h, id: crypto.randomUUID() })) ??
+      [],
+  );
   const [activeTab, setActiveTab] = useState<Categoria>("EQUIPO");
   const [avanzadoAbierto, setAvanzadoAbierto] = useState(false);
+  const [pagosAbierto, setPagosAbierto] = useState(
+    Boolean(datosIniciales?.hitos.length),
+  );
   const [datosClienteAbierto, setDatosClienteAbierto] = useState(
     Boolean(
       datosIniciales?.comercial ||
@@ -150,6 +184,7 @@ export function CotizacionBuilder({
         setConfig(draft.config ?? CONFIG_PRECIO_DEFAULT);
         setEsquemaIva(draft.config?.esquemaIva ?? "IVA_FULL");
         setLineas(draft.lineas);
+        setHitos(draft.hitos ?? []);
         setRestaurado(true);
       }
     } catch {
@@ -178,6 +213,7 @@ export function CotizacionBuilder({
         descripcion,
         config: configConEsquema,
         lineas,
+        hitos,
         guardadoEn: new Date().toISOString(),
       };
       window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
@@ -194,12 +230,15 @@ export function CotizacionBuilder({
     descripcion,
     configConEsquema,
     lineas,
+    hitos,
   ]);
 
   const totales = useMemo(
     () => calcularTotales(lineas, configConEsquema),
     [lineas, configConEsquema],
   );
+
+  const sumaHitos = hitos.reduce((acc, h) => acc + h.porcentaje, 0);
 
   function actualizarLinea(id: string, cambios: Partial<LineaUI>) {
     setLineas((prev) =>
@@ -221,6 +260,18 @@ export function CotizacionBuilder({
     });
   }
 
+  function aplicarPlantillaPago(hitosBase: Omit<HitoUI, "id">[]) {
+    setHitos(hitosBase.map((h) => ({ ...h, id: crypto.randomUUID() })));
+  }
+
+  function actualizarHito(id: string, cambios: Partial<HitoUI>) {
+    setHitos((prev) => prev.map((h) => (h.id === id ? { ...h, ...cambios } : h)));
+  }
+
+  function eliminarHito(id: string) {
+    setHitos((prev) => prev.filter((h) => h.id !== id));
+  }
+
   function empezarDeCero() {
     if (
       !window.confirm(
@@ -238,6 +289,7 @@ export function CotizacionBuilder({
     setConfig(CONFIG_PRECIO_DEFAULT);
     setEsquemaIva("IVA_FULL");
     setLineas([]);
+    setHitos([]);
     setGuardadoOk(null);
     setError(null);
     try {
@@ -263,8 +315,20 @@ export function CotizacionBuilder({
       );
       return;
     }
+    if (hitos.length > 0 && Math.round(sumaHitos) !== 100) {
+      setError(
+        `El esquema de pagos suma ${sumaHitos.toFixed(0)}%, tiene que sumar 100%`,
+      );
+      return;
+    }
 
     setGuardando(true);
+    // Si no se armó un esquema de pagos, se guarda como pago único (100%) por defecto.
+    const hitosAGuardar =
+      hitos.length > 0
+        ? hitos.map((h) => ({ nombre: h.nombre, porcentaje: h.porcentaje / 100 }))
+        : [{ nombre: "Pago único", porcentaje: 1 }];
+
     const res = await guardarCotizacion({
       clienteNombre: clienteNombre.trim(),
       clienteNit: clienteNit.trim(),
@@ -274,11 +338,11 @@ export function CotizacionBuilder({
       comercial: comercial.trim(),
       descripcion: descripcion.trim() || clienteNombre.trim(),
       esquemaIva,
-      factorRecargoProyecto: config.factorRecargoProyecto,
       pctAdmin: config.pctAdmin,
       pctImprevistos: config.pctImprevistos,
       pctUtilidadAiu: config.pctUtilidadAiu,
-      ivaPct: config.ivaPct,
+      pctAdminGasto: config.pctAdminGasto,
+      pctComision: config.pctComision,
       lineas: lineas.map((l) => ({
         categoria: l.categoria,
         itemCatalogoId: l.itemCatalogoId,
@@ -288,6 +352,7 @@ export function CotizacionBuilder({
         valorCompraUnitario: l.valorCompraUnitario,
         factorRentabilidadLinea: l.factorRentabilidadLinea,
       })),
+      hitos: hitosAGuardar,
     });
     setGuardando(false);
 
@@ -382,11 +447,89 @@ export function CotizacionBuilder({
 
         <button
           type="button"
-          onClick={() => setAvanzadoAbierto((v) => !v)}
+          onClick={() => setPagosAbierto((v) => !v)}
           className="text-sm font-medium text-slate-500"
         >
-          {avanzadoAbierto ? "▾" : "▸"} Configuración avanzada (AIU / recargo)
+          {pagosAbierto ? "▾" : "▸"} Esquema de pagos
+          {hitos.length > 0 && ` (${hitos.length})`}
         </button>
+
+        {pagosAbierto && (
+          <div className="space-y-2 rounded-md bg-slate-100 p-3">
+            <div className="flex flex-wrap gap-2">
+              {PLANTILLAS_PAGO.map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => aplicarPlantillaPago(p.hitos)}
+                  className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {hitos.map((h) => (
+              <div key={h.id} className="flex items-center gap-2">
+                <input
+                  value={h.nombre}
+                  onChange={(e) =>
+                    actualizarHito(h.id, { nombre: e.target.value })
+                  }
+                  placeholder="Nombre del hito"
+                  className="flex-1 rounded-md border border-slate-300 px-2 py-2 text-sm"
+                />
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={h.porcentaje}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) =>
+                    actualizarHito(h.id, {
+                      porcentaje: Number(e.target.value) || 0,
+                    })
+                  }
+                  className="w-16 rounded-md border border-slate-300 px-2 py-2 text-sm"
+                />
+                <span className="w-24 shrink-0 text-right text-xs text-slate-500">
+                  {formatCOP((h.porcentaje / 100) * totales.total)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => eliminarHito(h.id)}
+                  className="shrink-0 text-sm text-red-600"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={() =>
+                setHitos((prev) => [
+                  ...prev,
+                  { id: crypto.randomUUID(), nombre: "", porcentaje: 0 },
+                ])
+              }
+              className="w-full rounded-md border border-dashed border-slate-300 py-2 text-sm text-slate-500"
+            >
+              + Agregar hito
+            </button>
+
+            {hitos.length > 0 && (
+              <p
+                className={`text-right text-xs font-medium ${
+                  Math.round(sumaHitos) === 100
+                    ? "text-green-600"
+                    : "text-amber-600"
+                }`}
+              >
+                Suma: {sumaHitos.toFixed(0)}%
+              </p>
+            )}
+          </div>
+        )}
 
         <button
           type="button"
@@ -434,40 +577,55 @@ export function CotizacionBuilder({
           </div>
         )}
 
+        <button
+          type="button"
+          onClick={() => setAvanzadoAbierto((v) => !v)}
+          className="text-sm font-medium text-slate-500"
+        >
+          {avanzadoAbierto ? "▾" : "▸"} Configuración avanzada (AIU / gastos)
+        </button>
+
         {avanzadoAbierto && (
-          <div className="grid grid-cols-2 gap-2 rounded-md bg-slate-100 p-3 text-sm">
-            <CampoPct
-              label="Recargo proyecto (factor)"
-              value={config.factorRecargoProyecto}
-              onChange={(v) =>
-                setConfig((c) => ({ ...c, factorRecargoProyecto: v }))
-              }
-              step={0.0001}
-            />
-            <CampoPct
-              label="IVA %"
-              value={config.ivaPct}
-              onChange={(v) => setConfig((c) => ({ ...c, ivaPct: v }))}
-            />
-            <CampoPct
-              label="Admin %"
-              value={config.pctAdmin}
-              onChange={(v) => setConfig((c) => ({ ...c, pctAdmin: v }))}
-            />
-            <CampoPct
-              label="Imprevistos %"
-              value={config.pctImprevistos}
-              onChange={(v) =>
-                setConfig((c) => ({ ...c, pctImprevistos: v }))
-              }
-            />
-            <CampoPct
-              label="Utilidad AIU %"
-              value={config.pctUtilidadAiu}
-              onChange={(v) =>
-                setConfig((c) => ({ ...c, pctUtilidadAiu: v }))
-              }
-            />
+          <div className="space-y-2 rounded-md bg-slate-100 p-3 text-sm">
+            <div className="grid grid-cols-2 gap-2">
+              <CampoPct
+                label="Admin AIU %"
+                value={config.pctAdmin}
+                onChange={(v) => setConfig((c) => ({ ...c, pctAdmin: v }))}
+              />
+              <CampoPct
+                label="Imprevistos %"
+                value={config.pctImprevistos}
+                onChange={(v) =>
+                  setConfig((c) => ({ ...c, pctImprevistos: v }))
+                }
+              />
+              <CampoPct
+                label="Utilidad AIU %"
+                value={config.pctUtilidadAiu}
+                onChange={(v) =>
+                  setConfig((c) => ({ ...c, pctUtilidadAiu: v }))
+                }
+              />
+              <CampoPct
+                label="Admin de gastos %"
+                value={config.pctAdminGasto}
+                onChange={(v) =>
+                  setConfig((c) => ({ ...c, pctAdminGasto: v }))
+                }
+              />
+              <CampoPct
+                label="Comisión comercial %"
+                value={config.pctComision}
+                onChange={(v) => setConfig((c) => ({ ...c, pctComision: v }))}
+              />
+            </div>
+            <p className="text-xs text-slate-400">
+              Tasas fijas de la empresa (no se modifican por cotización):
+              Renta {(config.pctRenta * 100).toFixed(0)}% · ICA{" "}
+              {config.icaPorMil} por mil · IVA{" "}
+              {(config.ivaPct * 100).toFixed(0)}%
+            </p>
           </div>
         )}
       </header>
@@ -616,7 +774,7 @@ export function CotizacionBuilder({
 
       <footer className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
         {detalleAbierto && (
-          <div className="space-y-1 border-b border-slate-100 p-4 text-sm">
+          <div className="max-h-[60vh] space-y-1 overflow-y-auto border-b border-slate-100 p-4 text-sm">
             <FilaTotal label="Subtotal compra" valor={totales.subtotalCompra} />
             <FilaTotal label="Subtotal venta" valor={totales.subtotalVenta} />
             <FilaTotal
@@ -635,8 +793,36 @@ export function CotizacionBuilder({
               destacado
             />
             <p className="pt-1 text-xs text-slate-400">
-              Base IVA: {totales.ivaBaseMotivo}
+              Base IVA: {totales.ivaBaseMotivo} · Factor recargo:{" "}
+              {totales.factorRecargoProyecto.toFixed(6)}
             </p>
+
+            <div className="mt-3 border-t border-slate-200 pt-2">
+              <p className="mb-1 text-xs font-semibold uppercase text-slate-500">
+                Gastos internos y utilidad real
+              </p>
+              <FilaTotal label="Admin (14% compra)" valor={totales.gastoAdmin} />
+              <FilaTotal label="Renta" valor={totales.gastoRenta} />
+              <FilaTotal label="ICA" valor={totales.gastoIca} />
+              {config.pctComision > 0 && (
+                <FilaTotal label="Comisión comercial" valor={totales.gastoComision} />
+              )}
+              <FilaTotal
+                label="Total gastos"
+                valor={totales.totalGastos}
+                destacado
+              />
+              <div className="mt-1 flex justify-between font-semibold text-green-700">
+                <span>Utilidad total</span>
+                <span>
+                  {formatCOP(totales.utilidadTotal)} (
+                  {totales.pctUtilidadTotal.toFixed(1)}%)
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-slate-400">
+                Impuestos a transferir: {formatCOP(totales.impuestosATransferir)}
+              </p>
+            </div>
           </div>
         )}
 

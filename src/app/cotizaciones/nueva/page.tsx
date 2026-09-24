@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCatalogoActivo, type CatalogoItem } from "@/lib/supabase/catalogo";
 import { getCotizacionDetalle } from "@/lib/supabase/cotizaciones";
+import { CONFIG_PRECIO_DEFAULT } from "@/lib/pricing";
 import { CotizacionBuilder, type DatosIniciales } from "./CotizacionBuilder";
 
 export default async function NuevaCotizacionPage(
@@ -34,10 +35,13 @@ export default async function NuevaCotizacionPage(
           comercial: original.comercial ?? "",
           esquemaIva: original.esquemaIva,
           config: {
-            factorRecargoProyecto: original.factorRecargoProyecto,
             pctAdmin: original.pctAdmin,
             pctImprevistos: original.pctImprevistos,
             pctUtilidadAiu: original.pctUtilidadAiu,
+            pctAdminGasto: original.pctAdminGasto,
+            pctComision: original.pctComision,
+            pctRenta: CONFIG_PRECIO_DEFAULT.pctRenta,
+            icaPorMil: CONFIG_PRECIO_DEFAULT.icaPorMil,
             ivaPct: original.ivaPct,
           },
           lineas: original.items.map((it) => ({
@@ -48,6 +52,10 @@ export default async function NuevaCotizacionPage(
             cantidad: it.cantidad,
             valorCompraUnitario: it.valorCompraUnitario,
             factorRentabilidadLinea: it.factorRentabilidadLinea,
+          })),
+          hitos: original.hitos.map((h) => ({
+            nombre: h.nombre,
+            porcentaje: Math.round(h.porcentaje * 100),
           })),
         };
       }

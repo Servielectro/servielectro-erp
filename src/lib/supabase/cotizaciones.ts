@@ -51,6 +51,15 @@ export interface CotizacionItemDetalle {
   valorCalculoUnitario: number;
 }
 
+export interface HitoDetalle {
+  id: string;
+  orden: number;
+  nombre: string;
+  porcentaje: number;
+  valorProgramado: number;
+  estado: string;
+}
+
 export interface CotizacionDetalle {
   id: string;
   codigo: string;
@@ -62,8 +71,11 @@ export interface CotizacionDetalle {
   pctAdmin: number;
   pctImprevistos: number;
   pctUtilidadAiu: number;
+  pctAdminGasto: number;
+  pctComision: number;
   ivaPct: number;
   fechaEmision: string;
+  hitos: HitoDetalle[];
   cliente: {
     id: string;
     nombre: string;
@@ -86,6 +98,16 @@ export interface CotizacionDetalle {
     valorIva: number;
     totalCotizacion: number;
   } | null;
+  capas: {
+    gastoAdmin: number;
+    gastoRenta: number;
+    gastoIca: number;
+    gastoComision: number;
+    totalGastos: number;
+    utilidadTotal: number;
+    pctUtilidadTotal: number;
+    impuestosATransferir: number;
+  } | null;
 }
 
 export async function getCotizacionDetalle(
@@ -96,7 +118,7 @@ export async function getCotizacionDetalle(
   const { data: cotizacion, error } = await supabase
     .from("cotizaciones")
     .select(
-      "id, codigo, descripcion, estado, esquema_iva, comercial, factor_recargo_proyecto, pct_admin, pct_imprevistos, pct_utilidad_aiu, iva_pct, fecha_emision, clientes(id, nombre, nit, direccion, email, contacto, telefono)",
+      "id, codigo, descripcion, estado, esquema_iva, comercial, factor_recargo_proyecto, pct_admin, pct_imprevistos, pct_utilidad_aiu, pct_admin_gasto_interno, pct_comision_comercial, iva_pct, fecha_emision, clientes(id, nombre, nit, direccion, email, contacto, telefono)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -114,10 +136,24 @@ export async function getCotizacionDetalle(
 
   if (errorItems) throw errorItems;
 
+  const { data: hitos } = await supabase
+    .from("v_hitos_cotizacion")
+    .select("id, orden, nombre, porcentaje, valor_programado, estado")
+    .eq("cotizacion_id", id)
+    .order("orden");
+
   const { data: totales } = await supabase
     .from("v_cotizacion_totales_iva")
     .select(
       "subtotal_compra, subtotal_venta, subtotal_calculo, valor_admin, valor_imprevistos, valor_utilidad_aiu, subtotal_general, iva_base_motivo, valor_iva, total_cotizacion",
+    )
+    .eq("cotizacion_id", id)
+    .maybeSingle();
+
+  const { data: capas } = await supabase
+    .from("v_capas_utilidad")
+    .select(
+      "gasto_admin, gasto_renta, gasto_ica, gasto_comision, total_gastos, utilidad_total, pct_utilidad_total, impuestos_a_transferir",
     )
     .eq("cotizacion_id", id)
     .maybeSingle();
@@ -137,8 +173,18 @@ export async function getCotizacionDetalle(
     pctAdmin: Number(cotizacion.pct_admin),
     pctImprevistos: Number(cotizacion.pct_imprevistos),
     pctUtilidadAiu: Number(cotizacion.pct_utilidad_aiu),
+    pctAdminGasto: Number(cotizacion.pct_admin_gasto_interno),
+    pctComision: Number(cotizacion.pct_comision_comercial),
     ivaPct: Number(cotizacion.iva_pct),
     fechaEmision: cotizacion.fecha_emision,
+    hitos: (hitos ?? []).map((h) => ({
+      id: h.id,
+      orden: h.orden,
+      nombre: h.nombre,
+      porcentaje: Number(h.porcentaje),
+      valorProgramado: Number(h.valor_programado),
+      estado: h.estado,
+    })),
     cliente: {
       id: cliente.id,
       nombre: cliente.nombre,
@@ -171,6 +217,18 @@ export async function getCotizacionDetalle(
           ivaBaseMotivo: totales.iva_base_motivo,
           valorIva: Number(totales.valor_iva),
           totalCotizacion: Number(totales.total_cotizacion),
+        }
+      : null,
+    capas: capas
+      ? {
+          gastoAdmin: Number(capas.gasto_admin),
+          gastoRenta: Number(capas.gasto_renta),
+          gastoIca: Number(capas.gasto_ica),
+          gastoComision: Number(capas.gasto_comision),
+          totalGastos: Number(capas.total_gastos),
+          utilidadTotal: Number(capas.utilidad_total),
+          pctUtilidadTotal: Number(capas.pct_utilidad_total),
+          impuestosATransferir: Number(capas.impuestos_a_transferir),
         }
       : null,
   };
