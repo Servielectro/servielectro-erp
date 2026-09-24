@@ -14,6 +14,7 @@ import {
 import type { CatalogoItem } from "@/lib/supabase/catalogo";
 import { ItemCombobox } from "@/components/cotizacion/ItemCombobox";
 import { NuevoItemModal } from "@/components/cotizacion/NuevoItemModal";
+import { RutUploader } from "@/components/cotizacion/RutUploader";
 import { guardarCotizacion } from "@/app/cotizaciones/actions";
 
 const CATEGORIAS: { key: Categoria; label: string }[] = [
@@ -104,6 +105,11 @@ export function CotizacionBuilder({
   const [clienteNombre, setClienteNombre] = useState(
     datosIniciales?.clienteNombre ?? "",
   );
+  // Se resuelve al confirmar un RUT (fn_buscar_o_crear_cliente ya devuelve un id real).
+  // Si el nombre se edita después, se limpia — ya no se puede confiar en que siga
+  // siendo el mismo cliente que resolvió el RUT.
+  const [clienteId, setClienteId] = useState<string | null>(null);
+  const [rutModalAbierto, setRutModalAbierto] = useState(false);
   const [clienteNit, setClienteNit] = useState(datosIniciales?.clienteNit ?? "");
   const [clienteDireccion, setClienteDireccion] = useState(
     datosIniciales?.clienteDireccion ?? "",
@@ -330,6 +336,7 @@ export function CotizacionBuilder({
         : [{ nombre: "Pago único", porcentaje: 1 }];
 
     const res = await guardarCotizacion({
+      clienteId,
       clienteNombre: clienteNombre.trim(),
       clienteNit: clienteNit.trim(),
       clienteDireccion: clienteDireccion.trim(),
@@ -433,7 +440,10 @@ export function CotizacionBuilder({
         <div className="grid grid-cols-2 gap-2">
           <input
             value={clienteNombre}
-            onChange={(e) => setClienteNombre(e.target.value)}
+            onChange={(e) => {
+              setClienteNombre(e.target.value);
+              if (clienteId) setClienteId(null);
+            }}
             placeholder="Cliente *"
             className="rounded-md border border-slate-300 px-3 py-2.5 text-base"
           />
@@ -542,6 +552,18 @@ export function CotizacionBuilder({
 
         {datosClienteAbierto && (
           <div className="space-y-2 rounded-md bg-slate-100 p-3 text-sm">
+            <button
+              type="button"
+              onClick={() => setRutModalAbierto(true)}
+              className="w-full rounded-md border border-dashed border-slate-400 bg-white/70 px-3 py-2 text-sm font-medium text-slate-700"
+            >
+              📄 Cargar RUT del cliente (autocompleta estos campos)
+            </button>
+            {clienteId && (
+              <p className="text-xs text-green-700">
+                ✓ Datos confirmados desde el RUT — cliente vinculado.
+              </p>
+            )}
             <input
               value={comercial}
               onChange={(e) => setComercial(e.target.value)}
@@ -864,6 +886,22 @@ export function CotizacionBuilder({
             setCatalogo((prev) => [...prev, item]);
             seleccionarItem(modal.lineaId, item);
             setModal(null);
+          }}
+        />
+      )}
+
+      {rutModalAbierto && (
+        <RutUploader
+          clienteNombre={clienteNombre}
+          onCerrar={() => setRutModalAbierto(false)}
+          onConfirmado={(idCliente, campos) => {
+            setClienteId(idCliente);
+            if (campos.razonSocial) setClienteNombre(campos.razonSocial);
+            setClienteNit(campos.nit ? `${campos.nit}-${campos.dv}` : "");
+            setClienteDireccion(campos.direccion);
+            setClienteEmail(campos.correo);
+            setClienteContacto(campos.telefono);
+            setRutModalAbierto(false);
           }}
         />
       )}

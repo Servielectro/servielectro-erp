@@ -93,6 +93,7 @@ export interface HitoGuardarInput {
 }
 
 export interface GuardarCotizacionInput {
+  clienteId: string | null;
   clienteNombre: string;
   clienteNit: string;
   clienteDireccion: string;
@@ -120,7 +121,7 @@ export async function guardarCotizacion(
 
   const { data, error } = await supabase.rpc("fn_guardar_cotizacion_completa", {
     p_cliente_nombre: input.clienteNombre,
-    p_cliente_id: null,
+    p_cliente_id: input.clienteId,
     p_esquema_iva: input.esquemaIva,
     p_descripcion: input.descripcion,
     p_pct_admin: input.pctAdmin,

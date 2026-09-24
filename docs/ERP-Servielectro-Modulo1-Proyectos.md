@@ -131,6 +131,33 @@ Si aparece un proyecto real con IVA_FULL o con comisión distinta de cero, vale 
 
 **RLS demasiado permisiva (riesgo de seguridad, revisar antes del segundo usuario).** La migración `20260923000007_rls.sql` le da acceso total (lectura y escritura) a **cualquier usuario autenticado**, sin distinción de rol. Es una decisión consciente para arrancar con un solo usuario (Jhojan), pero significa literalmente que **cualquiera que entre a la cuenta ve los costos de compra, los márgenes de línea, el recargo de proyecto y la rentabilidad neta de todas las obras** — no solo el precio final que ve el cliente. Si en algún momento entra un comercial, un técnico o cualquier persona que no deba ver esa información financiera interna, hay que refinar las políticas de RLS **antes** de darle acceso, no después. Candidatos obvios para diferenciar: separar "ver precio CALCULO/cotización" de "ver compra/venta/márgenes/capas de utilidad", y mover ese segundo grupo a políticas restringidas a un rol admin.
 
-**Pantalla de clientes con NIT (pendiente de construir).** La cotización rápida solo pide el nombre del cliente (alta automática si no existe) — a propósito, por velocidad frente al cliente. Riesgo señalado por Jhojan: nombres como "Agrupación de Vivienda Tintalá" y sus variantes van a generar clientes duplicados. Hace falta una pantalla de administración de clientes que use **NIT como identificador**, y una limpieza posterior de duplicados. La tabla `clientes` ya tiene nit/contacto/telefono/email/direccion — falta la UI. Esos datos además son necesarios para poder imprimir la cotización (su formato real los incluye).
+**Pantalla de clientes con NIT (pendiente de construir, parcialmente mitigado por §14).** La cotización rápida solo pide el nombre del cliente (alta automática si no existe) — a propósito, por velocidad frente al cliente. Riesgo señalado por Jhojan: nombres como "Agrupación de Vivienda Tintalá" y sus variantes van a generar clientes duplicados. Desde que existe la carga de RUT (§14), el cliente sí queda con NIT confiable — pero la resolución de "es el mismo cliente" al escribir el nombre sigue siendo por texto, no por NIT. Sigue haciendo falta una pantalla de administración que use **NIT como identificador** y una limpieza de duplicados existentes.
 
 **Importación del catálogo (860 ítems).** Falta el archivo real (hoja "CuadroItems") para escribir el importador contra las columnas exactas.
+
+## 14. Carga del RUT del cliente con IA (2026-09-23)
+
+Cuadro opcional en la cotización: Jhojan sube el PDF o foto del RUT del cliente, la IA lo lee y él confirma cada campo antes de que se guarde nada. Mismo mecanismo pensado para reutilizarse con facturas de proveedor en el módulo de ejecución (tabla `documentos` genérica por `tipo_documento`).
+
+**Estructura real del RUT (investigada, no de memoria):**
+- Casilla 5 = NIT (sin DV). Casilla 6 = DV.
+- Casilla 53 = "Responsabilidades, Calidades y Atributos" — tabla de códigos de 2 dígitos. Código **48 = responsable de IVA**, **49 = no responsable**. Determina cómo se le factura.
+- **Corrección a lo que se creía inicialmente:** la casilla 54 es "Intercambio Automático de Información CRS" (reporte financiero internacional) — no tiene relación con IVA, aunque a veces se confunden. La responsabilidad de IVA sale solo de la 53.
+- Fuentes: [actualicese.com](https://actualicese.com/codigos-de-responsabilidades-tributarias-rut-casilla-53/), [gerencie.com](https://www.gerencie.com/codigo-de-las-responsabilidades-tributarias-que-puede-tener-un-contribuyente-en-el-rut.html), [siigo.com](https://www.siigo.com/blog/obligaciones-fiscales/codigo-de-responsabilidades-rut/).
+
+**Dígito de verificación:** algoritmo módulo 11 de la DIAN (pesos primos 3,7,13,17,19,23,29,37,41,43,47,53,59,67,71 de derecha a izquierda; residuo 0→0, 1→1, si no 11−residuo). Verificado contra un ejemplo completo con el NIT real de la propia DIAN (800197268 → DV 4, suma 733, residuo 7). Implementado en `src/lib/nit.ts`, se corre siempre, independiente de qué tan segura diga estar la IA — es la red de seguridad barata contra un dígito mal leído.
+
+**Arquitectura:**
+- La clave de OpenAI (`OPENAI_API_KEY`) vive solo en el servidor, nunca con prefijo `NEXT_PUBLIC_`. Se usa en `src/lib/documentos/extraer-rut.ts`, llamado únicamente desde Server Actions (`src/app/cotizaciones/documentos-actions.ts`).
+- Modelo `gpt-4o-mini`, Responses API con `input_file` (PDF nativo) o `input_image` (foto) + Structured Outputs (esquema Zod en `src/lib/documentos/rut-schema.ts`, convertido a JSON Schema por el propio SDK de OpenAI).
+- Cada campo extraído trae su propio nivel de confianza (`alta`/`media`/`baja`/`no_legible`). Si es `no_legible`, el panel de confirmación deja el campo **vacío**, nunca precargado con una adivinanza.
+- Si el documento no es un RUT (cédula, factura, foto de otra cosa), la IA lo marca explícitamente (`es_documento_rut=false`) y no se muestra ningún dato — se avisa y se sigue a mano.
+- Nada se guarda en `clientes` hasta que Jhojan confirma en el panel — ver `confirmarRut` en `documentos-actions.ts`.
+
+**Resolución del cliente antes de guardar la cotización:** como la cotización es "local hasta guardar", pero el RUT necesita un `cliente_id` real para subir el archivo a su carpeta, subir un RUT resuelve (o crea) el cliente en el momento vía `fn_buscar_o_crear_cliente` — antes de que se guarde el resto de la cotización. Es un cambio de comportamiento menor pero deseable: el cliente y su RUT quedan guardados aunque se abandone la cotización.
+
+**Almacenamiento:** bucket privado `documentos-clientes` en Supabase Storage (nunca público), carpeta `clientes/{cliente_id}/rut/{timestamp}-{archivo}`. Tabla `documentos` registra quién subió cada archivo y cuándo (`subido_por`, `subido_en`), y quién confirmó los datos extraídos (`confirmado_por`, `confirmado_en`). RLS con el mismo criterio permisivo del resto del sistema (ver nota de RLS arriba).
+
+**Costo:** ~$0.0008 USD por RUT leído con `gpt-4o-mini` (3.000-4.000 tokens de entrada, ~400 de salida, a $0.15/$0.60 por millón de tokens — precios oficiales verificados en developers.openai.com/api/docs/pricing). Con 10-15 proyectos al año, costo anual despreciable. El costo real de cada lectura queda guardado en `documentos.costo_estimado_usd` para tener el dato, no solo la estimación.
+
+**Sin verificar todavía:** el comportamiento de la IA con un RUT de persona natural (documento con estructura algo distinta al de persona jurídica) no se probó contra un ejemplo real — el esquema contempla el campo `tipo_contribuyente`, pero conviene confirmar con el primer RUT de persona natural que se cargue.
