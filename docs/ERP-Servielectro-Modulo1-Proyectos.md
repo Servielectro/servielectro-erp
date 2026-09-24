@@ -93,11 +93,12 @@ Salida: entradas, salidas, saldo acumulado, saldo pendiente por cobrar, próximo
 
 ## 10. Catálogo de ítems
 
-860 ítems (hoja "CuadroItems"): Item, Descripción, Unidad (UNI/GL/...), Valor unitario, Proveedor, Referencia, Fecha. Muchos sin precio o desactualizados (2025).
+**Cargado 2026-09-24** (carga manual directa, no hubo importador — la hoja no tenía columna de categoría, así que no valía la pena automatizar la clasificación): **815 ítems** (859 filas originales, 44 duplicados exactos por nombre), **247 con precio** (fuente `IMPORTADO_EXCEL`), **588 sin precio** todavía. 227 MANO_DE_OBRA (clasificados por patrón de nombre: "Inst", "Manto", "M.O/", "Obra civil", "Transporte"...), 588 MATERIAL (todo lo que no matcheó ese patrón, **incluye equipos sin clasificar** — cámaras, NVR, switches, UPS, controladoras, talanqueras están hoy como MATERIAL). **Cero ítems en EQUIPO** — hay que reclasificar a mano en `/catalogo` (pantalla de reclasificación en lote, ver más abajo). `factor_rentabilidad_linea` en 0.85 para todos (el más frecuente). Unidades respetadas del original (UNI, GL, METRO, M2).
 
-- Importador desde Excel/CSV → `items_catalogo` + `items_precios_historico`.
+- `/catalogo`: pantalla de reclasificación en lote (filtro por categoría + búsqueda, selección múltiple, cambiar categoría a los seleccionados de una vez). Construida específicamente para resolver el problema de arriba con 588 ítems, no de a uno.
+- `scripts/generar-sql-descripciones.mjs`: pendiente de correr — la `descripcion` de cada ítem quedó igual al nombre corto (no se cargaron las descripciones largas del Excel para no inflar la carga inicial). El script lee la hoja real, hace match por `codigo`, y genera el SQL para actualizar solo ese campo. Instrucciones en `catalogo/README.md`.
 - Precios versionados en el tiempo (nunca se sobrescribe: se inserta un nuevo registro con `vigente_desde`).
-- Pantalla de mantenimiento de precios con fecha de última actualización visible.
+- Pantalla de mantenimiento de precios con fecha de última actualización visible — **todavía no construida** (588 ítems sin precio la necesitan).
 - Cotización toma snapshot del precio vigente al momento de cotizar (no depende de cambios futuros del catálogo).
 
 ## 11. Numeración
@@ -107,6 +108,8 @@ Cotizaciones: `CSE-AA-NNN` (ej. CSE-26-151). Consecutivo automático por año.
 ## 12. Ver también
 
 - Modelo de datos y migraciones: `supabase/migrations/`
+
+**Práctica fija desde el 2026-09-24:** toda vista nueva se crea con `WITH (security_invoker = true)` desde el principio (ver el hallazgo de seguridad en §13) — nunca depender de agregarlo después.
 
 ## 13. Pendientes / decisiones abiertas
 
@@ -129,7 +132,9 @@ Implementado en `fn_calcular_factor_recargo` (SQL, migración `20260923000012`) 
 
 Si aparece un proyecto real con IVA_FULL o con comisión distinta de cero, vale la pena revisar estos dos contra los números reales antes de confiar en ellos para un caso así.
 
-**RLS demasiado permisiva (riesgo de seguridad, revisar antes del segundo usuario).** La migración `20260923000007_rls.sql` le da acceso total (lectura y escritura) a **cualquier usuario autenticado**, sin distinción de rol. Es una decisión consciente para arrancar con un solo usuario (Jhojan), pero significa literalmente que **cualquiera que entre a la cuenta ve los costos de compra, los márgenes de línea, el recargo de proyecto y la rentabilidad neta de todas las obras** — no solo el precio final que ve el cliente. Si en algún momento entra un comercial, un técnico o cualquier persona que no deba ver esa información financiera interna, hay que refinar las políticas de RLS **antes** de darle acceso, no después. Candidatos obvios para diferenciar: separar "ver precio CALCULO/cotización" de "ver compra/venta/márgenes/capas de utilidad", y mover ese segundo grupo a políticas restringidas a un rol admin.
+**✅ CORREGIDO 2026-09-24 — Las vistas ignoraban la RLS por completo, expuestas a CUALQUIERA sin sesión (mucho más grave que el punto siguiente).** Descubierto probando el buscador de ítems: en Postgres, una vista sin `security_invoker = true` corre con los privilegios de quien la CREÓ (el rol de las migraciones), no de quien consulta — se salta la RLS de las tablas base enteramente. Verificado con `curl` sin ninguna sesión, usando solo la publishable key (pública por diseño, va en el bundle del navegador): la tabla `items_catalogo` (815 filas reales) devolvía `[]` correctamente bloqueada, pero la vista `v_items_catalogo_con_precio` sobre esa misma tabla devolvía **las 815 filas completas, incluido el costo de compra**, a cualquiera en internet. Afectaba a las 13 vistas del proyecto por igual (mismo origen). Corregido en la migración `20260924000016_fix_vistas_bypass_rls.sql`. Las funciones RPC no estaban afectadas (ya corren como `SECURITY INVOKER` por defecto, verificado aparte).
+
+**RLS de las tablas todavía demasiado permisiva entre usuarios autenticados (riesgo menor, pendiente, revisar antes del segundo usuario).** La migración `20260923000007_rls.sql` le da acceso total (lectura y escritura) a **cualquier usuario autenticado**, sin distinción de rol. Es una decisión consciente para arrancar con un solo usuario (Jhojan) — con el punto de arriba ya corregido, esto ya no es un problema de exposición pública, solo de que un segundo usuario autenticado (comercial, técnico) vería todo. Si en algún momento entra alguien así, hay que refinar las políticas de RLS **antes** de darle acceso, no después. Candidatos obvios para diferenciar: separar "ver precio CALCULO/cotización" de "ver compra/venta/márgenes/capas de utilidad", y mover ese segundo grupo a políticas restringidas a un rol admin.
 
 **Pantalla de clientes con NIT (pendiente de construir, parcialmente mitigado por §14).** La cotización rápida solo pide el nombre del cliente (alta automática si no existe) — a propósito, por velocidad frente al cliente. Riesgo señalado por Jhojan: nombres como "Agrupación de Vivienda Tintalá" y sus variantes van a generar clientes duplicados. Desde que existe la carga de RUT (§14), el cliente sí queda con NIT confiable — pero la resolución de "es el mismo cliente" al escribir el nombre sigue siendo por texto, no por NIT. Sigue haciendo falta una pantalla de administración que use **NIT como identificador** y una limpieza de duplicados existentes.
 
