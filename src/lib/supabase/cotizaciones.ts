@@ -61,6 +61,15 @@ export interface HitoDetalle {
   estado: string;
 }
 
+export interface PolizaDetalle {
+  id: string;
+  polizaId: string | null;
+  nombre: string;
+  pct: number | null;
+  vigenciaMeses: number | null;
+  descripcion: string | null;
+}
+
 export interface CotizacionDetalle {
   id: string;
   codigo: string;
@@ -77,6 +86,7 @@ export interface CotizacionDetalle {
   ivaPct: number;
   fechaEmision: string;
   hitos: HitoDetalle[];
+  polizas: PolizaDetalle[];
   cliente: {
     id: string;
     nombre: string;
@@ -143,6 +153,12 @@ export async function getCotizacionDetalle(
     .eq("cotizacion_id", id)
     .order("orden");
 
+  const { data: polizas } = await supabase
+    .from("v_cotizacion_polizas")
+    .select("id, poliza_id, nombre, pct, vigencia_meses, descripcion")
+    .eq("cotizacion_id", id)
+    .order("orden");
+
   const { data: totales } = await supabase
     .from("v_cotizacion_totales_iva")
     .select(
@@ -185,6 +201,14 @@ export async function getCotizacionDetalle(
       porcentaje: Number(h.porcentaje),
       valorProgramado: Number(h.valor_programado),
       estado: h.estado,
+    })),
+    polizas: (polizas ?? []).map((p) => ({
+      id: p.id,
+      polizaId: p.poliza_id,
+      nombre: p.nombre,
+      pct: p.pct === null ? null : Number(p.pct),
+      vigenciaMeses: p.vigencia_meses,
+      descripcion: p.descripcion,
     })),
     cliente: {
       id: cliente.id,

@@ -1,6 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCatalogoActivo, type CatalogoItem } from "@/lib/supabase/catalogo";
 import { getCotizacionDetalle } from "@/lib/supabase/cotizaciones";
+import {
+  getConfiguracionEmpresa,
+  getPolizasCatalogo,
+  type ConfiguracionEmpresa,
+  type PolizaCatalogo,
+} from "@/lib/supabase/condicionesComerciales";
 import { CONFIG_PRECIO_DEFAULT } from "@/lib/pricing";
 import { CotizacionBuilder, type DatosIniciales } from "./CotizacionBuilder";
 
@@ -18,6 +24,17 @@ export default async function NuevaCotizacionPage(
     // Supabase todavía no está configurado o no responde: se muestra la pantalla
     // igual (sin catálogo) en vez de romper toda la página.
     console.error("No se pudo cargar el catálogo de ítems:", err);
+  }
+
+  let polizasCatalogo: PolizaCatalogo[] = [];
+  let configuracionEmpresa: ConfiguracionEmpresa | null = null;
+  try {
+    [polizasCatalogo, configuracionEmpresa] = await Promise.all([
+      getPolizasCatalogo(supabase),
+      getConfiguracionEmpresa(supabase),
+    ]);
+  } catch (err) {
+    console.error("No se pudo cargar el catálogo de pólizas o la configuración de la empresa:", err);
   }
 
   let datosIniciales: DatosIniciales | undefined;
@@ -58,6 +75,12 @@ export default async function NuevaCotizacionPage(
             nombre: h.nombre,
             porcentaje: Math.round(h.porcentaje * 100),
           })),
+          polizas: original.polizas.map((p) => ({
+            polizaId: p.polizaId,
+            nombre: p.nombre,
+            pct: p.pct,
+            vigenciaMeses: p.vigenciaMeses,
+          })),
         };
       }
     } catch (err) {
@@ -68,6 +91,8 @@ export default async function NuevaCotizacionPage(
   return (
     <CotizacionBuilder
       catalogoInicial={catalogo}
+      polizasCatalogoInicial={polizasCatalogo}
+      configuracionEmpresa={configuracionEmpresa}
       datosIniciales={datosIniciales}
     />
   );

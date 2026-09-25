@@ -93,6 +93,13 @@ export interface HitoGuardarInput {
   porcentaje: number;
 }
 
+export interface PolizaGuardarInput {
+  polizaId: string | null;
+  nombre: string;
+  pct: number | null;
+  vigenciaMeses: number | null;
+}
+
 export interface GuardarCotizacionInput {
   clienteId: string | null;
   clienteNombre: string;
@@ -110,6 +117,27 @@ export interface GuardarCotizacionInput {
   pctComision: number;
   lineas: LineaGuardarInput[];
   hitos: HitoGuardarInput[];
+  polizas: PolizaGuardarInput[];
+}
+
+export async function crearPoliza(
+  nombre: string,
+): Promise<
+  { ok: true; poliza: { id: string; nombre: string } } | { ok: false; error: string }
+> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("polizas_catalogo")
+    .insert({ nombre: nombre.trim() })
+    .select("id, nombre")
+    .single();
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: true, poliza: { id: data.id, nombre: data.nombre } };
 }
 
 export async function guardarCotizacion(
@@ -152,6 +180,15 @@ export async function guardarCotizacion(
     p_cliente_direccion: input.clienteDireccion || null,
     p_cliente_email: input.clienteEmail || null,
     p_cliente_contacto: input.clienteContacto || null,
+    p_polizas:
+      input.polizas.length > 0
+        ? input.polizas.map((p) => ({
+            poliza_id: p.polizaId ?? "",
+            nombre: p.nombre,
+            pct: p.pct ?? "",
+            vigencia_meses: p.vigenciaMeses ?? "",
+          }))
+        : null,
   });
 
   if (error) {

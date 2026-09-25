@@ -12,11 +12,15 @@ import {
   type LineaCotizacion,
 } from "@/lib/pricing";
 import type { CatalogoItem } from "@/lib/supabase/catalogo";
+import type {
+  ConfiguracionEmpresa,
+  PolizaCatalogo,
+} from "@/lib/supabase/condicionesComerciales";
 import { ItemCombobox } from "@/components/cotizacion/ItemCombobox";
 import { NuevoItemModal } from "@/components/cotizacion/NuevoItemModal";
 import { RutUploader } from "@/components/cotizacion/RutUploader";
 import { FormatoCotizacion } from "@/components/cotizacion/FormatoCotizacion";
-import { guardarCotizacion } from "@/app/cotizaciones/actions";
+import { guardarCotizacion, crearPoliza } from "@/app/cotizaciones/actions";
 
 const CATEGORIAS: { key: Categoria; label: string }[] = [
   { key: "EQUIPO", label: "Equipos" },
@@ -34,6 +38,14 @@ interface HitoUI {
   id: string;
   nombre: string;
   porcentaje: number; // 0-100 para la UI
+}
+
+interface PolizaSeleccionadaUI {
+  id: string;
+  polizaId: string | null;
+  nombre: string;
+  pct: number | null; // 0-100 para la UI
+  vigenciaMeses: number | null;
 }
 
 const PLANTILLAS_PAGO: { label: string; hitos: Omit<HitoUI, "id">[] }[] = [
@@ -66,6 +78,7 @@ export interface DatosIniciales {
   config: Omit<ConfigPrecio, "esquemaIva">;
   lineas: Omit<LineaUI, "id">[];
   hitos: Omit<HitoUI, "id">[];
+  polizas: Omit<PolizaSeleccionadaUI, "id">[];
 }
 
 interface Draft {
@@ -79,6 +92,7 @@ interface Draft {
   config: ConfigPrecio;
   lineas: LineaUI[];
   hitos: HitoUI[];
+  polizas: PolizaSeleccionadaUI[];
   guardadoEn: string;
 }
 
@@ -98,12 +112,19 @@ function nuevaLinea(categoria: Categoria): LineaUI {
 
 export function CotizacionBuilder({
   catalogoInicial,
+  polizasCatalogoInicial,
+  configuracionEmpresa,
   datosIniciales,
 }: {
   catalogoInicial: CatalogoItem[];
+  polizasCatalogoInicial: PolizaCatalogo[];
+  configuracionEmpresa: ConfiguracionEmpresa | null;
   datosIniciales?: DatosIniciales;
 }) {
   const [catalogo, setCatalogo] = useState(catalogoInicial);
+  const [catalogoPolizas, setCatalogoPolizas] = useState(polizasCatalogoInicial);
+  const [nuevaPolizaNombre, setNuevaPolizaNombre] = useState("");
+  const [creandoPoliza, setCreandoPoliza] = useState(false);
   const [clienteNombre, setClienteNombre] = useState(
     datosIniciales?.clienteNombre ?? "",
   );
@@ -143,10 +164,20 @@ export function CotizacionBuilder({
       datosIniciales?.hitos.map((h) => ({ ...h, id: crypto.randomUUID() })) ??
       [],
   );
+  const [polizasSeleccionadas, setPolizasSeleccionadas] = useState<
+    PolizaSeleccionadaUI[]
+  >(
+    () =>
+      datosIniciales?.polizas.map((p) => ({ ...p, id: crypto.randomUUID() })) ??
+      [],
+  );
   const [activeTab, setActiveTab] = useState<Categoria>("EQUIPO");
   const [avanzadoAbierto, setAvanzadoAbierto] = useState(false);
   const [pagosAbierto, setPagosAbierto] = useState(
     Boolean(datosIniciales?.hitos.length),
+  );
+  const [polizasAbierto, setPolizasAbierto] = useState(
+    Boolean(datosIniciales?.polizas.length),
   );
   const [datosClienteAbierto, setDatosClienteAbierto] = useState(
     Boolean(
@@ -194,6 +225,7 @@ export function CotizacionBuilder({
         setEsquemaIva(draft.config?.esquemaIva ?? "IVA_FULL");
         setLineas(draft.lineas);
         setHitos(draft.hitos ?? []);
+        setPolizasSeleccionadas(draft.polizas ?? []);
         setRestaurado(true);
       }
     } catch {
@@ -223,6 +255,7 @@ export function CotizacionBuilder({
         config: configConEsquema,
         lineas,
         hitos,
+        polizas: polizasSeleccionadas,
         guardadoEn: new Date().toISOString(),
       };
       window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
@@ -240,6 +273,7 @@ export function CotizacionBuilder({
     configConEsquema,
     lineas,
     hitos,
+    polizasSeleccionadas,
   ]);
 
   const totales = useMemo(
@@ -282,6 +316,60 @@ export function CotizacionBuilder({
     setHitos((prev) => prev.filter((h) => h.id !== id));
   }
 
+  function alternarPoliza(poliza: PolizaCatalogo) {
+    setPolizasSeleccionadas((prev) => {
+      const yaEsta = prev.find((p) => p.polizaId === poliza.id);
+      if (yaEsta) return prev.filter((p) => p.polizaId !== poliza.id);
+      return [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          polizaId: poliza.id,
+          nombre: poliza.nombre,
+          pct: poliza.pctDefault === null ? null : poliza.pctDefault * 100,
+          vigenciaMeses: poliza.vigenciaMesesDefault,
+        },
+      ];
+    });
+  }
+
+  function actualizarPoliza(id: string, cambios: Partial<PolizaSeleccionadaUI>) {
+    setPolizasSeleccionadas((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, ...cambios } : p)),
+    );
+  }
+
+  async function agregarPolizaNueva() {
+    const nombre = nuevaPolizaNombre.trim();
+    if (!nombre) return;
+    setCreandoPoliza(true);
+    const res = await crearPoliza(nombre);
+    setCreandoPoliza(false);
+    if (!res.ok) {
+      setError(`No se pudo agregar la póliza (${res.error})`);
+      return;
+    }
+    const nueva: PolizaCatalogo = {
+      id: res.poliza.id,
+      nombre: res.poliza.nombre,
+      descripcion: null,
+      pctDefault: null,
+      vigenciaMesesDefault: null,
+    };
+    setCatalogoPolizas((prev) => [...prev, nueva]);
+    setPolizasSeleccionadas((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        polizaId: nueva.id,
+        nombre: nueva.nombre,
+        pct: null,
+        vigenciaMeses: null,
+      },
+    ]);
+    setNuevaPolizaNombre("");
+  }
+
   function empezarDeCero() {
     if (
       !window.confirm(
@@ -300,6 +388,7 @@ export function CotizacionBuilder({
     setEsquemaIva("IVA_FULL");
     setLineas([]);
     setHitos([]);
+    setPolizasSeleccionadas([]);
     setGuardadoOk(null);
     setError(null);
     try {
@@ -365,6 +454,12 @@ export function CotizacionBuilder({
         factorRentabilidadLinea: l.factorRentabilidadLinea,
       })),
       hitos: hitosAGuardar,
+      polizas: polizasSeleccionadas.map((p) => ({
+        polizaId: p.polizaId,
+        nombre: p.nombre,
+        pct: p.pct === null ? null : p.pct / 100,
+        vigenciaMeses: p.vigenciaMeses,
+      })),
     });
     setGuardando(false);
 
@@ -543,6 +638,101 @@ export function CotizacionBuilder({
                 Suma: {sumaHitos.toFixed(0)}%
               </p>
             )}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setPolizasAbierto((v) => !v)}
+          className="text-sm font-medium text-slate-500"
+        >
+          {polizasAbierto ? "▾" : "▸"} Pólizas
+          {polizasSeleccionadas.length > 0 &&
+            ` (${polizasSeleccionadas.length})`}
+        </button>
+
+        {polizasAbierto && (
+          <div className="space-y-2 rounded-md bg-slate-100 p-3">
+            <div className="space-y-1">
+              {catalogoPolizas.map((poliza) => {
+                const seleccion = polizasSeleccionadas.find(
+                  (p) => p.polizaId === poliza.id,
+                );
+                return (
+                  <div key={poliza.id} className="rounded-md bg-white p-2">
+                    <label className="flex items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(seleccion)}
+                        onChange={() => alternarPoliza(poliza)}
+                      />
+                      {poliza.nombre}
+                    </label>
+                    {seleccion && (
+                      <div className="mt-1.5 grid grid-cols-2 gap-2 pl-6">
+                        <div>
+                          <label className="text-xs text-slate-500">
+                            % del contrato
+                          </label>
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            value={seleccion.pct ?? ""}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) =>
+                              actualizarPoliza(seleccion.id, {
+                                pct:
+                                  e.target.value === ""
+                                    ? null
+                                    : Number(e.target.value),
+                              })
+                            }
+                            className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-2 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-500">
+                            Vigencia (meses)
+                          </label>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            value={seleccion.vigenciaMeses ?? ""}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) =>
+                              actualizarPoliza(seleccion.id, {
+                                vigenciaMeses:
+                                  e.target.value === ""
+                                    ? null
+                                    : Number(e.target.value),
+                              })
+                            }
+                            className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-2 text-sm"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                value={nuevaPolizaNombre}
+                onChange={(e) => setNuevaPolizaNombre(e.target.value)}
+                placeholder="Nueva póliza…"
+                className="flex-1 rounded-md border border-slate-300 px-2 py-2 text-sm"
+              />
+              <button
+                type="button"
+                onClick={agregarPolizaNueva}
+                disabled={creandoPoliza || !nuevaPolizaNombre.trim()}
+                className="shrink-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 disabled:opacity-50"
+              >
+                {creandoPoliza ? "Agregando…" : "+ Agregar"}
+              </button>
+            </div>
           </div>
         )}
 
@@ -956,6 +1146,13 @@ export function CotizacionBuilder({
               nombre: h.nombre,
               porcentaje: h.porcentaje / 100,
               valorProgramado: (h.porcentaje / 100) * totales.total,
+            }))}
+            configuracionEmpresa={configuracionEmpresa}
+            polizas={polizasSeleccionadas.map((p) => ({
+              id: p.id,
+              nombre: p.nombre,
+              pct: p.pct === null ? null : p.pct / 100,
+              vigenciaMeses: p.vigenciaMeses,
             }))}
           />
         </div>

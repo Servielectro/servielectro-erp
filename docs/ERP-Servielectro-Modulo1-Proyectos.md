@@ -161,6 +161,33 @@ Cuadro opcional en la cotización: Jhojan sube el PDF o foto del RUT del cliente
 
 **Resolución del cliente antes de guardar la cotización:** como la cotización es "local hasta guardar", pero el RUT necesita un `cliente_id` real para subir el archivo a su carpeta, subir un RUT resuelve (o crea) el cliente en el momento vía `fn_buscar_o_crear_cliente` — antes de que se guarde el resto de la cotización. Es un cambio de comportamiento menor pero deseable: el cliente y su RUT quedan guardados aunque se abandone la cotización.
 
+## 15. Nombre corto vs. descripción larga (2026-09-24)
+
+Corrección de Jhojan: la pantalla de cotización debe mostrar solo el **nombre corto** del ítem (rápido de leer en tablet); la **descripción larga** (cargada desde el Excel real al catálogo, nunca escrita a mano) aparece únicamente en el documento que recibe el cliente.
+
+- `items_catalogo.nombre_corto` (nuevo) = nombre corto, se muestra en pantalla (buscador, líneas de cotización, reclasificación). Backfilleado desde `codigo` (el título original de la columna "Item" del Excel), **no** desde `descripcion` — importante porque la carga de descripciones largas (ver abajo) sobrescribe `descripcion`, y `codigo` es la única columna que esa carga nunca toca.
+- `items_catalogo.descripcion` = descripción larga, solo para el documento impreso.
+- `cotizacion_items.descripcion_larga` (nuevo) = snapshot de la descripción larga al momento de cotizar, igual que ya se hace con el precio — el documento impreso no depende de que el catálogo no cambie después.
+- **Vista previa**: botón en la pantalla de cotización que renderiza el mismo componente `FormatoCotizacion` que usa `/cotizaciones/[id]/imprimir`, alimentado con el estado en memoria (borrador sin guardar) en vez de una consulta a la base — mismo componente, dos fuentes de datos.
+- **Carga real de descripciones (2026-09-24):** 823 filas actualizadas desde la hoja `CuadroItems` del Excel de Tintalá (`CSE-026-151`), vía una RPC temporal con permisos elevados (`fn_carga_temporal_descripciones`) creada y revocada por el usuario con acceso a la base — sin que este asistente tuviera sesión de base de datos en ningún momento. Solo tocó la columna `descripcion`; no insertó ni borró filas.
+
+## 16. Condiciones comerciales del documento (2026-09-24)
+
+Bloque final del documento que recibe el cliente. Jhojan aclaró que estos datos, junto con el RUT del cliente, son los insumos para generar el contrato de obra más adelante — por eso se modelan como datos estructurados (tablas con columnas propias), no como un bloque de texto libre.
+
+Texto fuente: hoja `FormatoCotizacion` del Excel real de Tintalá (filas 114-123), transcrito literal — no redactado de nuevo.
+
+- **`configuracion_empresa`** (tabla singleton, `id boolean primary key default true check (id)` garantiza una sola fila): datos **fijos** de la empresa, iguales en todas las cotizaciones.
+  - `texto_despacho_aprobacion`: plazos de entrega y pasos de aprobación (orden de entrega, depósito de anticipo, aprobación del check-list).
+  - `banco_nombre` / `banco_tipo_cuenta` / `banco_numero_cuenta` / `banco_titular`: cuenta bancaria, guardada en columnas separadas (no como texto libre) para poder reusarla en el contrato.
+  - `texto_garantia`: condiciones de garantía completas.
+  - `texto_validez_oferta`: vigencia de la oferta (elemento extra encontrado en el Excel, no pedido explícitamente pero forma parte del mismo bloque del documento real).
+- **`polizas_catalogo`**: catálogo editable de pólizas (nombre, descripción/cláusula, % y vigencia por defecto). Sembrado con las 5 pólizas que nombró Jhojan (Responsabilidad civil extracontractual, Cumplimiento, Garantía, Salarios y prestaciones, Anticipo). **El Excel real solo nombra 3 pólizas sin cláusula legal ni porcentaje asociado** — no se inventó texto legal ni cifras; quedan `null`, editables desde la pantalla de cotización (que también permite agregar pólizas nuevas al catálogo).
+- **`cotizacion_polizas`**: pólizas seleccionadas por cotización, con snapshot de nombre/%/vigencia (mismo patrón que precios y descripción larga — si el catálogo cambia después, la cotización ya guardada no se altera).
+- **Forma de pago**: no se guarda aparte ni se escribe a mano — se redacta en el documento a partir del esquema de hitos ya existente (`hitos_cobro`), ej. "Anticipo 50%, Primer corte 20%, Segundo corte 30%".
+
+**Pendiente de confirmar con Jhojan:** el texto de cláusula legal y el %/vigencia real de cada póliza (el Excel no los trae); y si el bloque de "plazos de entrega y aprobación" es realmente fijo para toda cotización (se asumió que sí, por estar redactado como texto genérico en el Excel) o si alguna vez cambia por proyecto.
+
 **Almacenamiento:** bucket privado `documentos-clientes` en Supabase Storage (nunca público), carpeta `clientes/{cliente_id}/rut/{timestamp}-{archivo}`. Tabla `documentos` registra quién subió cada archivo y cuándo (`subido_por`, `subido_en`), y quién confirmó los datos extraídos (`confirmado_por`, `confirmado_en`). RLS con el mismo criterio permisivo del resto del sistema (ver nota de RLS arriba).
 
 **Costo:** ~$0.0008 USD por RUT leído con `gpt-4o-mini` (3.000-4.000 tokens de entrada, ~400 de salida, a $0.15/$0.60 por millón de tokens — precios oficiales verificados en developers.openai.com/api/docs/pricing). Con 10-15 proyectos al año, costo anual despreciable. El costo real de cada lectura queda guardado en `documentos.costo_estimado_usd` para tener el dato, no solo la estimación.

@@ -33,6 +33,23 @@ export interface FormatoCotizacionTotales {
   total: number;
 }
 
+export interface FormatoCotizacionConfiguracionEmpresa {
+  textoDespachoAprobacion: string | null;
+  bancoNombre: string | null;
+  bancoTipoCuenta: string | null;
+  bancoNumeroCuenta: string | null;
+  bancoTitular: string | null;
+  textoGarantia: string | null;
+  textoValidezOferta: string | null;
+}
+
+export interface FormatoCotizacionPoliza {
+  id: string;
+  nombre: string;
+  pct: number | null;
+  vigenciaMeses: number | null;
+}
+
 export interface FormatoCotizacionProps {
   codigo: string;
   fecha: string;
@@ -48,6 +65,8 @@ export interface FormatoCotizacionProps {
   items: FormatoCotizacionItem[];
   totales: FormatoCotizacionTotales | null;
   hitos: FormatoCotizacionHito[];
+  configuracionEmpresa: FormatoCotizacionConfiguracionEmpresa | null;
+  polizas: FormatoCotizacionPoliza[];
 }
 
 const CATEGORIAS_ORDEN: Categoria[] = ["EQUIPO", "MATERIAL", "MANO_DE_OBRA"];
@@ -67,7 +86,28 @@ export function FormatoCotizacion({
   items,
   totales,
   hitos,
+  configuracionEmpresa,
+  polizas,
 }: FormatoCotizacionProps) {
+  const formaPagoTexto = hitos
+    .map((h) => `${h.nombre} ${(h.porcentaje * 100).toFixed(0)}%`)
+    .join(", ");
+
+  const datosBancariosTexto =
+    configuracionEmpresa?.bancoNombre || configuracionEmpresa?.bancoNumeroCuenta
+      ? [
+          configuracionEmpresa.bancoNombre,
+          configuracionEmpresa.bancoTipoCuenta,
+          configuracionEmpresa.bancoNumeroCuenta
+            ? `No. ${configuracionEmpresa.bancoNumeroCuenta}`
+            : null,
+          configuracionEmpresa.bancoTitular
+            ? `a nombre de ${configuracionEmpresa.bancoTitular}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" ")
+      : null;
   return (
     <div className="mx-auto max-w-3xl bg-white p-8 shadow-sm print:shadow-none">
       <header className="mb-6 border-b-2 border-slate-900 pb-4">
@@ -204,6 +244,69 @@ export function FormatoCotizacion({
           </table>
         </section>
       )}
+
+      <section className="mt-6 border-t border-slate-300 pt-4">
+        <h2 className="mb-2 text-sm font-bold uppercase text-slate-700">
+          Condiciones comerciales
+        </h2>
+        <div className="space-y-3 text-xs text-slate-600">
+          {configuracionEmpresa?.textoDespachoAprobacion && (
+            <div>
+              <p className="font-semibold text-slate-700">
+                Plazos de entrega y aprobación
+              </p>
+              <p className="whitespace-pre-line">
+                {configuracionEmpresa.textoDespachoAprobacion}
+              </p>
+            </div>
+          )}
+
+          {formaPagoTexto && (
+            <div>
+              <p className="font-semibold text-slate-700">Forma de pago</p>
+              <p>{formaPagoTexto}</p>
+            </div>
+          )}
+
+          {polizas.length > 0 && (
+            <div>
+              <p className="font-semibold text-slate-700">Pólizas</p>
+              <ul className="list-disc pl-4">
+                {polizas.map((p) => (
+                  <li key={p.id}>
+                    {p.nombre}
+                    {p.pct !== null && ` — ${(p.pct * 100).toFixed(0)}%`}
+                    {p.vigenciaMeses !== null &&
+                      `, vigente por ${p.vigenciaMeses} mes${p.vigenciaMeses === 1 ? "" : "es"}`}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {configuracionEmpresa?.textoGarantia && (
+            <div>
+              <p className="font-semibold text-slate-700">Garantía</p>
+              <p className="whitespace-pre-line">
+                {configuracionEmpresa.textoGarantia}
+              </p>
+            </div>
+          )}
+
+          {datosBancariosTexto && (
+            <div>
+              <p className="font-semibold text-slate-700">Datos bancarios</p>
+              <p>{datosBancariosTexto}</p>
+            </div>
+          )}
+
+          {configuracionEmpresa?.textoValidezOferta && (
+            <p className="text-slate-400">
+              {configuracionEmpresa.textoValidezOferta}
+            </p>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

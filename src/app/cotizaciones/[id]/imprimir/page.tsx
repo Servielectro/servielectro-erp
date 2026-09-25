@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCotizacionDetalle } from "@/lib/supabase/cotizaciones";
+import { getConfiguracionEmpresa } from "@/lib/supabase/condicionesComerciales";
 import { FormatoCotizacion } from "@/components/cotizacion/FormatoCotizacion";
 import { PrintButton } from "./PrintButton";
 
@@ -14,6 +15,8 @@ export default async function ImprimirCotizacionPage(
   if (!cotizacion) {
     notFound();
   }
+
+  const configuracionEmpresa = await getConfiguracionEmpresa(supabase);
 
   return (
     <div className="min-h-screen bg-slate-100 print:bg-white">
@@ -58,6 +61,13 @@ export default async function ImprimirCotizacionPage(
             : null
         }
         hitos={cotizacion.hitos}
+        configuracionEmpresa={configuracionEmpresa}
+        polizas={cotizacion.polizas.map((p) => ({
+          id: p.id,
+          nombre: p.nombre,
+          pct: p.pct,
+          vigenciaMeses: p.vigenciaMeses,
+        }))}
       />
     </div>
   );
