@@ -3,13 +3,13 @@
 -- SOLO en el PDF que se le manda al cliente.
 -- Idempotente: se puede correr más de una vez sin romper.
 --
--- IMPORTANTE — CORRER ESTA MIGRACIÓN ANTES de cargar las descripciones largas del
--- Excel real: hoy items_catalogo.descripcion tiene el nombre corto (falta backfillear
--- nombre_corto con ese valor ANTES de que se sobrescriba con el texto largo, o se pierde
--- para siempre).
+-- El nombre corto se backfillea desde `codigo`, no desde `descripcion`: `codigo` es el
+-- texto original de la columna "Item" del Excel (el nombre corto de siempre) y la RPC
+-- temporal de carga de descripciones largas solo toca `descripcion`, nunca `codigo` — así
+-- que esto es seguro sin importar si esta migración corre antes o después de esa carga.
 
 alter table items_catalogo add column if not exists nombre_corto text;
-update items_catalogo set nombre_corto = descripcion where nombre_corto is null;
+update items_catalogo set nombre_corto = codigo where nombre_corto is null;
 alter table items_catalogo alter column nombre_corto set not null;
 
 -- Snapshot de la descripción larga en la línea de la cotización, al momento de cotizar
