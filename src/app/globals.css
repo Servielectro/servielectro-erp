@@ -9,12 +9,15 @@
  * de "Aplicaciones de Logo Servielectro.pdf"/.ai y los píxeles de los PNG finales
  * (Logofinal-F-B.png, Rojo1.png, Blanco1.png), triangulando entre las fuentes.
  *
- * --brand-red: rojo de marca. El manual de aplicaciones (PDF, consistente en
- *   sus 6 páginas) y Logofinal-F-B.png (el asset nombrado "final") convergen en
- *   #A72323-#A82323. Ojo: Rojo1.png/Whatsapp.png y el color dominante del
- *   archivo .ai de trabajo usan una variante distinta (~#A81E17/#A91E17) —
- *   se priorizó el manual + el asset "final" por ser las fuentes más
- *   consistentes y explícitamente marcadas como definitivas.
+ * --brand-red: rojo de marca, CONFIRMADO por Jhojan (2026-09-24). El manual de
+ *   aplicaciones (PDF, consistente en sus 6 páginas) y Logofinal-F-B.png (el
+ *   asset nombrado "final") convergen en #A72323-#A82323; Rojo1.png/Whatsapp.png
+ *   y el color dominante del .ai de trabajo usan una variante distinta
+ *   (~#A81E17/#A91E17). Se le planteó la discrepancia con las dos muestras:
+ *   la eligió él, describiéndola como "un rojo más oscuro, como un rojo sangre
+ *   de toro, entre vino tinto" — #A82323 es la más cercana a esa descripción
+ *   (la otra, #A91E17, es más anaranjada). No es una elección estética nuestra,
+ *   es la que confirmó el dueño de la marca.
  * --brand-ink: texto oscuro del logo (subtítulo en Logofinal-F-B.png).
  * --brand-navy / --brand-gray: colores secundarios encontrados en el manual,
  *   uso ocasional (no hay evidencia de que sean parte central de la marca).

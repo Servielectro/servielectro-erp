@@ -44,8 +44,6 @@ interface PolizaSeleccionadaUI {
   id: string;
   polizaId: string | null;
   nombre: string;
-  pct: number | null; // 0-100 para la UI
-  vigenciaMeses: number | null;
 }
 
 const PLANTILLAS_PAGO: { label: string; hitos: Omit<HitoUI, "id">[] }[] = [
@@ -326,17 +324,9 @@ export function CotizacionBuilder({
           id: crypto.randomUUID(),
           polizaId: poliza.id,
           nombre: poliza.nombre,
-          pct: poliza.pctDefault === null ? null : poliza.pctDefault * 100,
-          vigenciaMeses: poliza.vigenciaMesesDefault,
         },
       ];
     });
-  }
-
-  function actualizarPoliza(id: string, cambios: Partial<PolizaSeleccionadaUI>) {
-    setPolizasSeleccionadas((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, ...cambios } : p)),
-    );
   }
 
   async function agregarPolizaNueva() {
@@ -363,8 +353,6 @@ export function CotizacionBuilder({
         id: crypto.randomUUID(),
         polizaId: nueva.id,
         nombre: nueva.nombre,
-        pct: null,
-        vigenciaMeses: null,
       },
     ]);
     setNuevaPolizaNombre("");
@@ -457,8 +445,6 @@ export function CotizacionBuilder({
       polizas: polizasSeleccionadas.map((p) => ({
         polizaId: p.polizaId,
         nombre: p.nombre,
-        pct: p.pct === null ? null : p.pct / 100,
-        vigenciaMeses: p.vigenciaMeses,
       })),
     });
     setGuardando(false);
@@ -653,66 +639,28 @@ export function CotizacionBuilder({
 
         {polizasAbierto && (
           <div className="space-y-2 rounded-md bg-slate-100 p-3">
+            <p className="text-xs text-slate-500">
+              Solo se enuncian en la cotización como oferta (sin % ni
+              vigencia) — el costo lo asume Servielectro, sale del rubro de
+              administración.
+            </p>
             <div className="space-y-1">
               {catalogoPolizas.map((poliza) => {
                 const seleccion = polizasSeleccionadas.find(
                   (p) => p.polizaId === poliza.id,
                 );
                 return (
-                  <div key={poliza.id} className="rounded-md bg-white p-2">
-                    <label className="flex items-center gap-2 text-sm text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(seleccion)}
-                        onChange={() => alternarPoliza(poliza)}
-                      />
-                      {poliza.nombre}
-                    </label>
-                    {seleccion && (
-                      <div className="mt-1.5 grid grid-cols-2 gap-2 pl-6">
-                        <div>
-                          <label className="text-xs text-slate-500">
-                            % del contrato
-                          </label>
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            value={seleccion.pct ?? ""}
-                            onFocus={(e) => e.target.select()}
-                            onChange={(e) =>
-                              actualizarPoliza(seleccion.id, {
-                                pct:
-                                  e.target.value === ""
-                                    ? null
-                                    : Number(e.target.value),
-                              })
-                            }
-                            className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-2 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-slate-500">
-                            Vigencia (meses)
-                          </label>
-                          <input
-                            type="number"
-                            inputMode="numeric"
-                            value={seleccion.vigenciaMeses ?? ""}
-                            onFocus={(e) => e.target.select()}
-                            onChange={(e) =>
-                              actualizarPoliza(seleccion.id, {
-                                vigenciaMeses:
-                                  e.target.value === ""
-                                    ? null
-                                    : Number(e.target.value),
-                              })
-                            }
-                            className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-2 text-sm"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <label
+                    key={poliza.id}
+                    className="flex items-center gap-2 rounded-md bg-white p-2 text-sm text-slate-700"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={Boolean(seleccion)}
+                      onChange={() => alternarPoliza(poliza)}
+                    />
+                    {poliza.nombre}
+                  </label>
                 );
               })}
             </div>
@@ -1151,8 +1099,6 @@ export function CotizacionBuilder({
             polizas={polizasSeleccionadas.map((p) => ({
               id: p.id,
               nombre: p.nombre,
-              pct: p.pct === null ? null : p.pct / 100,
-              vigenciaMeses: p.vigenciaMeses,
             }))}
           />
         </div>

@@ -46,8 +46,6 @@ export interface FormatoCotizacionConfiguracionEmpresa {
 export interface FormatoCotizacionPoliza {
   id: string;
   nombre: string;
-  pct: number | null;
-  vigenciaMeses: number | null;
 }
 
 export interface FormatoCotizacionProps {
@@ -270,15 +268,16 @@ export function FormatoCotizacion({
 
           {polizas.length > 0 && (
             <div>
-              <p className="font-semibold text-slate-700">Pólizas</p>
+              <p className="font-semibold text-slate-700">
+                Pólizas disponibles
+              </p>
+              <p className="text-slate-500">
+                Se ofrece la posibilidad de tomar las siguientes pólizas
+                (costo asumido por Servielectro):
+              </p>
               <ul className="list-disc pl-4">
                 {polizas.map((p) => (
-                  <li key={p.id}>
-                    {p.nombre}
-                    {p.pct !== null && ` — ${(p.pct * 100).toFixed(0)}%`}
-                    {p.vigenciaMeses !== null &&
-                      `, vigente por ${p.vigenciaMeses} mes${p.vigenciaMeses === 1 ? "" : "es"}`}
-                  </li>
+                  <li key={p.id}>{p.nombre}</li>
                 ))}
               </ul>
             </div>

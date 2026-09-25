@@ -54,10 +54,16 @@ insert into configuracion_empresa (
 )
 on conflict (id) do nothing;
 
--- 2) Catálogo de pólizas. Sin texto legal ni % / vigencia por defecto: el Excel real solo
--- nombra 3 pólizas ("manejo de anticipo", "garantía", "cumplimiento") sin cláusula ni
--- porcentaje asociado — no se inventa texto legal ni cifras. Jhojan completa esto cuando
--- tenga la redacción y los porcentajes reales de cada póliza.
+-- 2) Catálogo de pólizas — dos niveles, según cómo trabaja Jhojan (confirmado con él
+-- 2026-09-24): en la COTIZACIÓN solo se enuncian las pólizas que se ofrecen (típicamente
+-- tres), sin cifras — es una oferta, no una cláusula. El costo lo absorbe Servielectro,
+-- sale del rubro de administración que ya está en el modelo de gastos (no es una línea
+-- aparte). El % y la vigencia recién existen en el CONTRATO (todavía no construido, ver
+-- docs §16) y Jhojan los pone a mano ahí, lo más bajo posible, ajustándolos si el cliente
+-- negocia. `pct_default`/`vigencia_meses_default` quedan como referencia para cuando se
+-- arme ese módulo — no se leen ni se muestran en la cotización.
+-- Sin texto legal por defecto: el Excel real solo nombra 3 pólizas sin cláusula asociada
+-- — no se inventa texto legal.
 create table if not exists polizas_catalogo (
   id uuid primary key default gen_random_uuid(),
   nombre text not null unique,
@@ -83,16 +89,14 @@ insert into polizas_catalogo (nombre, orden) values
   ('Anticipo', 5)
 on conflict (nombre) do nothing;
 
--- 3) Pólizas seleccionadas por cotización (snapshot: nombre, %, vigencia al momento de
--- cotizar, igual que ya se hace con precios y descripción larga — si el catálogo cambia
--- después, la cotización ya guardada no se altera).
+-- 3) Pólizas ofrecidas por cotización — solo el nombre (snapshot, igual que ya se hace
+-- con precios y descripción larga — si el catálogo cambia después, la cotización ya
+-- guardada no se altera). Sin % ni vigencia: eso es del contrato, no de la oferta.
 create table if not exists cotizacion_polizas (
   id uuid primary key default gen_random_uuid(),
   cotizacion_id uuid not null references cotizaciones (id) on delete cascade,
   poliza_id uuid references polizas_catalogo (id),
   nombre text not null,
-  pct numeric(6,4),
-  vigencia_meses int,
   orden int not null default 0,
   created_at timestamptz not null default now(),
   unique (cotizacion_id, poliza_id)
@@ -129,8 +133,6 @@ select
   cp.cotizacion_id,
   cp.poliza_id,
   cp.nombre,
-  cp.pct,
-  cp.vigencia_meses,
   cp.orden,
   pc.descripcion
 from cotizacion_polizas cp
@@ -285,13 +287,11 @@ begin
     for v_poliza in select * from jsonb_array_elements(p_polizas)
     loop
       v_orden := v_orden + 1;
-      insert into cotizacion_polizas (cotizacion_id, poliza_id, nombre, pct, vigencia_meses, orden)
+      insert into cotizacion_polizas (cotizacion_id, poliza_id, nombre, orden)
       values (
         v_cotizacion_id,
         nullif(v_poliza->>'poliza_id', '')::uuid,
         v_poliza->>'nombre',
-        nullif(v_poliza->>'pct', '')::numeric,
-        nullif(v_poliza->>'vigencia_meses', '')::int,
         v_orden
       );
     end loop;

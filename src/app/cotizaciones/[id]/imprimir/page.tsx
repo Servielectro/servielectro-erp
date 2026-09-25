@@ -65,8 +65,6 @@ export default async function ImprimirCotizacionPage(
         polizas={cotizacion.polizas.map((p) => ({
           id: p.id,
           nombre: p.nombre,
-          pct: p.pct,
-          vigenciaMeses: p.vigenciaMeses,
         }))}
       />
     </div>

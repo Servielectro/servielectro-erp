@@ -65,8 +65,6 @@ export interface PolizaDetalle {
   id: string;
   polizaId: string | null;
   nombre: string;
-  pct: number | null;
-  vigenciaMeses: number | null;
   descripcion: string | null;
 }
 
@@ -155,7 +153,7 @@ export async function getCotizacionDetalle(
 
   const { data: polizas } = await supabase
     .from("v_cotizacion_polizas")
-    .select("id, poliza_id, nombre, pct, vigencia_meses, descripcion")
+    .select("id, poliza_id, nombre, descripcion")
     .eq("cotizacion_id", id)
     .order("orden");
 
@@ -206,8 +204,6 @@ export async function getCotizacionDetalle(
       id: p.id,
       polizaId: p.poliza_id,
       nombre: p.nombre,
-      pct: p.pct === null ? null : Number(p.pct),
-      vigenciaMeses: p.vigencia_meses,
       descripcion: p.descripcion,
     })),
     cliente: {

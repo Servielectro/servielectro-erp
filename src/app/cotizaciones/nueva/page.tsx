@@ -78,8 +78,6 @@ export default async function NuevaCotizacionPage(
           polizas: original.polizas.map((p) => ({
             polizaId: p.polizaId,
             nombre: p.nombre,
-            pct: p.pct,
-            vigenciaMeses: p.vigenciaMeses,
           })),
         };
       }

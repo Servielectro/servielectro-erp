@@ -96,8 +96,6 @@ export interface HitoGuardarInput {
 export interface PolizaGuardarInput {
   polizaId: string | null;
   nombre: string;
-  pct: number | null;
-  vigenciaMeses: number | null;
 }
 
 export interface GuardarCotizacionInput {
@@ -185,8 +183,6 @@ export async function guardarCotizacion(
         ? input.polizas.map((p) => ({
             poliza_id: p.polizaId ?? "",
             nombre: p.nombre,
-            pct: p.pct ?? "",
-            vigencia_meses: p.vigenciaMeses ?? "",
           }))
         : null,
   });
