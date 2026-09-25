@@ -249,3 +249,28 @@ Colores y tipografía sacados de los archivos reales del paquete de marca (`OneD
 **Costo:** ~$0.0008 USD por RUT leído con `gpt-4o-mini` (3.000-4.000 tokens de entrada, ~400 de salida, a $0.15/$0.60 por millón de tokens — precios oficiales verificados en developers.openai.com/api/docs/pricing). Con 10-15 proyectos al año, costo anual despreciable. El costo real de cada lectura queda guardado en `documentos.costo_estimado_usd` para tener el dato, no solo la estimación.
 
 **Sin verificar todavía:** el comportamiento de la IA con un RUT de persona natural (documento con estructura algo distinta al de persona jurídica) no se probó contra un ejemplo real — el esquema contempla el campo `tipo_contribuyente`, pero conviene confirmar con el primer RUT de persona natural que se cargue.
+
+## 18. ERP modular y permisos (2026-09-26)
+
+Jhojan quiere llegar a un ERP modular tipo Zoho — "allá tenemos que llegar", explícitamente el norte, no el sprint. **Fase 1 (navegación + pantalla de módulos + reorganización de rutas) ya está construida y desplegada** — ver `src/app/(app)/layout.tsx`, `src/app/(app)/page.tsx` (grilla de módulos, "Próximamente" en los que no existen todavía) y `src/app/(app)/comercial/*` (cotizaciones y catálogo, movidos desde la raíz con `git mv`, con redirects reales en `next.config.ts` para las rutas viejas).
+
+### 18.1 Modelo de permisos (Fase 2, en curso)
+
+**No son tres roles fijos con permisos cableados en el código — es una matriz configurable** que Jhojan arma él mismo: roles dinámicos (los crea desde la pantalla de Usuarios y permisos, no hay una lista cerrada) × módulos del ERP × nivel de acceso.
+
+**Los tres niveles son de negocio, nunca de sistema** — cita textual de Jhojan: *"nadie, aparte de mí y de ti, va a poder manipular código o bases de datos. Todos los usuarios van a poder gestionar sus tareas con las herramientas de la aplicación, pero nadie va a poder modificar la aplicación."* Por eso se llaman así y no "admin/editor/viewer":
+- **Consultar** — solo lectura.
+- **Trabajar** — crear y editar registros.
+- **Responsable** — además aprobar, eliminar y (si el módulo lo permite) ver datos sensibles del módulo.
+
+Acumulativos: responsable implica trabajar implica consultar. Sin fila en la matriz para un módulo = sin acceso — el módulo no aparece ni en la home ni en el menú.
+
+**"Ver datos sensibles" es un permiso aparte (`ve_datos_sensibles`), no derivado del nivel.** Se discutió explícitamente si el nivel "Responsable" en Comercial debía ocultar costos y márgenes a los niveles más bajos (como en un POS de venta de mostrador sobre catálogo fijo — ver Terra). Jhojan lo descartó para Comercial: acá el comercial es un **ingeniero preventa que diseña y cotiza el proyecto a medida**, necesita el costo de compra para armar la solución, y su comisión se calcula sobre el margen — ocultarle el costo sería ocultarle la base de su propia comisión. Por eso en Comercial `ve_datos_sensibles = true` para los tres niveles. El mecanismo queda modelado igual (columna independiente, configurable por rol y por módulo) porque **sí va a importar en otros módulos** — el caso señalado explícitamente es **RRHH y nómina**, donde ocultar datos sensibles a ciertos niveles tiene sentido real.
+
+**Las dos capas de enforcement, ambas obligatorias:** ocultar un módulo en la interfaz es comodidad, no seguridad — si alguien escribe la URL a mano o mira las llamadas de red, entra igual si el servidor no lo bloquea también. Por eso:
+- **Servidor (lo que protege de verdad):** políticas RLS de las tablas de negocio usando `fn_tiene_permiso(modulo, nivel)` (Fase 2b, pendiente — hoy las tablas de Comercial siguen con `using (true)` para cualquier autenticado).
+- **Interfaz (comodidad):** la home y el menú usan `fn_mis_permisos()` para no mostrar lo que el usuario no puede tocar (Fase 2d, pendiente).
+
+**Esquema (migración `20260926000023`):** `modulos` (catálogo fijo de los módulos del ERP, incluye `usuarios` como acceso de configuración), `roles` (los crea Jhojan), `permisos_rol` (la matriz: rol × módulo × nivel × ve_datos_sensibles), `perfiles` (usuario → rol, 1:1). Funciones `fn_tiene_permiso`, `fn_ve_datos_sensibles` y `fn_mis_permisos`, todas `security definer` para poder resolver el permiso de cualquier usuario sin depender de que ya tenga acceso de lectura a esas tablas. Rol `Administrador` sembrado con `responsable` + `ve_datos_sensibles=true` en todos los módulos — Jhojan queda ahí como dato (una fila más), no como una excepción especial en el código.
+
+**Orden de la Fase 2:** 2a (este esquema) → 2b (RLS de Comercial con `fn_tiene_permiso`, sin vista sin-costos) → 2c (pantalla de gestión de roles/permisos) → 2d (home/menú/frontend responden a `fn_mis_permisos`, el paso más riesgoso porque toca lo que ya funciona, va último y bien probado).
