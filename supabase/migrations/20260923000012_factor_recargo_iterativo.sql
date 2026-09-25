@@ -99,8 +99,11 @@ end;
 $$;
 
 -- v_capas_utilidad con las bases reales de los gastos internos (verificadas contra Tintalá).
--- Reemplaza los null de la migración 20260923000010.
-create or replace view v_capas_utilidad as
+-- Reemplaza los null de la migración 20260923000010. Agrega la columna esquema_iva en
+-- tercera posición: Postgres no permite cambiar nombre/orden de columnas de una vista con
+-- `create or replace` (error 42P16), así que hay que dropearla primero.
+drop view if exists v_capas_utilidad;
+create view v_capas_utilidad as
 select
   c.id as cotizacion_id,
   c.codigo,
