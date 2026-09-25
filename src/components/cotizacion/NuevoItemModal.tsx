@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { crearItemCatalogo } from "@/app/cotizaciones/actions";
+import { crearItemCatalogo } from "@/app/(app)/comercial/cotizaciones/actions";
 import {
   FACTORES_RENTABILIDAD_DEFAULT,
   UNIDADES_SUGERIDAS,

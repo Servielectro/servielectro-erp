@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import {
   CONFIG_PRECIO_DEFAULT,
   FACTORES_RENTABILIDAD_DEFAULT,
@@ -21,8 +20,7 @@ import { ArmadoCotizacionModal } from "@/components/cotizacion/ArmadoCotizacionM
 import { NuevoItemModal } from "@/components/cotizacion/NuevoItemModal";
 import { RutUploader } from "@/components/cotizacion/RutUploader";
 import { VistaPreviaModal } from "@/components/cotizacion/VistaPreviaModal";
-import { MenuPrincipal } from "@/components/MenuPrincipal";
-import { guardarCotizacion, crearPoliza } from "@/app/cotizaciones/actions";
+import { guardarCotizacion, crearPoliza } from "@/app/(app)/comercial/cotizaciones/actions";
 
 const CATEGORIAS: { key: Categoria; label: string }[] = [
   { key: "EQUIPO", label: "Equipos" },
@@ -170,7 +168,6 @@ export function CotizacionBuilder({
       [],
   );
   const [armadoAbierto, setArmadoAbierto] = useState(false);
-  const [menuAbierto, setMenuAbierto] = useState(false);
   const [avanzadoAbierto, setAvanzadoAbierto] = useState(false);
   const [pagosAbierto, setPagosAbierto] = useState(
     Boolean(datosIniciales?.hitos.length),
@@ -492,38 +489,10 @@ export function CotizacionBuilder({
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 pb-48">
       <header className="sticky top-0 z-10 border-b border-slate-200 bg-white">
-        <div className="mx-auto flex w-full max-w-2xl items-center gap-2 p-3 sm:p-4">
-          <Image
-            src="/logo-servielectro.png"
-            alt="Servielectro SAS"
-            width={120}
-            height={30}
-            className="h-6 w-auto sm:h-7"
-          />
-          <h1 className="flex-1 text-center text-sm font-bold text-slate-900 sm:text-base">
+        <div className="mx-auto w-full max-w-2xl p-3 sm:p-4">
+          <h1 className="text-center text-sm font-bold text-slate-900 sm:text-base">
             Nueva cotización
           </h1>
-          <button
-            type="button"
-            onClick={() => setMenuAbierto(true)}
-            aria-label="Menú"
-            className="shrink-0 rounded-md p-1.5 text-slate-700"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              className="h-5 w-5"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5"
-              />
-            </svg>
-          </button>
         </div>
 
         <div className="mx-auto w-full max-w-2xl space-y-3 px-3 pb-3 sm:px-4 sm:pb-4">
@@ -1005,8 +974,6 @@ export function CotizacionBuilder({
           onCerrar={() => setArmadoAbierto(false)}
         />
       )}
-
-      {menuAbierto && <MenuPrincipal onCerrar={() => setMenuAbierto(false)} />}
 
       {modal && (
         <NuevoItemModal

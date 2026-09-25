@@ -11,7 +11,7 @@ import { CONFIG_PRECIO_DEFAULT } from "@/lib/pricing";
 import { CotizacionBuilder, type DatosIniciales } from "./CotizacionBuilder";
 
 export default async function NuevaCotizacionPage(
-  props: PageProps<"/cotizaciones/nueva">,
+  props: PageProps<"/comercial/cotizaciones/nueva">,
 ) {
   const supabase = await createClient();
   const searchParams = await props.searchParams;

@@ -109,8 +109,8 @@ export function ReclasificarCatalogo({
     <div className="flex min-h-screen flex-col bg-slate-50 pb-28">
       <header className="sticky top-0 z-10 space-y-3 border-b border-slate-200 bg-white p-4">
         <div className="flex items-center justify-between">
-          <Link href="/" className="text-sm text-slate-600">
-            ← Inicio
+          <Link href="/comercial" className="text-sm text-slate-600">
+            ← Comercial
           </Link>
           <h1 className="text-base font-semibold text-slate-900">
             Catálogo ({catalogo.length})

@@ -5,7 +5,7 @@ import {
   subirYLeerRut,
   confirmarRut,
   type CamposConfirmadosRut,
-} from "@/app/cotizaciones/documentos-actions";
+} from "@/app/(app)/comercial/cotizaciones/documentos-actions";
 import type { ResultadoExtraccionRut } from "@/lib/documentos/extraer-rut";
 import type { Confianza } from "@/lib/documentos/rut-schema";
 

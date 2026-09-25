@@ -11,7 +11,7 @@ const CATEGORIA_LABEL: Record<Categoria, string> = {
 };
 
 export default async function CotizacionDetallePage(
-  props: PageProps<"/cotizaciones/[id]">,
+  props: PageProps<"/comercial/cotizaciones/[id]">,
 ) {
   const { id } = await props.params;
   const supabase = await createClient();
@@ -28,7 +28,7 @@ export default async function CotizacionDetallePage(
     <div className="flex min-h-screen flex-col bg-slate-50 pb-8">
       <header className="sticky top-0 z-10 space-y-2 border-b border-slate-200 bg-white p-4">
         <div className="flex items-center justify-between">
-          <Link href="/cotizaciones" className="text-sm text-slate-600">
+          <Link href="/comercial/cotizaciones" className="text-sm text-slate-600">
             ← Cotizaciones
           </Link>
           <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
@@ -46,13 +46,13 @@ export default async function CotizacionDetallePage(
         </div>
         <div className="flex gap-2 pt-1">
           <Link
-            href={`/cotizaciones/${cotizacion.id}/imprimir`}
+            href={`/comercial/cotizaciones/${cotizacion.id}/imprimir`}
             className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-center text-sm font-medium text-slate-700"
           >
             Imprimir
           </Link>
           <Link
-            href={`/cotizaciones/nueva?duplicar=${cotizacion.id}`}
+            href={`/comercial/cotizaciones/nueva?duplicar=${cotizacion.id}`}
             className="flex-1 rounded-md bg-slate-900 px-3 py-2 text-center text-sm font-medium text-white"
           >
             Duplicar

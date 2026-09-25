@@ -33,7 +33,7 @@ export default async function CotizacionesListadoPage() {
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white p-4">
         <h1 className="text-lg font-semibold text-slate-900">Cotizaciones</h1>
         <Link
-          href="/cotizaciones/nueva"
+          href="/comercial/cotizaciones/nueva"
           className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white"
         >
           + Nueva
@@ -56,7 +56,7 @@ export default async function CotizacionesListadoPage() {
         {cotizaciones.map((c) => (
           <Link
             key={c.id}
-            href={`/cotizaciones/${c.id}`}
+            href={`/comercial/cotizaciones/${c.id}`}
             className="block rounded-lg border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50"
           >
             <div className="flex items-start justify-between gap-2">

@@ -6,7 +6,7 @@ import { FormatoCotizacion } from "@/components/cotizacion/FormatoCotizacion";
 import { PrintButton } from "./PrintButton";
 
 export default async function ImprimirCotizacionPage(
-  props: PageProps<"/cotizaciones/[id]/imprimir">,
+  props: PageProps<"/comercial/cotizaciones/[id]/imprimir">,
 ) {
   const { id } = await props.params;
   const supabase = await createClient();

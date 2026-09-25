@@ -10,7 +10,7 @@ import {
   previsualizarContenido,
   type PrevisualizacionTabla,
   type RespaldoListado,
-} from "@/app/cotizaciones/backup-actions";
+} from "@/app/(app)/comercial/cotizaciones/backup-actions";
 
 type VistaBaseDatos = "inicio" | "lista" | "previsualizacion";
 
@@ -162,12 +162,18 @@ export function MenuPrincipal({ onCerrar }: { onCerrar: () => void }) {
 
         <nav className="space-y-1 text-sm">
           <Link href="/" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
-            Inicio
+            Inicio (módulos)
           </Link>
-          <Link href="/cotizaciones" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+          <Link href="/usuarios" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+            🔐 Usuarios y permisos
+          </Link>
+          <Link href="/comercial" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+            Comercial
+          </Link>
+          <Link href="/comercial/cotizaciones" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
             Cotizaciones
           </Link>
-          <Link href="/catalogo" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+          <Link href="/comercial/catalogo" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
             Catálogo
           </Link>
         </nav>
