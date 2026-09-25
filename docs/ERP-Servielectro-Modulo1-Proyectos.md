@@ -188,6 +188,19 @@ Texto fuente: hoja `FormatoCotizacion` del Excel real de Tintalá (filas 114-123
 
 **Pendiente de confirmar con Jhojan:** el texto de cláusula legal y el %/vigencia real de cada póliza (el Excel no los trae); y si el bloque de "plazos de entrega y aprobación" es realmente fijo para toda cotización (se asumió que sí, por estar redactado como texto genérico en el Excel) o si alguna vez cambia por proyecto.
 
+## 17. Identidad de marca (2026-09-24)
+
+Colores y tipografía sacados de los archivos reales del paquete de marca (`OneDrive\BACKUP\AGENCIA STUDIO.S MARKETING\Paquete logos Servielectro SAS\Servielectro SAS`), no de la web ni a ojo — el paquete **no trae manual con códigos de color ni tipografía documentados**, así que se extrajeron muestreando los rellenos vectoriales de `Aplicaciones de Logo Servielectro.pdf`/`.ai` (`page.get_drawings()` con PyMuPDF) y los píxeles de los PNG finales (`Logofinal-F-B.png`, `Rojo1.png`, `Blanco1.png`), triangulando entre fuentes.
+
+- **Rojo de marca `#A82323`**: converge entre el manual de aplicaciones (PDF, consistente en sus 6 páginas de contenido) y `Logofinal-F-B.png` (el asset explícitamente nombrado "final"). **Discrepancia encontrada y documentada, no resuelta a ciegas:** `Rojo1.png`, `Whatsapp.png` y el color dominante del archivo `.ai` de trabajo usan una variante distinta (~`#A81E17`/`#A91E17`) — se priorizaron las dos fuentes más consistentes y explícitamente marcadas como definitivas, mismo criterio que en Terra.
+- **Tinta `#1D1D1B`**, **navy `#1D2D40`** y **gris `#7F7B7A`** como secundarios (uso ocasional en el manual, no hay evidencia de que sean centrales a la marca).
+- **Tipografía Poppins**, confirmada por las fuentes embebidas en ambos archivos vectoriales (Light/Regular/Medium/Bold en el `.ai`, Light/Thin en el manual). Vía `next/font/google`, reemplaza a Geist Sans.
+- Todo centralizado en `src/app/globals.css` (variables `--brand-*` + `@theme inline` de Tailwind v4) — un solo archivo para cambiar la paleta o la tipografía a futuro.
+- **Logo real** (`Logofinal-F-B.png` para fondo claro, `Blanco1.png` para fondo oscuro) en `/login` y en el home, reemplazando el texto plano. No hay una versión "solo isotipo" separada en el paquete.
+- **Set de íconos PWA** (192, 512, maskable con zona segura, apple-touch-icon 180×180 opaco, favicon multi-tamaño) generado a partir de la letra "S" inicial del logotipo, extraída en alta resolución directamente del archivo vectorial (no existe un ísotipo cuadrado independiente en el paquete de marca — se derivó del propio logotipo, no se inventó una marca nueva). Fondo rojo de marca, "S" en blanco, alta legibilidad a tamaños chicos.
+- **Uso del rojo limitado a acentos** (botones primarios de login y home) — la app es de uso interno, no la ve el cliente, así que se prioriza legibilidad sobre impacto visual: nunca como fondo grande de pantalla.
+- **Nombre de la app en el manifest:** `name: "Servielectro ERP"`, `short_name: "SE ERP"` — propuesto, pendiente de que Jhojan lo confirme (no se decidió en silencio).
+
 **Almacenamiento:** bucket privado `documentos-clientes` en Supabase Storage (nunca público), carpeta `clientes/{cliente_id}/rut/{timestamp}-{archivo}`. Tabla `documentos` registra quién subió cada archivo y cuándo (`subido_por`, `subido_en`), y quién confirmó los datos extraídos (`confirmado_por`, `confirmado_en`). RLS con el mismo criterio permisivo del resto del sistema (ver nota de RLS arriba).
 
 **Costo:** ~$0.0008 USD por RUT leído con `gpt-4o-mini` (3.000-4.000 tokens de entrada, ~400 de salida, a $0.15/$0.60 por millón de tokens — precios oficiales verificados en developers.openai.com/api/docs/pricing). Con 10-15 proyectos al año, costo anual despreciable. El costo real de cada lectura queda guardado en `documentos.costo_estimado_usd` para tener el dato, no solo la estimación.
