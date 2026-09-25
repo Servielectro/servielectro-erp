@@ -89,6 +89,9 @@ interface Draft {
   lineas: LineaUI[];
   hitos: HitoUI[];
   polizas: PolizaSeleccionadaUI[];
+  // Id de la cotización que se estaba duplicando (null si es una nueva desde cero).
+  // Borradores viejos no lo traen: se toman como null.
+  origen?: string | null;
   guardadoEn: string;
 }
 
@@ -111,11 +114,13 @@ export function CotizacionBuilder({
   polizasCatalogoInicial,
   configuracionEmpresa,
   datosIniciales,
+  duplicarId,
 }: {
   catalogoInicial: CatalogoItem[];
   polizasCatalogoInicial: PolizaCatalogo[];
   configuracionEmpresa: ConfiguracionEmpresa | null;
   datosIniciales?: DatosIniciales;
+  duplicarId?: string;
 }) {
   const [catalogo, setCatalogo] = useState(catalogoInicial);
   const [catalogoPolizas, setCatalogoPolizas] = useState(polizasCatalogoInicial);
@@ -190,7 +195,10 @@ export function CotizacionBuilder({
     lineaId: string;
     busquedaInicial: string;
   } | null>(null);
-  const [, setRestaurado] = useState(false);
+  const [origen, setOrigen] = useState<string | null>(duplicarId ?? null);
+  // Hora del borrador recuperado, para que se vea que el trabajo no se perdió
+  // (p. ej. al volver después de un cierre de sesión por inactividad).
+  const [restauradoDe, setRestauradoDe] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guardadoOk, setGuardadoOk] = useState<{ codigo: string } | null>(
@@ -202,13 +210,16 @@ export function CotizacionBuilder({
   // no hay forma de derivarlo sin efecto (localStorage no existe durante el render en el servidor).
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    // Al duplicar una cotización existente, esa es la intención explícita del usuario:
-    // no pisarla con un borrador local viejo que haya quedado guardado.
-    if (datosIniciales) return;
     try {
       const raw = window.localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
       const draft = JSON.parse(raw) as Draft;
+      // Al duplicar una cotización existente, esa es la intención explícita del usuario:
+      // no pisarla con un borrador local viejo que haya quedado guardado. Excepción: si
+      // el borrador ES el duplicado de esta misma cotización (se volvió a esta URL tras
+      // un cierre por inactividad), lo que vale es el trabajo en curso, no el original.
+      const origenDraft = draft.origen ?? null;
+      if (datosIniciales && origenDraft !== (duplicarId ?? null)) return;
       if (draft.lineas?.length) {
         setClienteNombre(draft.clienteNombre ?? "");
         setClienteNit(draft.clienteNit ?? "");
@@ -222,7 +233,8 @@ export function CotizacionBuilder({
         setLineas(draft.lineas);
         setHitos(draft.hitos ?? []);
         setPolizasSeleccionadas(draft.polizas ?? []);
-        setRestaurado(true);
+        setOrigen(origenDraft);
+        setRestauradoDe(draft.guardadoEn ?? null);
       }
     } catch {
       // borrador corrupto o localStorage no disponible: se ignora
@@ -252,6 +264,7 @@ export function CotizacionBuilder({
         lineas,
         hitos,
         polizas: polizasSeleccionadas,
+        origen,
         guardadoEn: new Date().toISOString(),
       };
       window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
@@ -270,6 +283,7 @@ export function CotizacionBuilder({
     lineas,
     hitos,
     polizasSeleccionadas,
+    origen,
   ]);
 
   const totales = useMemo(
@@ -379,6 +393,8 @@ export function CotizacionBuilder({
     setLineas([]);
     setHitos([]);
     setPolizasSeleccionadas([]);
+    setOrigen(null);
+    setRestauradoDe(null);
     setGuardadoOk(null);
     setError(null);
     try {
@@ -493,6 +509,16 @@ export function CotizacionBuilder({
           <h1 className="text-center text-sm font-bold text-slate-900 sm:text-base">
             Nueva cotización
           </h1>
+          {restauradoDe && (
+            <p className="mt-1 text-center text-xs text-slate-500">
+              Borrador recuperado de este dispositivo (guardado a las{" "}
+              {new Date(restauradoDe).toLocaleTimeString("es-CO", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+              )
+            </p>
+          )}
         </div>
 
         <div className="mx-auto w-full max-w-2xl space-y-3 px-3 pb-3 sm:px-4 sm:pb-4">

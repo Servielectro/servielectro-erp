@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TiempoInactividad } from "./TiempoInactividad";
 
 export default function ConfiguracionPage() {
   return (
@@ -22,6 +23,8 @@ export default function ConfiguracionPage() {
             </p>
           </div>
         </Link>
+
+        <TiempoInactividad />
       </div>
     </div>
   );

@@ -92,6 +92,7 @@ export default async function NuevaCotizacionPage(
       polizasCatalogoInicial={polizasCatalogo}
       configuracionEmpresa={configuracionEmpresa}
       datosIniciales={datosIniciales}
+      duplicarId={typeof duplicarId === "string" ? duplicarId : undefined}
     />
   );
 }
