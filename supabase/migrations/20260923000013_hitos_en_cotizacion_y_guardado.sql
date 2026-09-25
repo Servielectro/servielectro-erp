@@ -181,8 +181,12 @@ begin
 end;
 $$;
 
--- Vista del esquema de pagos de una cotización, para mostrarlo en pantalla
-create or replace view v_hitos_cotizacion as
+-- Vista del esquema de pagos de una cotización, para mostrarlo en pantalla.
+-- drop primero: create or replace view falla (42P16) si una versión previa de la vista
+-- ya existe con columnas distintas — más seguro dropear siempre que crear/reemplazar,
+-- en vez de asumir que el repo es la única fuente de verdad de lo que ya hay en la base.
+drop view if exists v_hitos_cotizacion;
+create view v_hitos_cotizacion as
 select
   h.id,
   h.cotizacion_id,
