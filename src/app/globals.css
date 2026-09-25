@@ -1,26 +1,53 @@
 @import "tailwindcss";
 
+/*
+ * Identidad de marca Servielectro SAS — archivo único de tema.
+ * Colores y tipografía sacados de los archivos reales del paquete de marca
+ * (C:\...\AGENCIA STUDIO.S MARKETING\Paquete logos Servielectro SAS\Servielectro SAS),
+ * no de la web ni a ojo. El paquete no trae manual con códigos de color ni
+ * tipografía documentados — se extrajeron muestreando los rellenos vectoriales
+ * de "Aplicaciones de Logo Servielectro.pdf"/.ai y los píxeles de los PNG finales
+ * (Logofinal-F-B.png, Rojo1.png, Blanco1.png), triangulando entre las fuentes.
+ *
+ * --brand-red: rojo de marca. El manual de aplicaciones (PDF, consistente en
+ *   sus 6 páginas) y Logofinal-F-B.png (el asset nombrado "final") convergen en
+ *   #A72323-#A82323. Ojo: Rojo1.png/Whatsapp.png y el color dominante del
+ *   archivo .ai de trabajo usan una variante distinta (~#A81E17/#A91E17) —
+ *   se priorizó el manual + el asset "final" por ser las fuentes más
+ *   consistentes y explícitamente marcadas como definitivas.
+ * --brand-ink: texto oscuro del logo (subtítulo en Logofinal-F-B.png).
+ * --brand-navy / --brand-gray: colores secundarios encontrados en el manual,
+ *   uso ocasional (no hay evidencia de que sean parte central de la marca).
+ *
+ * App interna (no la ve el cliente): el rojo de marca se usa en acentos,
+ * encabezados y estados activos — nunca como fondo grande de pantalla, para
+ * no cansar la vista en uso prolongado.
+ */
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #1d1d1b;
+
+  --brand-red: #a82323;
+  --brand-red-dark: #8a1c1c;
+  --brand-ink: #1d1d1b;
+  --brand-navy: #1d2d40;
+  --brand-gray: #7f7b7a;
+  --brand-white: #ffffff;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-brand-red: var(--brand-red);
+  --color-brand-red-dark: var(--brand-red-dark);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-gray: var(--brand-gray);
+  --font-sans: var(--font-poppins);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }

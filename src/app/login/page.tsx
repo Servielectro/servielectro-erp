@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { login } from "./actions";
 
 export default async function LoginPage(props: PageProps<"/login">) {
@@ -10,10 +11,17 @@ export default async function LoginPage(props: PageProps<"/login">) {
         className="w-full max-w-sm space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm"
       >
         <div>
-          <h1 className="text-lg font-semibold text-slate-900">
-            Servielectro ERP
-          </h1>
-          <p className="text-sm text-slate-500">Gestión de proyectos</p>
+          <Image
+            src="/logo-servielectro.png"
+            alt="Servielectro SAS"
+            width={220}
+            height={55}
+            className="h-auto w-44"
+            priority
+          />
+          <p className="mt-2 text-sm text-slate-500">
+            ERP — Gestión de proyectos
+          </p>
         </div>
 
         {error && (
@@ -53,7 +61,7 @@ export default async function LoginPage(props: PageProps<"/login">) {
 
         <button
           type="submit"
-          className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white"
+          className="w-full rounded-md bg-brand-red px-3 py-2 text-sm font-medium text-white"
         >
           Entrar
         </button>
