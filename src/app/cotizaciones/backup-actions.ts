@@ -4,9 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 
 // Copia de seguridad manual — el plan actual de Supabase (Free) no incluye respaldos
 // automáticos ni "restaurar a una fecha anterior" (eso solo existe desde el plan Pro
-// para atrás, con PITR como add-on pago aparte). Mientras tanto, esta exportación es
-// la red de seguridad real: un volcado completo de las tablas de negocio que Jhojan
-// puede guardar y, si hace falta, usar para reconstruir a mano.
+// para adelante, con PITR como add-on pago aparte). Esta es la red de seguridad real:
+// cada exportación queda guardada en el bucket "respaldos" con fecha y hora exactas, y
+// "Restaurar" solo puede elegir entre esos puntos reales — nunca una fecha inventada.
 const TABLAS_EXPORTABLES = [
   "clientes",
   "cotizaciones",
@@ -19,10 +19,23 @@ const TABLAS_EXPORTABLES = [
   "polizas_catalogo",
 ] as const;
 
+const BUCKET = "respaldos";
+
+interface ContenidoRespaldo {
+  generadoEn: string;
+  tablas: Record<string, unknown[]>;
+}
+
+function nombreArchivo(fecha: Date): string {
+  // 2026-09-25T14-30-05 — colones fuera del nombre por compatibilidad con Storage/OS.
+  return `backup-${fecha.toISOString().replace(/:/g, "-").split(".")[0]}.json`;
+}
+
 export interface ExportarBaseResultado {
   ok: boolean;
   error?: string;
   generadoEn?: string;
+  nombreArchivo?: string;
   tablas?: Record<string, unknown[]>;
 }
 
@@ -38,50 +51,193 @@ export async function exportarBaseDatos(): Promise<ExportarBaseResultado> {
     tablas[tabla] = data ?? [];
   }
 
-  return { ok: true, generadoEn: new Date().toISOString(), tablas };
+  const generadoEn = new Date();
+  const nombre = nombreArchivo(generadoEn);
+  const contenido: ContenidoRespaldo = {
+    generadoEn: generadoEn.toISOString(),
+    tablas,
+  };
+
+  const { error: errorSubida } = await supabase.storage
+    .from(BUCKET)
+    .upload(nombre, JSON.stringify(contenido), {
+      contentType: "application/json",
+      upsert: false,
+    });
+
+  if (errorSubida) {
+    // La exportación en sí (el archivo que se descarga) sigue sirviendo aunque no se
+    // haya podido guardar la copia en el servidor — se avisa, no se bloquea.
+    return {
+      ok: true,
+      generadoEn: contenido.generadoEn,
+      nombreArchivo: nombre,
+      tablas,
+      error: `Se generó el archivo pero no se pudo guardar una copia en el servidor (${errorSubida.message}) — igual guardá el descargado.`,
+    };
+  }
+
+  return {
+    ok: true,
+    generadoEn: contenido.generadoEn,
+    nombreArchivo: nombre,
+    tablas,
+  };
 }
 
-export interface ImportarBaseResultado {
+export interface RespaldoListado {
+  nombre: string;
+  creadoEn: string | null;
+  tamanioBytes: number | null;
+}
+
+export interface ListarRespaldosResultado {
   ok: boolean;
   error?: string;
-  insertados?: Record<string, number>;
+  respaldos?: RespaldoListado[];
 }
 
-// Importación SEGURA a propósito: solo agrega filas que no existan todavía (por id),
-// nunca actualiza ni borra nada existente. Sirve para recuperar datos perdidos a partir
-// de una exportación anterior, no para "restaurar" la base a un estado pasado completo
-// (eso pisaría cambios hechos después del export, y no es lo que se ofrece acá).
-export async function importarBaseDatos(
+export async function listarRespaldos(): Promise<ListarRespaldosResultado> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.storage.from(BUCKET).list("", {
+    sortBy: { column: "created_at", order: "desc" },
+  });
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  return {
+    ok: true,
+    respaldos: (data ?? [])
+      .filter((f) => f.name.endsWith(".json"))
+      .map((f) => ({
+        nombre: f.name,
+        creadoEn: f.created_at ?? null,
+        tamanioBytes: f.metadata?.size ?? null,
+      })),
+  };
+}
+
+export interface PrevisualizacionTabla {
+  tabla: string;
+  total: number;
+  existentes: number;
+  nuevos: number;
+}
+
+export interface PrevisualizarResultado {
+  ok: boolean;
+  error?: string;
+  generadoEn?: string;
+  tablas?: PrevisualizacionTabla[];
+}
+
+async function leerContenido(
   contenido: string,
-): Promise<ImportarBaseResultado> {
-  let parsed: { tablas?: Record<string, unknown[]> };
+): Promise<{ ok: true; datos: ContenidoRespaldo } | { ok: false; error: string }> {
   try {
-    parsed = JSON.parse(contenido);
+    const datos = JSON.parse(contenido) as Partial<ContenidoRespaldo>;
+    if (!datos.tablas) {
+      return { ok: false, error: "El archivo no tiene el formato esperado" };
+    }
+    return { ok: true, datos: datos as ContenidoRespaldo };
   } catch {
     return { ok: false, error: "El archivo no es un JSON válido" };
   }
+}
 
-  if (!parsed.tablas) {
-    return { ok: false, error: "El archivo no tiene el formato esperado" };
-  }
+// Cuenta, por tabla, cuántas filas del archivo ya existen (se van a REEMPLAZAR) y
+// cuántas son nuevas (se van a AGREGAR) — para mostrar antes de pedir confirmación.
+// No aplica ningún cambio todavía.
+export async function previsualizarContenido(
+  contenido: string,
+): Promise<PrevisualizarResultado> {
+  const leido = await leerContenido(contenido);
+  if (!leido.ok) return { ok: false, error: leido.error };
 
   const supabase = await createClient();
-  const insertados: Record<string, number> = {};
+  const resultado: PrevisualizacionTabla[] = [];
 
   for (const tabla of TABLAS_EXPORTABLES) {
-    const filas = parsed.tablas[tabla];
+    const filas = leido.datos.tablas[tabla];
+    if (!Array.isArray(filas) || filas.length === 0) continue;
+
+    const ids = filas
+      .map((f) => (f as { id?: unknown }).id)
+      .filter((id): id is string => typeof id === "string");
+
+    let existentes = 0;
+    if (ids.length > 0) {
+      const { count } = await supabase
+        .from(tabla)
+        .select("id", { count: "exact", head: true })
+        .in("id", ids);
+      existentes = count ?? 0;
+    }
+
+    resultado.push({
+      tabla,
+      total: filas.length,
+      existentes,
+      nuevos: filas.length - existentes,
+    });
+  }
+
+  return { ok: true, generadoEn: leido.datos.generadoEn, tablas: resultado };
+}
+
+export interface AplicarRespaldoResultado {
+  ok: boolean;
+  error?: string;
+  resultados?: Record<string, number>;
+}
+
+// Aplica el contenido de verdad: filas cuyo id ya existe se ACTUALIZAN (reemplazan),
+// filas nuevas se agregan. Se llama solo después de que el usuario confirmó explícitamente
+// viendo el resultado de previsualizarContenido.
+export async function aplicarContenido(
+  contenido: string,
+): Promise<AplicarRespaldoResultado> {
+  const leido = await leerContenido(contenido);
+  if (!leido.ok) return { ok: false, error: leido.error };
+
+  const supabase = await createClient();
+  const resultados: Record<string, number> = {};
+
+  for (const tabla of TABLAS_EXPORTABLES) {
+    const filas = leido.datos.tablas[tabla];
     if (!Array.isArray(filas) || filas.length === 0) continue;
 
     const { data, error } = await supabase
       .from(tabla)
-      .upsert(filas, { onConflict: "id", ignoreDuplicates: true })
+      .upsert(filas, { onConflict: "id" })
       .select("id");
 
     if (error) {
       return { ok: false, error: `${tabla}: ${error.message}` };
     }
-    insertados[tabla] = data?.length ?? 0;
+    resultados[tabla] = data?.length ?? 0;
   }
 
-  return { ok: true, insertados };
+  return { ok: true, resultados };
+}
+
+export interface ObtenerRespaldoResultado {
+  ok: boolean;
+  error?: string;
+  contenido?: string;
+}
+
+export async function obtenerContenidoRespaldo(
+  nombre: string,
+): Promise<ObtenerRespaldoResultado> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.storage.from(BUCKET).download(nombre);
+
+  if (error || !data) {
+    return { ok: false, error: error?.message ?? "No se pudo leer el archivo" };
+  }
+
+  return { ok: true, contenido: await data.text() };
 }
