@@ -71,6 +71,7 @@ export function NuevoItemModal({
     onCreado({
       id: res.item.id,
       codigo: res.item.codigo,
+      nombreCorto: res.item.descripcion,
       descripcion: res.item.descripcion,
       unidad: res.item.unidad,
       categoria: res.item.categoria,

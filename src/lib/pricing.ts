@@ -15,7 +15,10 @@ export interface LineaCotizacion {
   id: string;
   categoria: Categoria;
   itemCatalogoId: string | null;
+  /** Nombre corto — lo que se ve en pantalla mientras se cotiza. */
   descripcion: string;
+  /** Descripción larga — solo para el documento del cliente (null si no hay). */
+  descripcionLarga: string | null;
   unidad: string;
   cantidad: number;
   valorCompraUnitario: number;

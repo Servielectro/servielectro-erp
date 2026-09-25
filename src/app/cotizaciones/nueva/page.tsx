@@ -48,6 +48,7 @@ export default async function NuevaCotizacionPage(
             categoria: it.categoria,
             itemCatalogoId: null,
             descripcion: it.descripcion,
+            descripcionLarga: it.descripcionLarga,
             unidad: it.unidad,
             cantidad: it.cantidad,
             valorCompraUnitario: it.valorCompraUnitario,

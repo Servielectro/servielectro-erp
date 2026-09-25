@@ -81,6 +81,7 @@ export interface LineaGuardarInput {
   categoria: Categoria;
   itemCatalogoId: string | null;
   descripcion: string;
+  descripcionLarga: string | null;
   unidad: string;
   cantidad: number;
   valorCompraUnitario: number;
@@ -133,6 +134,7 @@ export async function guardarCotizacion(
       categoria: l.categoria,
       item_catalogo_id: l.itemCatalogoId ?? "",
       descripcion: l.descripcion,
+      descripcion_larga: l.descripcionLarga ?? "",
       unidad: l.unidad,
       cantidad: l.cantidad,
       valor_compra_unitario: l.valorCompraUnitario,

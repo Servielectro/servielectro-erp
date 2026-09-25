@@ -15,6 +15,7 @@ import type { CatalogoItem } from "@/lib/supabase/catalogo";
 import { ItemCombobox } from "@/components/cotizacion/ItemCombobox";
 import { NuevoItemModal } from "@/components/cotizacion/NuevoItemModal";
 import { RutUploader } from "@/components/cotizacion/RutUploader";
+import { FormatoCotizacion } from "@/components/cotizacion/FormatoCotizacion";
 import { guardarCotizacion } from "@/app/cotizaciones/actions";
 
 const CATEGORIAS: { key: Categoria; label: string }[] = [
@@ -87,6 +88,7 @@ function nuevaLinea(categoria: Categoria): LineaUI {
     categoria,
     itemCatalogoId: null,
     descripcion: "",
+    descripcionLarga: null,
     unidad: "UNI",
     cantidad: 1,
     valorCompraUnitario: 0,
@@ -110,6 +112,7 @@ export function CotizacionBuilder({
   // siendo el mismo cliente que resolvió el RUT.
   const [clienteId, setClienteId] = useState<string | null>(null);
   const [rutModalAbierto, setRutModalAbierto] = useState(false);
+  const [vistaPreviaAbierta, setVistaPreviaAbierta] = useState(false);
   const [clienteNit, setClienteNit] = useState(datosIniciales?.clienteNit ?? "");
   const [clienteDireccion, setClienteDireccion] = useState(
     datosIniciales?.clienteDireccion ?? "",
@@ -259,7 +262,8 @@ export function CotizacionBuilder({
   function seleccionarItem(lineaId: string, item: CatalogoItem) {
     actualizarLinea(lineaId, {
       itemCatalogoId: item.id,
-      descripcion: item.descripcion,
+      descripcion: item.nombreCorto,
+      descripcionLarga: item.descripcion,
       unidad: item.unidad,
       valorCompraUnitario: item.valorCompraIva ?? 0,
       factorRentabilidadLinea: item.factorRentabilidadLinea,
@@ -354,6 +358,7 @@ export function CotizacionBuilder({
         categoria: l.categoria,
         itemCatalogoId: l.itemCatalogoId,
         descripcion: l.descripcion,
+        descripcionLarga: l.descripcionLarga,
         unidad: l.unidad,
         cantidad: l.cantidad,
         valorCompraUnitario: l.valorCompraUnitario,
@@ -868,6 +873,13 @@ export function CotizacionBuilder({
           </button>
           <button
             type="button"
+            onClick={() => setVistaPreviaAbierta(true)}
+            className="shrink-0 rounded-lg border border-slate-300 px-4 py-4 text-sm font-medium text-slate-700"
+          >
+            Vista previa
+          </button>
+          <button
+            type="button"
             onClick={onGuardar}
             disabled={guardando}
             className="shrink-0 rounded-lg bg-slate-900 px-6 py-4 text-base font-semibold text-white disabled:opacity-60"
@@ -904,6 +916,49 @@ export function CotizacionBuilder({
             setRutModalAbierto(false);
           }}
         />
+      )}
+
+      {vistaPreviaAbierta && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-sm">
+          <div className="sticky top-0 z-10 flex justify-end gap-2 bg-slate-900/40 p-4 backdrop-blur-sm">
+            <button
+              type="button"
+              onClick={() => setVistaPreviaAbierta(false)}
+              className="rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow"
+            >
+              Cerrar vista previa
+            </button>
+          </div>
+          <FormatoCotizacion
+            codigo="BORRADOR (sin guardar)"
+            fecha={new Date().toISOString()}
+            comercial={comercial || null}
+            proyecto={descripcion || clienteNombre}
+            cliente={{
+              nombre: clienteNombre,
+              nit: clienteNit || null,
+              direccion: clienteDireccion || null,
+              email: clienteEmail || null,
+              contacto: clienteContacto || null,
+            }}
+            items={totales.lineas.map((l) => ({
+              id: l.id,
+              categoria: l.categoria,
+              descripcion: l.descripcion,
+              descripcionLarga: l.descripcionLarga,
+              cantidad: l.cantidad,
+              unidad: l.unidad,
+              valorCalculoUnitario: l.valorCalculoUnitario,
+            }))}
+            totales={totales}
+            hitos={hitos.map((h) => ({
+              id: h.id,
+              nombre: h.nombre,
+              porcentaje: h.porcentaje / 100,
+              valorProgramado: (h.porcentaje / 100) * totales.total,
+            }))}
+          />
+        </div>
       )}
     </div>
   );

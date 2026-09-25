@@ -50,7 +50,7 @@ export function ReclasificarCatalogo({
         return false;
       if (!q) return true;
       return (
-        normalizar(item.descripcion).includes(q) ||
+        normalizar(item.nombreCorto).includes(q) ||
         normalizar(item.codigo).includes(q) ||
         (item.referencia && normalizar(item.referencia).includes(q))
       );
@@ -183,7 +183,7 @@ export function ReclasificarCatalogo({
               />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm text-slate-900">
-                  {item.descripcion}
+                  {item.nombreCorto}
                 </p>
                 <p className="text-xs text-slate-400">
                   {item.codigo} · {item.unidad} ·{" "}

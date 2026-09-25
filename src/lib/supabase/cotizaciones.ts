@@ -43,6 +43,7 @@ export interface CotizacionItemDetalle {
   id: string;
   categoria: Categoria;
   descripcion: string;
+  descripcionLarga: string | null;
   unidad: string;
   cantidad: number;
   valorCompraUnitario: number;
@@ -129,7 +130,7 @@ export async function getCotizacionDetalle(
   const { data: items, error: errorItems } = await supabase
     .from("cotizacion_items")
     .select(
-      "id, categoria, descripcion, unidad, cantidad, valor_compra_unitario, factor_rentabilidad_linea, valor_venta_unitario, valor_calculo_unitario",
+      "id, categoria, descripcion, descripcion_larga, unidad, cantidad, valor_compra_unitario, factor_rentabilidad_linea, valor_venta_unitario, valor_calculo_unitario",
     )
     .eq("cotizacion_id", id)
     .order("orden");
@@ -198,6 +199,7 @@ export async function getCotizacionDetalle(
       id: it.id,
       categoria: it.categoria,
       descripcion: it.descripcion,
+      descripcionLarga: it.descripcion_larga,
       unidad: it.unidad,
       cantidad: Number(it.cantidad),
       valorCompraUnitario: Number(it.valor_compra_unitario),

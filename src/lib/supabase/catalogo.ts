@@ -4,6 +4,9 @@ import type { Categoria } from "@/lib/pricing";
 export interface CatalogoItem {
   id: string;
   codigo: string;
+  /** Nombre corto — lo que se muestra en pantalla (buscador, líneas de la cotización). */
+  nombreCorto: string;
+  /** Descripción larga — solo aparece en el documento que se le manda al cliente. */
   descripcion: string;
   unidad: string;
   categoria: Categoria;
@@ -21,16 +24,17 @@ export async function getCatalogoActivo(
   const { data, error } = await supabase
     .from("v_items_catalogo_con_precio")
     .select(
-      "id, codigo, descripcion, unidad, categoria, proveedor, referencia, factor_rentabilidad_linea, valor_compra_iva, precio_actualizado_en",
+      "id, codigo, nombre_corto, descripcion, unidad, categoria, proveedor, referencia, factor_rentabilidad_linea, valor_compra_iva, precio_actualizado_en",
     )
     .eq("activo", true)
-    .order("descripcion");
+    .order("nombre_corto");
 
   if (error) throw error;
 
   return (data ?? []).map((row) => ({
     id: row.id,
     codigo: row.codigo,
+    nombreCorto: row.nombre_corto,
     descripcion: row.descripcion,
     unidad: row.unidad,
     categoria: row.categoria,

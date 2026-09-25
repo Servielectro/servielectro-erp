@@ -42,7 +42,7 @@ export function ItemCombobox({
     const base = q
       ? itemsCategoria.filter(
           (i) =>
-            normalizar(i.descripcion).includes(q) ||
+            normalizar(i.nombreCorto).includes(q) ||
             normalizar(i.codigo).includes(q) ||
             (i.referencia && normalizar(i.referencia).includes(q)),
         )
@@ -103,7 +103,7 @@ export function ItemCombobox({
               className="flex w-full flex-col items-start gap-0.5 border-b border-slate-100 px-3 py-3 text-left active:bg-slate-100"
             >
               <span className="text-base text-slate-900">
-                {item.descripcion}
+                {item.nombreCorto}
               </span>
               <span className="text-xs text-slate-500">
                 {item.codigo} · {item.unidad}
