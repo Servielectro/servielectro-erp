@@ -1,6 +1,10 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { tienePermiso } from "@/lib/permisos";
+
+// Exportar y restaurar tocan toda la base de Comercial: solo responsables del módulo.
+const SIN_PERMISO = "No tienes permiso de responsable en Comercial";
 
 // Copia de seguridad manual — el plan actual de Supabase (Free) no incluye respaldos
 // automáticos ni "restaurar a una fecha anterior" (eso solo existe desde el plan Pro
@@ -40,6 +44,9 @@ export interface ExportarBaseResultado {
 }
 
 export async function exportarBaseDatos(): Promise<ExportarBaseResultado> {
+  if (!(await tienePermiso("comercial", "responsable"))) {
+    return { ok: false, error: SIN_PERMISO };
+  }
   const supabase = await createClient();
   const tablas: Record<string, unknown[]> = {};
 
@@ -98,6 +105,9 @@ export interface ListarRespaldosResultado {
 }
 
 export async function listarRespaldos(): Promise<ListarRespaldosResultado> {
+  if (!(await tienePermiso("comercial", "responsable"))) {
+    return { ok: false, error: SIN_PERMISO };
+  }
   const supabase = await createClient();
   const { data, error } = await supabase.storage.from(BUCKET).list("", {
     sortBy: { column: "created_at", order: "desc" },
@@ -153,6 +163,9 @@ async function leerContenido(
 export async function previsualizarContenido(
   contenido: string,
 ): Promise<PrevisualizarResultado> {
+  if (!(await tienePermiso("comercial", "responsable"))) {
+    return { ok: false, error: SIN_PERMISO };
+  }
   const leido = await leerContenido(contenido);
   if (!leido.ok) return { ok: false, error: leido.error };
 
@@ -199,6 +212,9 @@ export interface AplicarRespaldoResultado {
 export async function aplicarContenido(
   contenido: string,
 ): Promise<AplicarRespaldoResultado> {
+  if (!(await tienePermiso("comercial", "responsable"))) {
+    return { ok: false, error: SIN_PERMISO };
+  }
   const leido = await leerContenido(contenido);
   if (!leido.ok) return { ok: false, error: leido.error };
 
@@ -232,6 +248,9 @@ export interface ObtenerRespaldoResultado {
 export async function obtenerContenidoRespaldo(
   nombre: string,
 ): Promise<ObtenerRespaldoResultado> {
+  if (!(await tienePermiso("comercial", "responsable"))) {
+    return { ok: false, error: SIN_PERMISO };
+  }
   const supabase = await createClient();
   const { data, error } = await supabase.storage.from(BUCKET).download(nombre);
 

@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+// Comercial = dos submódulos: Cotizaciones (con el catálogo de ítems colgando de ahí,
+// porque es su insumo) y CRM (por ahora, la cartera de clientes).
 export default function ComercialPage() {
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6">
@@ -7,33 +9,49 @@ export default function ComercialPage() {
         Comercial
       </h1>
 
-      <div className="space-y-3">
-        <Link
-          href="/comercial/cotizaciones/nueva"
-          className="block rounded-lg bg-brand-red px-4 py-4 text-center text-base font-semibold text-white shadow-sm"
-        >
-          + Nueva cotización
-        </Link>
-        <Link
-          href="/comercial/cotizaciones"
-          className="block rounded-lg border border-slate-300 bg-white px-4 py-3 text-center text-sm font-medium text-slate-700"
-        >
-          Ver cotizaciones
-        </Link>
-        <Link
-          href="/comercial/catalogo"
-          className="block rounded-lg border border-slate-300 bg-white px-4 py-3 text-center text-sm font-medium text-slate-700"
-        >
-          Catálogo de ítems
-        </Link>
-        <div className="rounded-lg border border-dashed border-slate-200 bg-slate-100 px-4 py-3 text-center opacity-60">
-          <p className="text-sm font-medium text-slate-500">
-            Clientes (CRM)
-          </p>
-          <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-500">
-            Próximamente
-          </span>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="flex flex-col rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <Link href="/comercial/cotizaciones" className="flex items-center gap-3">
+            <span className="text-3xl">🧾</span>
+            <div>
+              <p className="text-base font-semibold text-slate-900">Cotizaciones</p>
+              <p className="text-xs text-slate-600">Armar, consultar y duplicar cotizaciones</p>
+            </div>
+          </Link>
+          <div className="mt-4 flex flex-col gap-2">
+            <Link
+              href="/comercial/cotizaciones/nueva"
+              className="rounded-md bg-brand-red px-3 py-2.5 text-center text-sm font-semibold text-white"
+            >
+              + Nueva cotización
+            </Link>
+            <Link
+              href="/comercial/cotizaciones"
+              className="rounded-md border border-slate-300 px-3 py-2 text-center text-sm font-medium text-slate-700"
+            >
+              Ver cotizaciones
+            </Link>
+            <Link
+              href="/comercial/catalogo"
+              className="py-1 text-center text-xs font-medium text-slate-500 underline"
+            >
+              Catálogo de ítems
+            </Link>
+          </div>
         </div>
+
+        <Link
+          href="/comercial/crm"
+          className="flex flex-col rounded-lg border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">🤝</span>
+            <div>
+              <p className="text-base font-semibold text-slate-900">CRM</p>
+              <p className="text-xs text-slate-600">Clientes y su historial de cotizaciones</p>
+            </div>
+          </div>
+        </Link>
       </div>
     </div>
   );

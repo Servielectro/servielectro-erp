@@ -10,7 +10,7 @@ export default function ConfiguracionPage() {
 
       <div className="space-y-3">
         <Link
-          href="/usuarios"
+          href="/configuracion/usuarios"
           className="flex items-center gap-3 rounded-lg border border-slate-300 bg-white p-4 shadow-sm active:bg-slate-50"
         >
           <span className="text-2xl">🔐</span>

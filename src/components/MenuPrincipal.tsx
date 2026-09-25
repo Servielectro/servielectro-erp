@@ -14,7 +14,20 @@ import {
 
 type VistaBaseDatos = "inicio" | "lista" | "previsualizacion";
 
-export function MenuPrincipal({ onCerrar }: { onCerrar: () => void }) {
+export interface AccesosMenu {
+  // Ids de módulo con algún permiso (de fn_mis_permisos). Ocultar es comodidad: las
+  // rutas igual se protegen en el servidor.
+  modulos: string[];
+  baseDatos: boolean;
+}
+
+export function MenuPrincipal({
+  onCerrar,
+  accesos,
+}: {
+  onCerrar: () => void;
+  accesos: AccesosMenu;
+}) {
   const [seccionAbierta, setSeccionAbierta] = useState<"basedatos" | null>(
     null,
   );
@@ -164,23 +177,35 @@ export function MenuPrincipal({ onCerrar }: { onCerrar: () => void }) {
           <Link href="/" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
             Inicio (módulos)
           </Link>
-          <Link href="/comercial" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
-            Comercial
-          </Link>
-          <Link href="/comercial/cotizaciones" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
-            Cotizaciones
-          </Link>
-          <Link href="/comercial/catalogo" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
-            Catálogo
-          </Link>
-          <Link href="/configuracion" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
-            Configuración
-          </Link>
-          <Link href="/usuarios" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
-            🔐 Usuarios y permisos
-          </Link>
+          {accesos.modulos.includes("comercial") && (
+            <>
+              <Link href="/comercial" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+                Comercial
+              </Link>
+              <Link href="/comercial/cotizaciones" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+                Cotizaciones
+              </Link>
+              <Link href="/comercial/catalogo" className="block rounded-md py-1.5 pl-10 text-xs text-slate-500 hover:bg-slate-50">
+                Catálogo de ítems
+              </Link>
+              <Link href="/comercial/crm" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+                CRM
+              </Link>
+            </>
+          )}
+          {accesos.modulos.includes("configuracion") && (
+            <>
+              <Link href="/configuracion" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+                Configuración
+              </Link>
+              <Link href="/configuracion/usuarios" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+                🔐 Usuarios y permisos
+              </Link>
+            </>
+          )}
         </nav>
 
+        {accesos.baseDatos && (
         <button
           type="button"
           onClick={() => {
@@ -193,6 +218,7 @@ export function MenuPrincipal({ onCerrar }: { onCerrar: () => void }) {
           Base de datos
           <span>{seccionAbierta === "basedatos" ? "▾" : "▸"}</span>
         </button>
+        )}
 
         {seccionAbierta === "basedatos" && (
           <div className="space-y-3 rounded-md bg-slate-50 p-3 text-sm">

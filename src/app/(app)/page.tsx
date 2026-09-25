@@ -2,17 +2,18 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/app/logout/actions";
+import { getMisPermisos } from "@/lib/permisos";
 
 const MODULOS = [
-  { nombre: "Comercial", icono: "💼", href: "/comercial", activo: true },
-  { nombre: "Configuración", icono: "🔐", href: "/configuracion", activo: true },
-  { nombre: "Financiero", icono: "💰", activo: false },
-  { nombre: "Contable", icono: "📊", activo: false },
-  { nombre: "Marketing", icono: "📣", activo: false },
-  { nombre: "Administrativo", icono: "🗂️", activo: false },
-  { nombre: "RRHH", icono: "👥", activo: false },
-  { nombre: "Técnico", icono: "🔧", activo: false },
-  { nombre: "Operativo", icono: "⚙️", activo: false },
+  { id: "comercial", nombre: "Comercial", icono: "💼", href: "/comercial", activo: true },
+  { id: "configuracion", nombre: "Configuración", icono: "🔐", href: "/configuracion", activo: true },
+  { id: "financiero", nombre: "Financiero", icono: "💰", activo: false },
+  { id: "contable", nombre: "Contable", icono: "📊", activo: false },
+  { id: "marketing", nombre: "Marketing", icono: "📣", activo: false },
+  { id: "administrativo", nombre: "Administrativo", icono: "🗂️", activo: false },
+  { id: "rrhh", nombre: "RRHH", icono: "👥", activo: false },
+  { id: "tecnico", nombre: "Técnico", icono: "🔧", activo: false },
+  { id: "operativo", nombre: "Operativo", icono: "⚙️", activo: false },
 ] as const;
 
 export default async function Home() {
@@ -24,6 +25,10 @@ export default async function Home() {
   if (!user) {
     redirect("/login");
   }
+
+  // Solo los módulos con permiso (fn_mis_permisos). Las rutas se protegen aparte, en el servidor.
+  const permisos = await getMisPermisos();
+  const visibles = MODULOS.filter((m) => permisos[m.id]);
 
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6">
@@ -44,8 +49,14 @@ export default async function Home() {
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
         Módulos
       </h2>
+      {visibles.length === 0 && (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Tu usuario todavía no tiene módulos asignados. Pídele al administrador que te
+          asigne un rol en Configuración → Usuarios y permisos.
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {MODULOS.map((m) =>
+        {visibles.map((m) =>
           m.activo ? (
             <Link
               key={m.nombre}

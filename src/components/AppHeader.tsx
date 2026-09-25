@@ -3,14 +3,14 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { MenuPrincipal } from "@/components/MenuPrincipal";
+import { MenuPrincipal, type AccesosMenu } from "@/components/MenuPrincipal";
 
 /**
  * Barra superior global — presente en todas las pantallas de la app (menos /login).
  * Logo a la izquierda (vuelve al inicio), menú ☰ a la derecha con acceso a los
  * módulos, cotizaciones/catálogo y la sección de Base de datos.
  */
-export function AppHeader() {
+export function AppHeader({ accesos }: { accesos: AccesosMenu }) {
   const [menuAbierto, setMenuAbierto] = useState(false);
 
   return (
@@ -52,7 +52,7 @@ export function AppHeader() {
         </div>
       </header>
 
-      {menuAbierto && <MenuPrincipal onCerrar={() => setMenuAbierto(false)} />}
+      {menuAbierto && <MenuPrincipal onCerrar={() => setMenuAbierto(false)} accesos={accesos} />}
     </>
   );
 }
