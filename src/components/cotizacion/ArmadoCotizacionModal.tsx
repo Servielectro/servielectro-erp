@@ -49,40 +49,44 @@ export function ArmadoCotizacionModal({
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-slate-50">
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white p-3 sm:p-4">
-        <h2 className="text-sm font-bold text-slate-900 sm:text-base">
-          Armar cotización
-        </h2>
-        <button
-          type="button"
-          onClick={onCerrar}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-        >
-          Listo
-        </button>
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex w-full max-w-2xl items-center justify-between p-3 sm:p-4">
+          <h2 className="text-sm font-bold text-slate-900 sm:text-base">
+            Armar cotización
+          </h2>
+          <button
+            type="button"
+            onClick={onCerrar}
+            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+          >
+            Listo
+          </button>
+        </div>
       </header>
 
-      <nav className="flex border-b border-slate-200 bg-white">
-        {CATEGORIAS.map((c) => (
-          <button
-            key={c.key}
-            type="button"
-            onClick={() => setActiveTab(c.key)}
-            className={`flex-1 border-b-2 px-2 py-2.5 text-center text-xs font-medium sm:py-3 sm:text-sm ${
-              activeTab === c.key
-                ? "border-slate-900 text-slate-900"
-                : "border-transparent text-slate-600"
-            }`}
-          >
-            {c.label}
-            <span className="ml-1 text-xs text-slate-600">
-              ({lineas.filter((l) => l.categoria === c.key).length})
-            </span>
-          </button>
-        ))}
+      <nav className="flex justify-center border-b border-slate-200 bg-white">
+        <div className="flex w-full max-w-2xl">
+          {CATEGORIAS.map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => setActiveTab(c.key)}
+              className={`flex-1 border-b-2 px-2 py-2.5 text-center text-xs font-medium sm:py-3 sm:text-sm ${
+                activeTab === c.key
+                  ? "border-slate-900 text-slate-900"
+                  : "border-transparent text-slate-600"
+              }`}
+            >
+              {c.label}
+              <span className="ml-1 text-xs text-slate-600">
+                ({lineas.filter((l) => l.categoria === c.key).length})
+              </span>
+            </button>
+          ))}
+        </div>
       </nav>
 
-      <main className="flex-1 space-y-3 overflow-y-auto p-3 pb-28 sm:p-4">
+      <main className="mx-auto w-full max-w-2xl flex-1 space-y-3 overflow-y-auto p-3 pb-28 sm:p-4">
         {lineasTab.length === 0 && (
           <p className="py-8 text-center text-sm text-slate-600">
             Sin líneas todavía en{" "}
@@ -195,8 +199,8 @@ export function ArmadoCotizacionModal({
         </button>
       </main>
 
-      <footer className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white p-3 sm:p-4">
-        <p className="text-right text-sm text-slate-600">
+      <footer className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white">
+        <p className="mx-auto w-full max-w-2xl p-3 text-right text-sm text-slate-600 sm:p-4">
           Subtotal {CATEGORIAS.find((c) => c.key === activeTab)?.label}:{" "}
           <span className="font-semibold text-slate-800">
             {formatCOP(subtotalTab)}

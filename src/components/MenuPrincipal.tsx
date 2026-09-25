@@ -247,14 +247,14 @@ export function MenuPrincipal({ onCerrar }: { onCerrar: () => void }) {
 
                 <div className="rounded-md border border-amber-200 bg-amber-50 p-2.5">
                   <p className="text-xs font-medium text-amber-900">
-                    No hay &quot;restaurar a cualquier fecha&quot;
+                    Estos son los respaldos que vos generaste
                   </p>
                   <p className="mt-1 text-xs text-amber-800">
-                    El plan actual de Supabase (gratuito) no guarda copias
-                    automáticas del pasado — eso recién existe desde el plan
-                    Pro, y con precisión de segundos (PITR) es un adicional
-                    pago aparte. Por eso acá solo se puede volver a un punto
-                    que vos mismo generaste con &quot;Exportar&quot;.
+                    Supabase no guarda copias automáticas en el plan actual
+                    (Free) — eso recién existe desde el plan Pro en adelante.
+                    Si nunca tocás &quot;Exportar copia&quot;, no hay a dónde
+                    volver: esta lista está vacía hasta que generés al menos
+                    un respaldo.
                   </p>
                 </div>
               </>
