@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatCOP, type Categoria, type LineaCotizacion } from "@/lib/pricing";
 import type { CatalogoItem } from "@/lib/supabase/catalogo";
 import { ItemCombobox } from "@/components/cotizacion/ItemCombobox";
@@ -11,7 +11,8 @@ const CATEGORIAS: { key: Categoria; label: string }[] = [
   { key: "MANO_DE_OBRA", label: "Mano de obra" },
 ];
 
-const RENTABILIDADES_SUGERIDAS = [0.8, 0.85, 0.88];
+const MARGEN_MIN = 0;
+const MARGEN_MAX = 90;
 
 interface LineaCalculada extends LineaCotizacion {
   valorVentaUnitario: number;
@@ -145,33 +146,14 @@ export function ArmadoCotizacionModal({
                         })
                       }
                     />
-                    <div>
-                      <label className="text-xs text-slate-600">
-                        Rentab.
-                      </label>
-                      <select
-                        value={linea.factorRentabilidadLinea}
-                        onChange={(e) =>
-                          onActualizarLinea(linea.id, {
-                            factorRentabilidadLinea: Number(e.target.value),
-                          })
-                        }
-                        className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-2.5 text-sm sm:text-base"
-                      >
-                        {[
-                          ...new Set([
-                            ...RENTABILIDADES_SUGERIDAS,
-                            linea.factorRentabilidadLinea,
-                          ]),
-                        ]
-                          .sort((a, b) => a - b)
-                          .map((f) => (
-                            <option key={f} value={f}>
-                              {(f * 100).toFixed(0)}%
-                            </option>
-                          ))}
-                      </select>
-                    </div>
+                    <CampoMargen
+                      factorRentabilidadLinea={linea.factorRentabilidadLinea}
+                      onCambiarFactor={(f) =>
+                        onActualizarLinea(linea.id, {
+                          factorRentabilidadLinea: f,
+                        })
+                      }
+                    />
                   </div>
 
                   <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2">
@@ -207,6 +189,96 @@ export function ArmadoCotizacionModal({
           </span>
         </p>
       </footer>
+    </div>
+  );
+}
+
+function round4(n: number): number {
+  return Math.round((n + Number.EPSILON) * 10000) / 10000;
+}
+
+function factorAMargen(factor: number): number {
+  return Math.round((1 - factor) * 1000) / 10; // 1 decimal
+}
+
+/**
+ * Muestra y edita el MARGEN (0-90%), no el factor que se guarda en base
+ * (factorRentabilidadLinea = 1 - margen). Jhojan detectó que mostrar el factor
+ * directamente como "85%" confunde con una rentabilidad del 85%, cuando en
+ * realidad esa cifra es un factor de 0.85 → margen real del 15%.
+ */
+function CampoMargen({
+  factorRentabilidadLinea,
+  onCambiarFactor,
+}: {
+  factorRentabilidadLinea: number;
+  onCambiarFactor: (factor: number) => void;
+}) {
+  const margenActual = factorAMargen(factorRentabilidadLinea);
+  const [texto, setTexto] = useState(String(margenActual));
+
+  useEffect(() => {
+    setTexto(String(margenActual));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [factorRentabilidadLinea]);
+
+  function commit(valorTexto: string) {
+    const n = Number(valorTexto);
+    if (Number.isNaN(n)) {
+      setTexto(String(margenActual));
+      return;
+    }
+    const clamped = Math.min(MARGEN_MAX, Math.max(MARGEN_MIN, n));
+    setTexto(String(clamped));
+    onCambiarFactor(round4(1 - clamped / 100));
+  }
+
+  function step(delta: number) {
+    commit(String(margenActual + delta));
+  }
+
+  return (
+    <div>
+      <label className="text-xs text-slate-600">Margen</label>
+      <div className="mt-0.5 flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => step(-1)}
+          className="h-full shrink-0 rounded-md border border-slate-300 px-2 py-2.5 text-sm text-slate-700"
+        >
+          −
+        </button>
+        <div className="relative min-w-0 flex-1">
+          <input
+            type="number"
+            inputMode="decimal"
+            min={MARGEN_MIN}
+            max={MARGEN_MAX}
+            value={texto}
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => {
+              const v = e.target.value;
+              setTexto(v);
+              const n = Number(v);
+              if (v !== "" && !Number.isNaN(n) && n >= MARGEN_MIN && n <= MARGEN_MAX) {
+                onCambiarFactor(round4(1 - n / 100));
+              }
+            }}
+            onBlur={(e) => commit(e.target.value)}
+            className="w-full rounded-md border border-slate-300 px-2 py-2.5 pr-5 text-sm sm:text-base"
+          />
+          <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-slate-500">
+            %
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => step(1)}
+          className="h-full shrink-0 rounded-md border border-slate-300 px-2 py-2.5 text-sm text-slate-700"
+        >
+          +
+        </button>
+      </div>
     </div>
   );
 }
