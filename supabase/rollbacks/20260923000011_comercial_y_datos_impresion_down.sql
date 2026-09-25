@@ -1,6 +1,13 @@
 -- Rollback de 20260923000011_comercial_y_datos_impresion.sql
 drop view if exists v_cotizaciones_listado;
 
+-- Dropea la versión de 15 parámetros antes de recrear la de 10 — si no, "create or
+-- replace" no reemplaza (la lista de tipos cambió) y quedan las dos coexistiendo.
+drop function if exists fn_guardar_cotizacion_completa(
+  text, uuid, esquema_iva, text, numeric, numeric, numeric, numeric, numeric, jsonb,
+  text, text, text, text, text
+);
+
 -- Vuelve la función a su firma anterior (sin comercial ni datos de cliente extra)
 create or replace function fn_guardar_cotizacion_completa(
   p_cliente_nombre text,

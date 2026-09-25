@@ -137,8 +137,18 @@ from cotizacion_polizas cp
 left join polizas_catalogo pc on pc.id = cp.poliza_id
 order by cp.cotizacion_id, cp.orden;
 
--- Extiende el guardado atómico para aceptar las pólizas seleccionadas. Mismo patrón que
--- los hitos: parámetro nuevo al final con default null, no rompe llamadas existentes.
+-- Extiende el guardado atómico para aceptar las pólizas seleccionadas. Agregar un
+-- parámetro nuevo cambia la lista de tipos de la función, así que `create or replace`
+-- NO reemplaza la versión de 20260924000018 en el mismo lugar — Postgres identifica una
+-- función por su lista de tipos de argumentos, y una lista distinta crea una función
+-- SOBRECARGADA aparte en vez de reemplazar, dejando las dos versiones coexistiendo.
+-- Se dropea explícitamente la firma vieja primero (mismo patrón usado en
+-- 20260923000013 al reemplazar la de 20260923000011) para no dejar un duplicado.
+drop function if exists fn_guardar_cotizacion_completa(
+  text, uuid, esquema_iva, text, numeric, numeric, numeric, numeric, numeric,
+  jsonb, jsonb, text, text, text, text, text
+);
+
 create or replace function fn_guardar_cotizacion_completa(
   p_cliente_nombre text,
   p_cliente_id uuid,

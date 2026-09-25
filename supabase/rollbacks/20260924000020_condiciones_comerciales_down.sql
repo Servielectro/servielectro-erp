@@ -1,5 +1,13 @@
 -- Rollback de 20260924000020_condiciones_comerciales.sql
 
+-- Dropea la versión de 17 parámetros (con p_polizas) antes de recrear la de 16 —
+-- si no, "create or replace" no reemplaza (la lista de tipos cambió) y quedan las
+-- dos versiones sobrecargadas coexistiendo.
+drop function if exists fn_guardar_cotizacion_completa(
+  text, uuid, esquema_iva, text, numeric, numeric, numeric, numeric, numeric,
+  jsonb, jsonb, text, text, text, text, text, jsonb
+);
+
 -- Vuelve fn_guardar_cotizacion_completa a la versión de 20260924000018 (sin p_polizas)
 create or replace function fn_guardar_cotizacion_completa(
   p_cliente_nombre text,

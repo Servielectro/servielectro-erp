@@ -4,10 +4,17 @@
 
 alter table cotizaciones add column if not exists comercial text;
 
--- Extiende el guardado atómico para aceptar comercial y datos de cliente opcionales,
--- sin romper a quien ya llama la función con la firma anterior (parámetros nuevos al
--- final, todos con default). Si el cliente ya existe y se pasa un dato nuevo (ej. NIT),
--- se actualiza solo el campo que llega no nulo — nunca se borra un dato existente.
+-- Extiende el guardado atómico para aceptar comercial y datos de cliente opcionales.
+-- Agregar parámetros cambia la lista de tipos de la función: `create or replace` NO
+-- reemplaza la versión de 20260923000008 en el mismo lugar (Postgres identifica una
+-- función por su lista de tipos de argumentos) — sin este drop quedarían las dos
+-- versiones coexistiendo como sobrecarga. Si el cliente ya existe y se pasa un dato
+-- nuevo (ej. NIT), se actualiza solo el campo que llega no nulo — nunca se borra un
+-- dato existente.
+drop function if exists fn_guardar_cotizacion_completa(
+  text, uuid, esquema_iva, text, numeric, numeric, numeric, numeric, numeric, jsonb
+);
+
 create or replace function fn_guardar_cotizacion_completa(
   p_cliente_nombre text,
   p_cliente_id uuid,
