@@ -195,9 +195,39 @@ Texto fuente: hoja `FormatoCotizacion` del Excel real de Tintalá (filas 114-123
 
 **Pendiente de confirmar con Jhojan:** si el bloque de "plazos de entrega y aprobación" es realmente fijo para toda cotización (se asumió que sí, por estar redactado como texto genérico en el Excel) o si alguna vez cambia por proyecto.
 
-## 16.1 Próximo hito: mapeo del contrato de obra (pendiente, después de cotizaciones)
+## 16.1 Especificación del módulo de contratos (mapeo, NO construir todavía)
 
-Jhojan va a subir un contrato modelo con los porcentajes de pólizas ya estipulados. **No construir el módulo de contratos todavía.** Cuando llegue el modelo, lo primero es mapear campo por campo qué dato del contrato sale de qué dato del ERP (cliente + RUT ya cargado, valor de la cotización, forma de pago derivada de hitos, pólizas ofrecidas) y cuáles faltan — recién después de ese mapeo se diseña el esquema. Objetivo de Jhojan: que el contrato salga autocompletado con lo que ya existe en el ERP y él solo ajuste lo que se negoció.
+Jhojan mandó el contrato modelo real: `CONTRATO CSE-26-151 MANTO PUERTAS VEHICULARES Tintalá Fase VI.docx` (contrato de obra civil, 21 cláusulas, 128 párrafos, tabla de niveles de servicio). Del mismo proyecto Tintalá que ya está cotizado en el sistema, así que el mapeo cotización↔contrato es 1:1 y verificable contra un caso real.
+
+**Regla explícita de Jhojan, no negociable:** el contrato tiene cláusulas de indemnidad, protección de datos (Ley 1581), reserva de dominio, fuerza mayor y solución de conflictos — texto jurídico serio. **El módulo de contratos es un motor de plantilla que rellena campos, no un redactor.** No se reescribe ni se "mejora" el texto legal — se toca solo si él lo pide explícitamente.
+
+**Campos que el ERP YA puede autocompletar (existen hoy):**
+
+| Campo del contrato | Fuente en el ERP |
+|---|---|
+| Número de contrato | `cotizaciones.codigo` (mismo consecutivo, ej. CSE-26-151) |
+| Contratante (razón social, NIT, dirección, representante legal) | `clientes` + RUT confirmado (§14) |
+| Contratista (Servielectro: razón social, NIT, dirección, representante legal, correo) | Fijo — va a `configuracion_empresa` (nuevos campos, ver abajo) |
+| Anexo 1 "Propuesta comercial" + fecha | Cotización + `fecha_emision` |
+| Cláusula Segunda (alcance de la oferta) | Líneas de la cotización — **pero agrupadas distinto**: el contrato usa bloques (suministro e instalación de equipos / cableado y redes / obra civil complementaria / apoyo logístico / configuración y puesta en marcha / entregables), no las 3 categorías del ERP (EQUIPO/MATERIAL/MANO_DE_OBRA). Hace falta un campo "bloque de alcance" por ítem o una tabla de mapeo categoría→bloque. |
+| Cláusula Quinta (valor y forma de pago) | Total de la cotización (en letras y números) + hitos de pago |
+
+**Campos que hoy NO existen y hay que agregar (todavía sin construir):**
+- **Plazo de ejecución** (ej. "doce días hábiles desde el Acta de Inicio") — no hay campo de plazo en `cotizaciones` ni `proyectos` hoy.
+- **Garantías configurables** (en este contrato: 12 meses equipos, 6 meses mano de obra) — hoy la garantía es un texto fijo único en `configuracion_empresa` (§16), no configurable por proyecto.
+- **Datos fijos del contratista** — faltan en `configuracion_empresa`: representante legal (nombre, cédula), dirección exacta de Servielectro (`Calle 36 Sur No. 69 A 06, Piso 5, Edificio ZN, Bogotá` — nota: **distinta** a la dirección `CRA 69 B NO. 37 B 33 SUR` del encabezado de cotización del Excel; hay que confirmar con Jhojan cuál es la vigente antes de cargar ninguna).
+- **Pólizas reales confirmadas por Jhojan 2026-09-24** (las que de verdad usa, con cifras):
+  - Cumplimiento — 30% del valor del contrato, vigencia = plazo + 6 meses.
+  - Calidad y correcto funcionamiento — 40% del valor del contrato.
+  - Buen manejo del anticipo — 100% del valor del anticipo, vigencia = plazo.
+  - **⚠️ No cargadas todavía en `polizas_catalogo`.** El catálogo actual tiene 5 nombres genéricos que Jhojan dio antes de mandar el contrato real (Responsabilidad civil extracontractual, Cumplimiento, Garantía, Salarios y prestaciones, Anticipo) y no coinciden 1:1 con estos 3 nombres reales ("Calidad y correcto funcionamiento" vs. "Garantía"; "Buen manejo del anticipo" vs. "Anticipo"). Además la vigencia real es **relativa al plazo de ejecución** ("plazo + 6 meses"), no un número fijo de meses — el campo actual `vigencia_meses_default int` no alcanza a representar eso. **No se toca el esquema todavía**: hay que resolver primero si estos 3 reemplazan/se fusionan con los 5 genéricos, y diseñar `vigencia` como fórmula (relativa al plazo) en vez de constante, cuando se diseñe el módulo completo.
+  - **Solo aparecen en el CONTRATO, nunca en la cotización** (ver §16: en la cotización solo se enuncia el nombre, sin cifras — confirmado con Jhojan).
+- **Tabla de niveles de servicio (SLA)** — diferencial fuerte de Jhojan, no existe ningún modelo de esto hoy: Crítica (respuesta 4h hábiles, sitio 24h, solución 2 días), Mayor (8h, 48h, 3 días), Menor (16h, 72h, 4 días), más descripción de cada nivel (varía por tipo de proyecto). Modelar como **plantilla reutilizable**, no texto fijo — un proyecto de CCTV puede tener SLA distinto a uno de cercado eléctrico.
+- **Entregables del proyecto** (manuales, planos y diagramas, reporte fotográfico, constancia de capacitación, acta de entrega con credenciales) — hoy no hay tabla de entregables por proyecto.
+- **Supervisor designado por el contratante** — dato nuevo, no existe en `clientes` ni en `cotizaciones`.
+- **Huecos que el modelo deja en blanco para pedirle al cliente**: dirección física y correo del contratante (si el RUT no los trae completos), NIT y cédula del representante legal que firma.
+
+**Siguiente paso (después de cerrar cotizaciones y las migraciones pendientes):** con este mapeo ya hecho, el diseño del esquema de `contratos` puede arrancar directo — sin necesidad de re-analizar el documento desde cero.
 
 ## 17. Identidad de marca (2026-09-24)
 
