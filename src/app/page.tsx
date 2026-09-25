@@ -30,7 +30,7 @@ export default async function Home() {
             ERP — Módulo Proyectos
           </h1>
         </div>
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-600">
           Sesión iniciada como <span className="font-medium">{user.email}</span>
         </p>
 

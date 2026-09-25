@@ -139,7 +139,7 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado }: Props) {
 
         {estado.paso === "elegir_archivo" && (
           <div className="space-y-3">
-            <label className="block cursor-pointer rounded-lg border-2 border-dashed border-slate-300 bg-white/70 p-6 text-center text-sm text-slate-500">
+            <label className="block cursor-pointer rounded-lg border-2 border-dashed border-slate-300 bg-white/70 p-6 text-center text-sm text-slate-600">
               Tocá para elegir un PDF o una foto del RUT
               <input
                 type="file"
@@ -163,7 +163,7 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado }: Props) {
 
         {estado.paso === "leyendo" && (
           <div className="py-10 text-center">
-            <p className="text-sm text-slate-500">Leyendo el RUT con IA…</p>
+            <p className="text-sm text-slate-600">Leyendo el RUT con IA…</p>
           </div>
         )}
 
@@ -306,14 +306,14 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado }: Props) {
                     <option value="no">No responsable de IVA (código 49)</option>
                   </select>
                   {estado.resultado.extraccion.responsabilidades.codigos.length > 0 && (
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="mt-1 text-xs text-slate-600">
                       Códigos leídos en casilla 53:{" "}
                       {estado.resultado.extraccion.responsabilidades.codigos.join(", ")}
                     </p>
                   )}
                 </div>
 
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-600">
                   Costo de esta lectura: ~$
                   {estado.resultado.costoEstimadoUsd.toFixed(4)} USD
                 </p>

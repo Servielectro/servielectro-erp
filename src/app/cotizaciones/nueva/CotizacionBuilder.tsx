@@ -524,27 +524,33 @@ export function CotizacionBuilder({
         )}
 
         <div className="grid grid-cols-2 gap-2">
-          <input
-            value={clienteNombre}
-            onChange={(e) => {
-              setClienteNombre(e.target.value);
-              if (clienteId) setClienteId(null);
-            }}
-            placeholder="Cliente *"
-            className="rounded-md border border-slate-300 px-3 py-2.5 text-base"
-          />
-          <input
-            value={descripcion}
-            onChange={(e) => setDescripcion(e.target.value)}
-            placeholder="Nombre de la obra"
-            className="rounded-md border border-slate-300 px-3 py-2.5 text-base"
-          />
+          <div>
+            <label className="text-xs text-slate-600">Cliente *</label>
+            <input
+              value={clienteNombre}
+              onChange={(e) => {
+                setClienteNombre(e.target.value);
+                if (clienteId) setClienteId(null);
+              }}
+              placeholder="Nombre del cliente"
+              className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2.5 text-base"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-slate-600">Nombre de la obra</label>
+            <input
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              placeholder="Ej: Mantenimiento redes eléctricas"
+              className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2.5 text-base"
+            />
+          </div>
         </div>
 
         <button
           type="button"
           onClick={() => setPagosAbierto((v) => !v)}
-          className="text-sm font-medium text-slate-500"
+          className="text-sm font-medium text-slate-600"
         >
           {pagosAbierto ? "▾" : "▸"} Esquema de pagos
           {hitos.length > 0 && ` (${hitos.length})`}
@@ -565,6 +571,16 @@ export function CotizacionBuilder({
               ))}
             </div>
 
+            {hitos.length > 0 && (
+              <div className="flex items-center gap-2 px-0.5">
+                <span className="flex-1 text-xs text-slate-600">
+                  Nombre del hito
+                </span>
+                <span className="w-16 text-xs text-slate-600">%</span>
+                <span className="w-24 shrink-0" />
+                <span className="w-4 shrink-0" />
+              </div>
+            )}
             {hitos.map((h) => (
               <div key={h.id} className="flex items-center gap-2">
                 <input
@@ -572,7 +588,7 @@ export function CotizacionBuilder({
                   onChange={(e) =>
                     actualizarHito(h.id, { nombre: e.target.value })
                   }
-                  placeholder="Nombre del hito"
+                  placeholder="Ej: Anticipo"
                   className="flex-1 rounded-md border border-slate-300 px-2 py-2 text-sm"
                 />
                 <input
@@ -587,7 +603,7 @@ export function CotizacionBuilder({
                   }
                   className="w-16 rounded-md border border-slate-300 px-2 py-2 text-sm"
                 />
-                <span className="w-24 shrink-0 text-right text-xs text-slate-500">
+                <span className="w-24 shrink-0 text-right text-xs text-slate-600">
                   {formatCOP((h.porcentaje / 100) * totales.total)}
                 </span>
                 <button
@@ -608,7 +624,7 @@ export function CotizacionBuilder({
                   { id: crypto.randomUUID(), nombre: "", porcentaje: 0 },
                 ])
               }
-              className="w-full rounded-md border border-dashed border-slate-300 py-2 text-sm text-slate-500"
+              className="w-full rounded-md border border-dashed border-slate-300 py-2 text-sm text-slate-600"
             >
               + Agregar hito
             </button>
@@ -630,7 +646,7 @@ export function CotizacionBuilder({
         <button
           type="button"
           onClick={() => setPolizasAbierto((v) => !v)}
-          className="text-sm font-medium text-slate-500"
+          className="text-sm font-medium text-slate-600"
         >
           {polizasAbierto ? "▾" : "▸"} Pólizas
           {polizasSeleccionadas.length > 0 &&
@@ -639,7 +655,7 @@ export function CotizacionBuilder({
 
         {polizasAbierto && (
           <div className="space-y-2 rounded-md bg-slate-100 p-3">
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-600">
               Solo se enuncian en la cotización como oferta (sin % ni
               vigencia) — el costo lo asume Servielectro, sale del rubro de
               administración.
@@ -665,21 +681,26 @@ export function CotizacionBuilder({
               })}
             </div>
 
-            <div className="flex gap-2">
-              <input
-                value={nuevaPolizaNombre}
-                onChange={(e) => setNuevaPolizaNombre(e.target.value)}
-                placeholder="Nueva póliza…"
-                className="flex-1 rounded-md border border-slate-300 px-2 py-2 text-sm"
-              />
-              <button
-                type="button"
-                onClick={agregarPolizaNueva}
-                disabled={creandoPoliza || !nuevaPolizaNombre.trim()}
-                className="shrink-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 disabled:opacity-50"
-              >
-                {creandoPoliza ? "Agregando…" : "+ Agregar"}
-              </button>
+            <div>
+              <label className="text-xs text-slate-600">
+                Agregar póliza nueva al catálogo
+              </label>
+              <div className="mt-0.5 flex gap-2">
+                <input
+                  value={nuevaPolizaNombre}
+                  onChange={(e) => setNuevaPolizaNombre(e.target.value)}
+                  placeholder="Ej: Póliza de transporte"
+                  className="flex-1 rounded-md border border-slate-300 px-2 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={agregarPolizaNueva}
+                  disabled={creandoPoliza || !nuevaPolizaNombre.trim()}
+                  className="shrink-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 disabled:opacity-50"
+                >
+                  {creandoPoliza ? "Agregando…" : "+ Agregar"}
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -687,7 +708,7 @@ export function CotizacionBuilder({
         <button
           type="button"
           onClick={() => setDatosClienteAbierto((v) => !v)}
-          className="text-sm font-medium text-slate-500"
+          className="text-sm font-medium text-slate-600"
         >
           {datosClienteAbierto ? "▾" : "▸"} Datos para la cotización impresa
           (opcional)
@@ -707,45 +728,64 @@ export function CotizacionBuilder({
                 ✓ Datos confirmados desde el RUT — cliente vinculado.
               </p>
             )}
-            <input
-              value={comercial}
-              onChange={(e) => setComercial(e.target.value)}
-              placeholder="Comercial"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-            <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-slate-600">Comercial</label>
               <input
-                value={clienteNit}
-                onChange={(e) => setClienteNit(e.target.value)}
-                placeholder="NIT del cliente"
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-              <input
-                value={clienteContacto}
-                onChange={(e) => setClienteContacto(e.target.value)}
-                placeholder="Contacto"
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                value={comercial}
+                onChange={(e) => setComercial(e.target.value)}
+                placeholder="Nombre de quien cotiza"
+                className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               />
             </div>
-            <input
-              value={clienteDireccion}
-              onChange={(e) => setClienteDireccion(e.target.value)}
-              placeholder="Dirección"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-            <input
-              value={clienteEmail}
-              onChange={(e) => setClienteEmail(e.target.value)}
-              placeholder="Correo del cliente"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-slate-600">
+                  NIT del cliente
+                </label>
+                <input
+                  value={clienteNit}
+                  onChange={(e) => setClienteNit(e.target.value)}
+                  placeholder="900123456-7"
+                  className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-600">Contacto</label>
+                <input
+                  value={clienteContacto}
+                  onChange={(e) => setClienteContacto(e.target.value)}
+                  placeholder="Nombre o teléfono"
+                  className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-slate-600">Dirección</label>
+              <input
+                value={clienteDireccion}
+                onChange={(e) => setClienteDireccion(e.target.value)}
+                placeholder="Dirección del cliente"
+                className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-slate-600">
+                Correo del cliente
+              </label>
+              <input
+                value={clienteEmail}
+                onChange={(e) => setClienteEmail(e.target.value)}
+                placeholder="cliente@correo.com"
+                className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
           </div>
         )}
 
         <button
           type="button"
           onClick={() => setAvanzadoAbierto((v) => !v)}
-          className="text-sm font-medium text-slate-500"
+          className="text-sm font-medium text-slate-600"
         >
           {avanzadoAbierto ? "▾" : "▸"} Configuración avanzada (AIU / gastos)
         </button>
@@ -785,7 +825,7 @@ export function CotizacionBuilder({
                 onChange={(v) => setConfig((c) => ({ ...c, pctComision: v }))}
               />
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-600">
               Tasas fijas de la empresa (no se modifican por cotización):
               Renta {(config.pctRenta * 100).toFixed(0)}% · ICA{" "}
               {config.icaPorMil} por mil · IVA{" "}
@@ -804,11 +844,11 @@ export function CotizacionBuilder({
             className={`flex-1 border-b-2 px-2 py-3 text-center text-sm font-medium ${
               activeTab === c.key
                 ? "border-slate-900 text-slate-900"
-                : "border-transparent text-slate-400"
+                : "border-transparent text-slate-600"
             }`}
           >
             {c.label}
-            <span className="ml-1 text-xs text-slate-400">
+            <span className="ml-1 text-xs text-slate-600">
               ({lineas.filter((l) => l.categoria === c.key).length})
             </span>
           </button>
@@ -817,7 +857,7 @@ export function CotizacionBuilder({
 
       <main className="flex-1 space-y-3 p-4">
         {lineasTab.length === 0 && (
-          <p className="py-8 text-center text-sm text-slate-400">
+          <p className="py-8 text-center text-sm text-slate-600">
             Sin líneas todavía en{" "}
             {CATEGORIAS.find((c) => c.key === activeTab)?.label}.
           </p>
@@ -877,7 +917,7 @@ export function CotizacionBuilder({
                       }
                     />
                     <div>
-                      <label className="text-xs text-slate-500">
+                      <label className="text-xs text-slate-600">
                         Rentabilidad
                       </label>
                       <select
@@ -906,7 +946,7 @@ export function CotizacionBuilder({
                   </div>
 
                   <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2">
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-slate-600">
                       Venta {formatCOP(calc.valorVentaUnitario)} · Cálculo{" "}
                       {formatCOP(calc.valorCalculoUnitario)} c/u
                     </span>
@@ -923,13 +963,13 @@ export function CotizacionBuilder({
         <button
           type="button"
           onClick={() => setLineas((prev) => [...prev, nuevaLinea(activeTab)])}
-          className="w-full rounded-lg border-2 border-dashed border-slate-300 py-4 text-base font-medium text-slate-500 active:bg-slate-100"
+          className="w-full rounded-lg border-2 border-dashed border-slate-300 py-4 text-base font-medium text-slate-600 active:bg-slate-100"
         >
           + Agregar línea de{" "}
           {CATEGORIAS.find((c) => c.key === activeTab)?.label.toLowerCase()}
         </button>
 
-        <p className="text-right text-sm text-slate-500">
+        <p className="text-right text-sm text-slate-600">
           Subtotal {CATEGORIAS.find((c) => c.key === activeTab)?.label}:{" "}
           <span className="font-semibold text-slate-800">
             {formatCOP(subtotalTab)}
@@ -957,13 +997,13 @@ export function CotizacionBuilder({
               valor={totales.subtotalGeneral}
               destacado
             />
-            <p className="pt-1 text-xs text-slate-400">
+            <p className="pt-1 text-xs text-slate-600">
               Base IVA: {totales.ivaBaseMotivo} · Factor recargo:{" "}
               {totales.factorRecargoProyecto.toFixed(6)}
             </p>
 
             <div className="mt-3 border-t border-slate-200 pt-2">
-              <p className="mb-1 text-xs font-semibold uppercase text-slate-500">
+              <p className="mb-1 text-xs font-semibold uppercase text-slate-600">
                 Gastos internos y utilidad real
               </p>
               <FilaTotal label="Admin (14% compra)" valor={totales.gastoAdmin} />
@@ -984,7 +1024,7 @@ export function CotizacionBuilder({
                   {totales.pctUtilidadTotal.toFixed(1)}%)
                 </span>
               </div>
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1 text-xs text-slate-600">
                 Impuestos a transferir: {formatCOP(totales.impuestosATransferir)}
               </p>
             </div>
@@ -1001,7 +1041,7 @@ export function CotizacionBuilder({
             onClick={() => setDetalleAbierto((v) => !v)}
             className="flex-1 text-left"
           >
-            <span className="block text-xs text-slate-400">
+            <span className="block text-xs text-slate-600">
               IVA {formatCOP(totales.valorIva)} · toca para ver detalle{" "}
               {detalleAbierto ? "▾" : "▸"}
             </span>
@@ -1118,7 +1158,7 @@ function CampoNumero({
 }) {
   return (
     <div>
-      <label className="text-xs text-slate-500">{label}</label>
+      <label className="text-xs text-slate-600">{label}</label>
       <input
         type="number"
         inputMode="decimal"
@@ -1144,7 +1184,7 @@ function CampoPct({
 }) {
   return (
     <div>
-      <label className="text-xs text-slate-500">{label}</label>
+      <label className="text-xs text-slate-600">{label}</label>
       <input
         type="number"
         step={step}

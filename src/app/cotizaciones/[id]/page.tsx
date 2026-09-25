@@ -28,7 +28,7 @@ export default async function CotizacionDetallePage(
     <div className="flex min-h-screen flex-col bg-slate-50 pb-8">
       <header className="sticky top-0 z-10 space-y-2 border-b border-slate-200 bg-white p-4">
         <div className="flex items-center justify-between">
-          <Link href="/cotizaciones" className="text-sm text-slate-500">
+          <Link href="/cotizaciones" className="text-sm text-slate-600">
             ← Cotizaciones
           </Link>
           <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
@@ -36,13 +36,13 @@ export default async function CotizacionDetallePage(
           </span>
         </div>
         <div>
-          <p className="text-sm font-mono text-slate-500">
+          <p className="text-sm font-mono text-slate-600">
             {cotizacion.codigo}
           </p>
           <h1 className="text-lg font-semibold text-slate-900">
             {cotizacion.cliente.nombre}
           </h1>
-          <p className="text-sm text-slate-500">{cotizacion.descripcion}</p>
+          <p className="text-sm text-slate-600">{cotizacion.descripcion}</p>
         </div>
         <div className="flex gap-2 pt-1">
           <Link
@@ -83,7 +83,7 @@ export default async function CotizacionDetallePage(
                         {formatCOP(it.valorCalculoUnitario * it.cantidad)}
                       </p>
                     </div>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-slate-600">
                       {it.cantidad} {it.unidad} × {formatCOP(it.valorCalculoUnitario)}
                     </p>
                   </div>

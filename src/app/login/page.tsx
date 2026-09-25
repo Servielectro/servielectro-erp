@@ -19,7 +19,7 @@ export default async function LoginPage(props: PageProps<"/login">) {
             className="h-auto w-44"
             priority
           />
-          <p className="mt-2 text-sm text-slate-500">
+          <p className="mt-2 text-sm text-slate-600">
             ERP — Gestión de proyectos
           </p>
         </div>

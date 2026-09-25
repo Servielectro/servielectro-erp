@@ -54,11 +54,12 @@ export function ItemCombobox({
 
   return (
     <div className="relative">
+      <label className="text-xs text-slate-600">Buscar ítem</label>
       <input
         ref={inputRef}
         type="text"
         value={abierto ? query : descripcionActual}
-        placeholder="Buscar ítem por nombre o código…"
+        placeholder="Nombre o código…"
         onFocus={() => {
           setAbierto(true);
           setQuery("");
@@ -68,7 +69,7 @@ export function ItemCombobox({
           // pequeño delay para permitir el click en la lista antes de cerrar
           setTimeout(() => setAbierto(false), 150);
         }}
-        className="w-full rounded-md border border-slate-300 px-3 py-3 text-base"
+        className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-3 text-base"
       />
 
       {abierto && (
@@ -86,7 +87,7 @@ export function ItemCombobox({
           </button>
 
           {resultados.length === 0 && (
-            <p className="px-3 py-3 text-sm text-slate-500">
+            <p className="px-3 py-3 text-sm text-slate-600">
               Sin resultados en {categoria.replace("_", " ")}.
             </p>
           )}
@@ -105,7 +106,7 @@ export function ItemCombobox({
               <span className="text-base text-slate-900">
                 {item.nombreCorto}
               </span>
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-slate-600">
                 {item.codigo} · {item.unidad}
                 {item.valorCompraIva === null && " · sin precio"}
               </span>
@@ -113,7 +114,7 @@ export function ItemCombobox({
           ))}
 
           {hayMas && (
-            <p className="px-3 py-2 text-xs text-slate-400">
+            <p className="px-3 py-2 text-xs text-slate-600">
               Sigue escribiendo para afinar la búsqueda…
             </p>
           )}

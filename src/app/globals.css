@@ -36,6 +36,17 @@
   --brand-navy: #1d2d40;
   --brand-gray: #7f7b7a;
   --brand-white: #ffffff;
+
+  /*
+   * Color de placeholder de toda la app — no el gris de marca (#7F7B7A da
+   * apenas ~4.4:1 sobre blanco, insuficiente). #45556C mide 7.58:1 sobre
+   * blanco (verificado con canvas + fórmula WCAG), con margen para uso en
+   * tablet a la intemperie / con sol encima. Bug reportado por Jhojan
+   * 2026-09-24: el placeholder por defecto de Tailwind (currentColor al 50%
+   * de opacidad) se leía "muy clarito" y no dejaba ver qué llenar en cada
+   * campo.
+   */
+  --placeholder: #45556c;
 }
 
 @theme inline {
@@ -53,4 +64,19 @@
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+/* Contraste de placeholder en toda la app (ver nota en --placeholder arriba). */
+::placeholder {
+  color: var(--placeholder);
+  opacity: 1;
+}
+
+/* Salvaguarda: los inputs ya heredan Poppins vía Tailwind Preflight, pero se deja
+   explícito para no depender de eso — Jhojan pidió confirmar que no queda la
+   fuente por defecto del navegador en ningún campo. */
+input,
+textarea,
+select {
+  font-family: inherit;
 }

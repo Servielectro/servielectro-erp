@@ -114,9 +114,9 @@ export function FormatoCotizacion({
             <h1 className="text-xl font-bold text-slate-900">
               Servielectro SAS
             </h1>
-            <p className="text-sm text-slate-500">Cotización {codigo}</p>
+            <p className="text-sm text-slate-600">Cotización {codigo}</p>
           </div>
-          <div className="text-right text-sm text-slate-500">
+          <div className="text-right text-sm text-slate-600">
             <p>Fecha: {new Date(fecha).toLocaleDateString("es-CO")}</p>
             {comercial && <p>Comercial: {comercial}</p>}
           </div>
@@ -164,7 +164,7 @@ export function FormatoCotizacion({
             </h2>
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b border-slate-300 text-left text-xs text-slate-500">
+                <tr className="border-b border-slate-300 text-left text-xs text-slate-600">
                   <th className="py-1">Descripción</th>
                   <th className="py-1 text-right">Cant.</th>
                   <th className="py-1 text-right">Unidad</th>
@@ -198,7 +198,7 @@ export function FormatoCotizacion({
       })}
 
       {items.length === 0 && (
-        <p className="py-10 text-center text-sm text-slate-400">
+        <p className="py-10 text-center text-sm text-slate-600">
           Todavía no hay líneas cargadas.
         </p>
       )}
@@ -271,7 +271,7 @@ export function FormatoCotizacion({
               <p className="font-semibold text-slate-700">
                 Pólizas disponibles
               </p>
-              <p className="text-slate-500">
+              <p className="text-slate-600">
                 Se ofrece la posibilidad de tomar las siguientes pólizas
                 (costo asumido por Servielectro):
               </p>
@@ -300,7 +300,7 @@ export function FormatoCotizacion({
           )}
 
           {configuracionEmpresa?.textoValidezOferta && (
-            <p className="text-slate-400">
+            <p className="text-slate-600">
               {configuracionEmpresa.textoValidezOferta}
             </p>
           )}

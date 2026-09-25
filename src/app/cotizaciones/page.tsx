@@ -48,7 +48,7 @@ export default async function CotizacionesListadoPage() {
         )}
 
         {!error && cotizaciones.length === 0 && (
-          <p className="py-10 text-center text-sm text-slate-400">
+          <p className="py-10 text-center text-sm text-slate-600">
             Todavía no hay cotizaciones guardadas.
           </p>
         )}
@@ -61,11 +61,11 @@ export default async function CotizacionesListadoPage() {
           >
             <div className="flex items-start justify-between gap-2">
               <div>
-                <p className="text-sm font-mono text-slate-500">{c.codigo}</p>
+                <p className="text-sm font-mono text-slate-600">{c.codigo}</p>
                 <p className="text-base font-medium text-slate-900">
                   {c.clienteNombre}
                 </p>
-                <p className="text-sm text-slate-500">{c.descripcion}</p>
+                <p className="text-sm text-slate-600">{c.descripcion}</p>
               </div>
               <span
                 className={`shrink-0 rounded-full px-2 py-1 text-xs font-medium ${ESTADO_CLASE[c.estado] ?? "bg-slate-100 text-slate-700"}`}
@@ -74,7 +74,7 @@ export default async function CotizacionesListadoPage() {
               </span>
             </div>
             <div className="mt-2 flex items-center justify-between text-sm">
-              <span className="text-slate-400">
+              <span className="text-slate-600">
                 {new Date(c.fechaEmision).toLocaleDateString("es-CO")} ·{" "}
                 {c.esquemaIva === "IVA_AIU" ? "IVA AIU" : "IVA FULL"}
               </span>
