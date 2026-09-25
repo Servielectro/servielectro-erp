@@ -1,6 +1,11 @@
+import Link from "next/link";
+
 export default function UsuariosPage() {
   return (
     <div className="mx-auto w-full max-w-2xl flex-1 p-4 sm:p-6">
+      <Link href="/configuracion" className="mb-2 inline-block text-sm text-slate-600">
+        ← Configuración
+      </Link>
       <h1 className="mb-4 text-center text-sm font-bold text-slate-900 sm:text-base">
         Usuarios y permisos
       </h1>

@@ -5,6 +5,7 @@ import { logout } from "@/app/logout/actions";
 
 const MODULOS = [
   { nombre: "Comercial", icono: "💼", href: "/comercial", activo: true },
+  { nombre: "Configuración", icono: "🔐", href: "/configuracion", activo: true },
   { nombre: "Financiero", icono: "💰", activo: false },
   { nombre: "Contable", icono: "📊", activo: false },
   { nombre: "Marketing", icono: "📣", activo: false },
@@ -28,7 +29,7 @@ export default async function Home() {
     <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6">
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-slate-600">
-          Sesión iniciada como <span className="font-medium">{user.email}</span>
+          Sesión iniciada como <span className="font-medium">{user?.email}</span>
         </p>
         <form action={logout}>
           <button
@@ -39,24 +40,6 @@ export default async function Home() {
           </button>
         </form>
       </div>
-
-      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        Configuración
-      </h2>
-      <Link
-        href="/usuarios"
-        className="mb-6 flex items-center gap-3 rounded-lg border-2 border-brand-red/30 bg-white p-4 shadow-sm active:bg-slate-50"
-      >
-        <span className="text-2xl">🔐</span>
-        <div>
-          <p className="text-sm font-semibold text-slate-900">
-            Usuarios y permisos
-          </p>
-          <p className="text-xs text-slate-600">
-            Quién puede ver qué — importante antes de sumar un segundo usuario.
-          </p>
-        </div>
-      </Link>
 
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
         Módulos

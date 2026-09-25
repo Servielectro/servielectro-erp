@@ -164,9 +164,6 @@ export function MenuPrincipal({ onCerrar }: { onCerrar: () => void }) {
           <Link href="/" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
             Inicio (módulos)
           </Link>
-          <Link href="/usuarios" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
-            🔐 Usuarios y permisos
-          </Link>
           <Link href="/comercial" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
             Comercial
           </Link>
@@ -175,6 +172,12 @@ export function MenuPrincipal({ onCerrar }: { onCerrar: () => void }) {
           </Link>
           <Link href="/comercial/catalogo" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
             Catálogo
+          </Link>
+          <Link href="/configuracion" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+            Configuración
+          </Link>
+          <Link href="/usuarios" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+            🔐 Usuarios y permisos
           </Link>
         </nav>
 
