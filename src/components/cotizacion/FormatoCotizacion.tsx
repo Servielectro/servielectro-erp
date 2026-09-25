@@ -107,45 +107,61 @@ export function FormatoCotizacion({
           .join(" ")
       : null;
   return (
-    <div className="mx-auto max-w-3xl bg-white p-8 shadow-sm print:shadow-none">
+    <div className="mx-auto w-full max-w-[816px] bg-white p-6 shadow-sm sm:p-8 print:shadow-none">
       <header className="mb-6 border-b-2 border-slate-900 pb-4">
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">
+            <h1 className="text-lg font-bold text-slate-900 sm:text-xl">
               Servielectro SAS
             </h1>
-            <p className="text-sm text-slate-600">Cotización {codigo}</p>
+            <p className="text-xs text-slate-600 sm:text-sm">
+              SERVICIOS ELECTRÓNICOS INDUSTRIALES SAS
+            </p>
           </div>
-          <div className="text-right text-sm text-slate-600">
-            <p>Fecha: {new Date(fecha).toLocaleDateString("es-CO")}</p>
-            {comercial && <p>Comercial: {comercial}</p>}
+          <div className="text-right">
+            <p className="text-xs text-slate-600 sm:text-sm">Cotización</p>
+            <p className="font-mono text-sm font-bold text-slate-900 sm:text-base">
+              {codigo}
+            </p>
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+        <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs sm:text-sm">
           <p>
             <span className="font-medium text-slate-700">Proyecto: </span>
             {proyecto || "—"}
+          </p>
+          <p>
+            <span className="font-medium text-slate-700">Ciudad: </span>
+            Bogotá
           </p>
           <p>
             <span className="font-medium text-slate-700">Cliente: </span>
             {cliente.nombre || "—"}
           </p>
           <p>
+            <span className="font-medium text-slate-700">Fecha: </span>
+            {new Date(fecha).toLocaleDateString("es-CO")}
+          </p>
+          <p>
             <span className="font-medium text-slate-700">NIT: </span>
             {cliente.nit || "—"}
+          </p>
+          <p>
+            <span className="font-medium text-slate-700">Comercial: </span>
+            {comercial || "—"}
           </p>
           <p>
             <span className="font-medium text-slate-700">Dirección: </span>
             {cliente.direccion || "—"}
           </p>
           <p>
-            <span className="font-medium text-slate-700">Correo: </span>
-            {cliente.email || "—"}
-          </p>
-          <p>
             <span className="font-medium text-slate-700">Contacto: </span>
             {cliente.contacto || "—"}
+          </p>
+          <p className="col-span-2">
+            <span className="font-medium text-slate-700">Correo: </span>
+            {cliente.email || "—"}
           </p>
         </div>
       </header>

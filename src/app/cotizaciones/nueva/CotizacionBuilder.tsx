@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import {
   CONFIG_PRECIO_DEFAULT,
   FACTORES_RENTABILIDAD_DEFAULT,
@@ -16,10 +17,11 @@ import type {
   ConfiguracionEmpresa,
   PolizaCatalogo,
 } from "@/lib/supabase/condicionesComerciales";
-import { ItemCombobox } from "@/components/cotizacion/ItemCombobox";
+import { ArmadoCotizacionModal } from "@/components/cotizacion/ArmadoCotizacionModal";
 import { NuevoItemModal } from "@/components/cotizacion/NuevoItemModal";
 import { RutUploader } from "@/components/cotizacion/RutUploader";
-import { FormatoCotizacion } from "@/components/cotizacion/FormatoCotizacion";
+import { VistaPreviaModal } from "@/components/cotizacion/VistaPreviaModal";
+import { MenuPrincipal } from "@/components/MenuPrincipal";
 import { guardarCotizacion, crearPoliza } from "@/app/cotizaciones/actions";
 
 const CATEGORIAS: { key: Categoria; label: string }[] = [
@@ -27,8 +29,6 @@ const CATEGORIAS: { key: Categoria; label: string }[] = [
   { key: "MATERIAL", label: "Materiales" },
   { key: "MANO_DE_OBRA", label: "Mano de obra" },
 ];
-
-const RENTABILIDADES_SUGERIDAS = [0.8, 0.85, 0.88];
 
 const DRAFT_KEY = "se-erp:cotizacion-draft:v1";
 
@@ -169,7 +169,8 @@ export function CotizacionBuilder({
       datosIniciales?.polizas.map((p) => ({ ...p, id: crypto.randomUUID() })) ??
       [],
   );
-  const [activeTab, setActiveTab] = useState<Categoria>("EQUIPO");
+  const [armadoAbierto, setArmadoAbierto] = useState(false);
+  const [menuAbierto, setMenuAbierto] = useState(false);
   const [avanzadoAbierto, setAvanzadoAbierto] = useState(false);
   const [pagosAbierto, setPagosAbierto] = useState(
     Boolean(datosIniciales?.hitos.length),
@@ -192,7 +193,7 @@ export function CotizacionBuilder({
     lineaId: string;
     busquedaInicial: string;
   } | null>(null);
-  const [restaurado, setRestaurado] = useState(false);
+  const [, setRestaurado] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guardadoOk, setGuardadoOk] = useState<{ codigo: string } | null>(
@@ -289,6 +290,10 @@ export function CotizacionBuilder({
 
   function eliminarLinea(id: string) {
     setLineas((prev) => prev.filter((l) => l.id !== id));
+  }
+
+  function agregarLinea(categoria: Categoria) {
+    setLineas((prev) => [...prev, nuevaLinea(categoria)]);
   }
 
   function seleccionarItem(lineaId: string, item: CatalogoItem) {
@@ -462,11 +467,6 @@ export function CotizacionBuilder({
     } catch {}
   }
 
-  const lineasTab = lineas.filter((l) => l.categoria === activeTab);
-  const subtotalTab = totales.lineas
-    .filter((l) => l.categoria === activeTab)
-    .reduce((acc, l) => acc + l.subtotalCalculo, 0);
-
   if (guardadoOk) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-50 p-6 text-center">
@@ -491,63 +491,94 @@ export function CotizacionBuilder({
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 pb-48">
-      <header className="sticky top-0 z-10 space-y-3 border-b border-slate-200 bg-white p-4">
-        <div className="grid grid-cols-2 gap-2">
+      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white">
+        <div className="mx-auto flex w-full max-w-2xl items-center gap-2 p-3 sm:p-4">
+          <Image
+            src="/logo-servielectro.png"
+            alt="Servielectro SAS"
+            width={120}
+            height={30}
+            className="h-6 w-auto sm:h-7"
+          />
+          <h1 className="flex-1 text-center text-sm font-bold text-slate-900 sm:text-base">
+            Nueva cotización
+          </h1>
           <button
             type="button"
-            onClick={() => setEsquemaIva("IVA_FULL")}
-            className={`rounded-lg border-2 px-3 py-4 text-center text-base font-semibold ${
-              esquemaIva === "IVA_FULL"
-                ? "border-slate-900 bg-slate-900 text-white"
-                : "border-slate-300 bg-white text-slate-700"
-            }`}
+            onClick={() => setMenuAbierto(true)}
+            aria-label="Menú"
+            className="shrink-0 rounded-md p-1.5 text-slate-700"
           >
-            IVA FULL
-          </button>
-          <button
-            type="button"
-            onClick={() => setEsquemaIva("IVA_AIU")}
-            className={`rounded-lg border-2 px-3 py-4 text-center text-base font-semibold ${
-              esquemaIva === "IVA_AIU"
-                ? "border-slate-900 bg-slate-900 text-white"
-                : "border-slate-300 bg-white text-slate-700"
-            }`}
-          >
-            IVA AIU
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              className="h-5 w-5"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5"
+              />
+            </svg>
           </button>
         </div>
 
-        {restaurado && (
-          <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            Se restauró tu borrador guardado en este dispositivo.
-          </p>
-        )}
-
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="text-xs text-slate-600">Cliente *</label>
-            <input
-              value={clienteNombre}
-              onChange={(e) => {
-                setClienteNombre(e.target.value);
-                if (clienteId) setClienteId(null);
-              }}
-              placeholder="Nombre del cliente"
-              className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2.5 text-base"
-            />
+        <div className="mx-auto w-full max-w-2xl space-y-3 px-3 pb-3 sm:px-4 sm:pb-4">
+          <div className="mt-1 grid grid-cols-2 gap-2 sm:mt-2 sm:w-2/3 sm:mx-auto">
+            <button
+              type="button"
+              onClick={() => setEsquemaIva("IVA_FULL")}
+              className={`rounded-md border px-2 py-1.5 text-center text-xs font-semibold sm:text-sm ${
+                esquemaIva === "IVA_FULL"
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-300 bg-white text-slate-700"
+              }`}
+            >
+              IVA FULL
+            </button>
+            <button
+              type="button"
+              onClick={() => setEsquemaIva("IVA_AIU")}
+              className={`rounded-md border px-2 py-1.5 text-center text-xs font-semibold sm:text-sm ${
+                esquemaIva === "IVA_AIU"
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-300 bg-white text-slate-700"
+              }`}
+            >
+              IVA AIU
+            </button>
           </div>
-          <div>
-            <label className="text-xs text-slate-600">Nombre de la obra</label>
-            <input
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
-              placeholder="Ej: Mantenimiento redes eléctricas"
-              className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2.5 text-base"
-            />
-          </div>
-        </div>
 
-        <button
+          <div className="space-y-2">
+            <div>
+              <label className="text-xs text-slate-600">Cliente *</label>
+              <input
+                value={clienteNombre}
+                onChange={(e) => {
+                  setClienteNombre(e.target.value);
+                  if (clienteId) setClienteId(null);
+                }}
+                placeholder="Nombre del cliente"
+                className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm sm:text-base"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-slate-600">
+                Nombre de la obra
+              </label>
+              <input
+                value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                placeholder="Ej: Mantenimiento redes eléctricas"
+                className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm sm:text-base"
+              />
+            </div>
+          </div>
+
+          <button
           type="button"
           onClick={() => setPagosAbierto((v) => !v)}
           className="text-sm font-medium text-slate-600"
@@ -832,150 +863,42 @@ export function CotizacionBuilder({
               {(config.ivaPct * 100).toFixed(0)}%
             </p>
           </div>
-        )}
+          )}
+        </div>
       </header>
 
-      <nav className="flex border-b border-slate-200 bg-white">
-        {CATEGORIAS.map((c) => (
-          <button
-            key={c.key}
-            type="button"
-            onClick={() => setActiveTab(c.key)}
-            className={`flex-1 border-b-2 px-2 py-3 text-center text-sm font-medium ${
-              activeTab === c.key
-                ? "border-slate-900 text-slate-900"
-                : "border-transparent text-slate-600"
-            }`}
-          >
-            {c.label}
-            <span className="ml-1 text-xs text-slate-600">
-              ({lineas.filter((l) => l.categoria === c.key).length})
-            </span>
-          </button>
-        ))}
-      </nav>
+      <div className="mx-auto w-full max-w-2xl flex-1 space-y-3 p-3 sm:p-4">
+        <button
+          type="button"
+          onClick={() => setArmadoAbierto(true)}
+          className="w-full rounded-lg bg-brand-red px-4 py-4 text-center text-base font-semibold text-white shadow-sm sm:py-5 sm:text-lg"
+        >
+          {lineas.length > 0
+            ? `Editar cotización (${lineas.length} línea${lineas.length === 1 ? "" : "s"})`
+            : "Generar cotización"}
+        </button>
 
-      <main className="flex-1 space-y-3 p-4">
-        {lineasTab.length === 0 && (
-          <p className="py-8 text-center text-sm text-slate-600">
-            Sin líneas todavía en{" "}
-            {CATEGORIAS.find((c) => c.key === activeTab)?.label}.
-          </p>
-        )}
-
-        {lineasTab.map((linea) => {
-          const calc = totales.lineas.find((l) => l.id === linea.id)!;
-          const tieneItem = Boolean(linea.descripcion);
-
+        {CATEGORIAS.map((c) => {
+          const lineasCat = lineas.filter((l) => l.categoria === c.key);
+          if (lineasCat.length === 0) return null;
+          const subtotalCat = totales.lineas
+            .filter((l) => l.categoria === c.key)
+            .reduce((acc, l) => acc + l.subtotalCalculo, 0);
           return (
             <div
-              key={linea.id}
-              className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
+              key={c.key}
+              className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm"
             >
-              {!tieneItem ? (
-                <ItemCombobox
-                  catalogo={catalogo}
-                  categoria={linea.categoria}
-                  descripcionActual=""
-                  onSeleccionar={(item) => seleccionarItem(linea.id, item)}
-                  onCrearNuevo={(busqueda) =>
-                    setModal({
-                      categoria: linea.categoria,
-                      lineaId: linea.id,
-                      busquedaInicial: busqueda,
-                    })
-                  }
-                />
-              ) : (
-                <>
-                  <div className="mb-2 flex items-start justify-between gap-2">
-                    <p className="text-base font-medium text-slate-900">
-                      {linea.descripcion}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => eliminarLinea(linea.id)}
-                      className="shrink-0 text-sm text-red-600"
-                    >
-                      Quitar
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2">
-                    <CampoNumero
-                      label={`Cantidad (${linea.unidad})`}
-                      value={linea.cantidad}
-                      onChange={(v) =>
-                        actualizarLinea(linea.id, { cantidad: v })
-                      }
-                    />
-                    <CampoNumero
-                      label="Precio compra"
-                      value={linea.valorCompraUnitario}
-                      onChange={(v) =>
-                        actualizarLinea(linea.id, { valorCompraUnitario: v })
-                      }
-                    />
-                    <div>
-                      <label className="text-xs text-slate-600">
-                        Rentabilidad
-                      </label>
-                      <select
-                        value={linea.factorRentabilidadLinea}
-                        onChange={(e) =>
-                          actualizarLinea(linea.id, {
-                            factorRentabilidadLinea: Number(e.target.value),
-                          })
-                        }
-                        className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-2.5 text-base"
-                      >
-                        {[
-                          ...new Set([
-                            ...RENTABILIDADES_SUGERIDAS,
-                            linea.factorRentabilidadLinea,
-                          ]),
-                        ]
-                          .sort((a, b) => a - b)
-                          .map((f) => (
-                            <option key={f} value={f}>
-                              {(f * 100).toFixed(0)}%
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2">
-                    <span className="text-xs text-slate-600">
-                      Venta {formatCOP(calc.valorVentaUnitario)} · Cálculo{" "}
-                      {formatCOP(calc.valorCalculoUnitario)} c/u
-                    </span>
-                    <span className="text-base font-semibold text-slate-900">
-                      {formatCOP(calc.subtotalCalculo)}
-                    </span>
-                  </div>
-                </>
-              )}
+              <span className="text-slate-600">
+                {c.label} ({lineasCat.length})
+              </span>
+              <span className="font-semibold text-slate-900">
+                {formatCOP(subtotalCat)}
+              </span>
             </div>
           );
         })}
-
-        <button
-          type="button"
-          onClick={() => setLineas((prev) => [...prev, nuevaLinea(activeTab)])}
-          className="w-full rounded-lg border-2 border-dashed border-slate-300 py-4 text-base font-medium text-slate-600 active:bg-slate-100"
-        >
-          + Agregar línea de{" "}
-          {CATEGORIAS.find((c) => c.key === activeTab)?.label.toLowerCase()}
-        </button>
-
-        <p className="text-right text-sm text-slate-600">
-          Subtotal {CATEGORIAS.find((c) => c.key === activeTab)?.label}:{" "}
-          <span className="font-semibold text-slate-800">
-            {formatCOP(subtotalTab)}
-          </span>
-        </p>
-      </main>
+      </div>
 
       <footer className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
         {detalleAbierto && (
@@ -1067,6 +990,24 @@ export function CotizacionBuilder({
         </div>
       </footer>
 
+      {armadoAbierto && (
+        <ArmadoCotizacionModal
+          lineas={lineas}
+          lineasCalculadas={totales.lineas}
+          catalogo={catalogo}
+          onActualizarLinea={actualizarLinea}
+          onEliminarLinea={eliminarLinea}
+          onSeleccionarItem={seleccionarItem}
+          onAgregarLinea={agregarLinea}
+          onAbrirNuevoItem={(categoria, lineaId, busqueda) =>
+            setModal({ categoria, lineaId, busquedaInicial: busqueda })
+          }
+          onCerrar={() => setArmadoAbierto(false)}
+        />
+      )}
+
+      {menuAbierto && <MenuPrincipal onCerrar={() => setMenuAbierto(false)} />}
+
       {modal && (
         <NuevoItemModal
           categoria={modal.categoria}
@@ -1097,76 +1038,42 @@ export function CotizacionBuilder({
       )}
 
       {vistaPreviaAbierta && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-sm">
-          <div className="sticky top-0 z-10 flex justify-end gap-2 bg-slate-900/40 p-4 backdrop-blur-sm">
-            <button
-              type="button"
-              onClick={() => setVistaPreviaAbierta(false)}
-              className="rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow"
-            >
-              Cerrar vista previa
-            </button>
-          </div>
-          <FormatoCotizacion
-            codigo="BORRADOR (sin guardar)"
-            fecha={new Date().toISOString()}
-            comercial={comercial || null}
-            proyecto={descripcion || clienteNombre}
-            cliente={{
-              nombre: clienteNombre,
-              nit: clienteNit || null,
-              direccion: clienteDireccion || null,
-              email: clienteEmail || null,
-              contacto: clienteContacto || null,
-            }}
-            items={totales.lineas.map((l) => ({
-              id: l.id,
-              categoria: l.categoria,
-              descripcion: l.descripcion,
-              descripcionLarga: l.descripcionLarga,
-              cantidad: l.cantidad,
-              unidad: l.unidad,
-              valorCalculoUnitario: l.valorCalculoUnitario,
-            }))}
-            totales={totales}
-            hitos={hitos.map((h) => ({
-              id: h.id,
-              nombre: h.nombre,
-              porcentaje: h.porcentaje / 100,
-              valorProgramado: (h.porcentaje / 100) * totales.total,
-            }))}
-            configuracionEmpresa={configuracionEmpresa}
-            polizas={polizasSeleccionadas.map((p) => ({
-              id: p.id,
-              nombre: p.nombre,
-            }))}
-          />
-        </div>
+        <VistaPreviaModal
+          onCerrar={() => setVistaPreviaAbierta(false)}
+          codigo="BORRADOR (sin guardar)"
+          fecha={new Date().toISOString()}
+          comercial={comercial || null}
+          proyecto={descripcion || clienteNombre}
+          cliente={{
+            nombre: clienteNombre,
+            nit: clienteNit || null,
+            direccion: clienteDireccion || null,
+            email: clienteEmail || null,
+            contacto: clienteContacto || null,
+          }}
+          items={totales.lineas.map((l) => ({
+            id: l.id,
+            categoria: l.categoria,
+            descripcion: l.descripcion,
+            descripcionLarga: l.descripcionLarga,
+            cantidad: l.cantidad,
+            unidad: l.unidad,
+            valorCalculoUnitario: l.valorCalculoUnitario,
+          }))}
+          totales={totales}
+          hitos={hitos.map((h) => ({
+            id: h.id,
+            nombre: h.nombre,
+            porcentaje: h.porcentaje / 100,
+            valorProgramado: (h.porcentaje / 100) * totales.total,
+          }))}
+          configuracionEmpresa={configuracionEmpresa}
+          polizas={polizasSeleccionadas.map((p) => ({
+            id: p.id,
+            nombre: p.nombre,
+          }))}
+        />
       )}
-    </div>
-  );
-}
-
-function CampoNumero({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div>
-      <label className="text-xs text-slate-600">{label}</label>
-      <input
-        type="number"
-        inputMode="decimal"
-        value={value}
-        onFocus={(e) => e.target.select()}
-        onChange={(e) => onChange(Number(e.target.value) || 0)}
-        className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-2.5 text-base"
-      />
     </div>
   );
 }

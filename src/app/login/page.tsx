@@ -10,7 +10,7 @@ export default async function LoginPage(props: PageProps<"/login">) {
         action={login}
         className="w-full max-w-sm space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm"
       >
-        <div>
+        <div className="flex flex-col items-center text-center">
           <Image
             src="/logo-servielectro.png"
             alt="Servielectro SAS"
