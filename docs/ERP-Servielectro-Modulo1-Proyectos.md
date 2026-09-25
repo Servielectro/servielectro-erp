@@ -101,6 +101,8 @@ Salida: entradas, salidas, saldo acumulado, saldo pendiente por cobrar, próximo
 - Pantalla de mantenimiento de precios con fecha de última actualización visible — **todavía no construida** (588 ítems sin precio la necesitan).
 - Cotización toma snapshot del precio vigente al momento de cotizar (no depende de cambios futuros del catálogo).
 
+**✅ CORREGIDO 2026-09-25 — `v_items_catalogo_con_precio` rompía el buscador de ítems (`42703: column ... nombre_corto does not exist`).** La vista (creada en `20260923000002` con `select c.*` sobre `items_catalogo`) nunca se recreó después de que `20260924000017` le agregara la columna `nombre_corto` a la tabla — en Postgres, el `*` de una vista se congela con las columnas que la tabla tenía al momento de crearla, no se actualiza solo con un `ALTER TABLE` posterior. Encontrado probando la app contra la base ya migrada (no por la prueba de punta a punta vía RPC, que no pasa por esta vista). Corregido en `20260925000021` (recreada + `security_invoker = true` de nuevo, que tampoco se hereda al recrear una vista de cero). **Lección para el futuro:** cualquier vista con `select tabla.*` necesita recrearse cada vez que la tabla de base gana una columna nueva — no alcanza con el `ALTER TABLE`.
+
 ## 11. Numeración
 
 Cotizaciones: `CSE-AA-NNN` (ej. CSE-26-151). Consecutivo automático por año.
