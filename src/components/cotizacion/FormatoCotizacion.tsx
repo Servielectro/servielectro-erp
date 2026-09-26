@@ -119,6 +119,7 @@ export interface FormatoCotizacionProps {
   items: FormatoCotizacionItem[];
   totales: FormatoCotizacionTotales | null;
   porcentajes?: FormatoCotizacionPorcentajes | null;
+  diasEjecucion?: number | null;
   hitos: FormatoCotizacionHito[];
   configuracionEmpresa: FormatoCotizacionConfiguracionEmpresa | null;
   polizas: FormatoCotizacionPoliza[];
@@ -141,6 +142,7 @@ export function FormatoCotizacion({
   items,
   totales,
   porcentajes,
+  diasEjecucion,
   hitos,
   configuracionEmpresa: conf,
   polizas,
@@ -171,9 +173,9 @@ export function FormatoCotizacion({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logos/gmi.png" alt="GMI Gestión Mantenimiento Industrial" className="h-[22px] w-auto" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logos/perimetral.png" alt="Perimetral" className="h-[20px] w-auto" />
+            <img src="/logos/besafe.png" alt="beSafe" className="h-[15px] w-auto" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logos/ecoenergy.png" alt="EcoEnergy" className="h-[13px] w-auto" />
+            <img src="/logos/perimetral.png" alt="Perimetral" className="h-[20px] w-auto" />
           </div>
         </div>
       </div>
@@ -389,6 +391,14 @@ export function FormatoCotizacion({
               </td>
             </tr>
           )}
+          {diasEjecucion ? (
+            <tr>
+              <td className="text-center font-bold">TIEMPO DE PROYECTO</td>
+              <td className="text-center font-bold">
+                Tiempo de ejecución del proyecto: {diasEjecucion} días hábiles laborales.
+              </td>
+            </tr>
+          ) : null}
           {hitos.length > 0 && (
             <FilaCondicion titulo="FORMA DE PAGO">
               {hitos.map((h) => (

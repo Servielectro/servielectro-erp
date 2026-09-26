@@ -75,6 +75,7 @@ export interface DatosIniciales {
   lineas: Omit<LineaUI, "id">[];
   hitos: Omit<HitoUI, "id">[];
   polizas: Omit<PolizaSeleccionadaUI, "id">[];
+  diasEjecucion: number | null;
 }
 
 interface Draft {
@@ -92,6 +93,7 @@ interface Draft {
   // Id de la cotización que se estaba duplicando (null si es una nueva desde cero).
   // Borradores viejos no lo traen: se toman como null.
   origen?: string | null;
+  diasEjecucion?: string;
   guardadoEn: string;
 }
 
@@ -172,6 +174,10 @@ export function CotizacionBuilder({
       datosIniciales?.polizas.map((p) => ({ ...p, id: crypto.randomUUID() })) ??
       [],
   );
+  // Texto libre en la UI; se convierte a número al guardar (vacío = no sale en el documento).
+  const [diasEjecucion, setDiasEjecucion] = useState(
+    datosIniciales?.diasEjecucion ? String(datosIniciales.diasEjecucion) : "",
+  );
   const [armadoAbierto, setArmadoAbierto] = useState(false);
   const [avanzadoAbierto, setAvanzadoAbierto] = useState(false);
   const [pagosAbierto, setPagosAbierto] = useState(
@@ -233,6 +239,7 @@ export function CotizacionBuilder({
         setLineas(draft.lineas);
         setHitos(draft.hitos ?? []);
         setPolizasSeleccionadas(draft.polizas ?? []);
+        setDiasEjecucion(draft.diasEjecucion ?? "");
         setOrigen(origenDraft);
         setRestauradoDe(draft.guardadoEn ?? null);
       }
@@ -265,6 +272,7 @@ export function CotizacionBuilder({
         hitos,
         polizas: polizasSeleccionadas,
         origen,
+        diasEjecucion,
         guardadoEn: new Date().toISOString(),
       };
       window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
@@ -284,6 +292,7 @@ export function CotizacionBuilder({
     hitos,
     polizasSeleccionadas,
     origen,
+    diasEjecucion,
   ]);
 
   const totales = useMemo(
@@ -393,6 +402,7 @@ export function CotizacionBuilder({
     setLineas([]);
     setHitos([]);
     setPolizasSeleccionadas([]);
+    setDiasEjecucion("");
     setOrigen(null);
     setRestauradoDe(null);
     setGuardadoOk(null);
@@ -424,6 +434,15 @@ export function CotizacionBuilder({
       setError(
         `El esquema de pagos suma ${sumaHitos.toFixed(0)}%, tiene que sumar 100%`,
       );
+      return;
+    }
+
+    const diasEjecucionNum = diasEjecucion.trim() ? Number(diasEjecucion) : null;
+    if (
+      diasEjecucionNum !== null &&
+      (!Number.isInteger(diasEjecucionNum) || diasEjecucionNum < 1 || diasEjecucionNum > 3650)
+    ) {
+      setError("Los días de ejecución tienen que ser un número entero de días hábiles");
       return;
     }
 
@@ -464,6 +483,7 @@ export function CotizacionBuilder({
         polizaId: p.polizaId,
         nombre: p.nombre,
       })),
+      diasEjecucion: diasEjecucionNum,
     });
     setGuardando(false);
 
@@ -572,6 +592,20 @@ export function CotizacionBuilder({
               />
             </div>
           </div>
+
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+          Tiempo de ejecución
+          <input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            value={diasEjecucion}
+            onChange={(e) => setDiasEjecucion(e.target.value)}
+            placeholder="60"
+            className="w-20 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+          />
+          días hábiles
+        </label>
 
           <button
           type="button"
@@ -1054,6 +1088,7 @@ export function CotizacionBuilder({
             valorCalculoUnitario: l.valorCalculoUnitario,
           }))}
           totales={totales}
+          diasEjecucion={diasEjecucion.trim() ? Number(diasEjecucion) || null : null}
           porcentajes={{
             admin: config.pctAdmin,
             imprevistos: config.pctImprevistos,

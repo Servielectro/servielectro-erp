@@ -83,6 +83,7 @@ export interface CotizacionDetalle {
   pctComision: number;
   ivaPct: number;
   fechaEmision: string;
+  diasEjecucion: number | null;
   hitos: HitoDetalle[];
   polizas: PolizaDetalle[];
   cliente: {
@@ -134,6 +135,14 @@ export async function getCotizacionDetalle(
 
   if (error) throw error;
   if (!cotizacion) return null;
+
+  // Columna de la migración 26: se lee aparte para no romper el detalle si todavía no
+  // se corrió en la base (en ese caso, simplemente no hay días de ejecución).
+  const { data: extra } = await supabase
+    .from("cotizaciones")
+    .select("dias_ejecucion")
+    .eq("id", id)
+    .maybeSingle();
 
   const { data: items, error: errorItems } = await supabase
     .from("cotizacion_items")
@@ -192,6 +201,7 @@ export async function getCotizacionDetalle(
     pctComision: Number(cotizacion.pct_comision_comercial),
     ivaPct: Number(cotizacion.iva_pct),
     fechaEmision: cotizacion.fecha_emision,
+    diasEjecucion: extra?.dias_ejecucion ?? null,
     hitos: (hitos ?? []).map((h) => ({
       id: h.id,
       orden: h.orden,

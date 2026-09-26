@@ -69,6 +69,7 @@ export default async function ImprimirCotizacionPage(
           utilidad: cotizacion.pctUtilidadAiu,
           iva: cotizacion.ivaPct,
         }}
+        diasEjecucion={cotizacion.diasEjecucion}
         hitos={cotizacion.hitos}
         configuracionEmpresa={configuracionEmpresa}
         polizas={cotizacion.polizas.map((p) => ({

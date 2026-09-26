@@ -75,6 +75,7 @@ export default async function NuevaCotizacionPage(
             nombre: h.nombre,
             porcentaje: Math.round(h.porcentaje * 100),
           })),
+          diasEjecucion: original.diasEjecucion,
           polizas: original.polizas.map((p) => ({
             polizaId: p.polizaId,
             nombre: p.nombre,

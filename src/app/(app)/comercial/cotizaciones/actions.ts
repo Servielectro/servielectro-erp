@@ -116,6 +116,7 @@ export interface GuardarCotizacionInput {
   lineas: LineaGuardarInput[];
   hitos: HitoGuardarInput[];
   polizas: PolizaGuardarInput[];
+  diasEjecucion: number | null;
 }
 
 export async function crearPoliza(
@@ -192,6 +193,19 @@ export async function guardarCotizacion(
   }
 
   const cotizacionId = data as string;
+
+  // Días de ejecución (migración 26) van aparte del RPC de guardado: es un dato del
+  // documento, no del cálculo, y así no hubo que reescribir fn_guardar_cotizacion_completa.
+  // Si falla, la cotización ya quedó guardada: se avisa, no se pierde nada más.
+  if (input.diasEjecucion) {
+    const { error: errorDias } = await supabase
+      .from("cotizaciones")
+      .update({ dias_ejecucion: input.diasEjecucion })
+      .eq("id", cotizacionId);
+    if (errorDias) {
+      console.error("No se pudieron guardar los días de ejecución:", errorDias);
+    }
+  }
 
   const { data: cotizacion, error: errorCodigo } = await supabase
     .from("cotizaciones")
