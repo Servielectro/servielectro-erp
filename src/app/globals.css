@@ -96,4 +96,8 @@ select {
   .formato-cotizacion .salto-pagina {
     break-before: page;
   }
+  .ajuste-ancho > div {
+    zoom: 1 !important;
+    visibility: visible !important;
+  }
 }

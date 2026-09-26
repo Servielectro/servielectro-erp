@@ -19,7 +19,11 @@ export function VistaPreviaModal({
   onCerrar,
   ...props
 }: FormatoCotizacionProps & { onCerrar: () => void }) {
-  const [zoom, setZoom] = useState(0.55);
+  // Arranca ajustado al ancho de la pantalla (en la tablet vertical se ve la hoja
+  // completa); después se puede acercar con +/−. Solo se monta en el cliente.
+  const [zoom, setZoom] = useState(() =>
+    Math.max(ZOOM_MIN, Math.min(1, (window.innerWidth - 32) / 816)),
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-800">

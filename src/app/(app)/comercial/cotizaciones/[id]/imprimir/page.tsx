@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCotizacionDetalle } from "@/lib/supabase/cotizaciones";
 import { getConfiguracionEmpresa } from "@/lib/supabase/condicionesComerciales";
 import { FormatoCotizacion } from "@/components/cotizacion/FormatoCotizacion";
+import { AjusteAncho } from "@/components/cotizacion/AjusteAncho";
 import { PrintButton } from "./PrintButton";
 
 export default async function ImprimirCotizacionPage(
@@ -19,13 +20,14 @@ export default async function ImprimirCotizacionPage(
   const configuracionEmpresa = await getConfiguracionEmpresa(supabase);
 
   return (
-    <div className="min-h-screen overflow-x-auto bg-slate-100 pb-8 print:min-h-0 print:bg-white print:pb-0">
+    <div className="min-h-screen bg-slate-100 px-2 pb-8 print:min-h-0 print:bg-white print:p-0">
       <div className="mx-auto max-w-3xl pt-4 print:hidden">
         <div className="mb-4 flex justify-end">
           <PrintButton />
         </div>
       </div>
 
+      <AjusteAncho>
       <FormatoCotizacion
         codigo={cotizacion.codigo}
         fecha={cotizacion.fechaEmision}
@@ -74,6 +76,7 @@ export default async function ImprimirCotizacionPage(
           nombre: p.nombre,
         }))}
       />
+      </AjusteAncho>
     </div>
   );
 }
