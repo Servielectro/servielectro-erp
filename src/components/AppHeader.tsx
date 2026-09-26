@@ -15,7 +15,7 @@ export function AppHeader({ accesos }: { accesos: AccesosMenu }) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white">
+      <header className="sticky top-0 z-30 border-b print:hidden border-slate-200 bg-white">
         <div className="mx-auto flex w-full max-w-3xl items-center gap-2 p-3 sm:p-4">
           <Link href="/" className="shrink-0">
             <Image

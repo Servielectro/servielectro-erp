@@ -80,3 +80,20 @@ textarea,
 select {
   font-family: inherit;
 }
+
+/* Documento de cotización: carta, colores de las barras aunque el navegador
+   tenga "gráficos de fondo" apagado, y la página 2 (resumen) siempre aparte. */
+@media print {
+  @page {
+    size: letter;
+    margin: 0.45in;
+  }
+  html,
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .formato-cotizacion .salto-pagina {
+    break-before: page;
+  }
+}

@@ -19,7 +19,7 @@ export default async function ImprimirCotizacionPage(
   const configuracionEmpresa = await getConfiguracionEmpresa(supabase);
 
   return (
-    <div className="min-h-screen bg-slate-100 print:bg-white">
+    <div className="min-h-screen overflow-x-auto bg-slate-100 pb-8 print:min-h-0 print:bg-white print:pb-0">
       <div className="mx-auto max-w-3xl pt-4 print:hidden">
         <div className="mb-4 flex justify-end">
           <PrintButton />
@@ -36,7 +36,8 @@ export default async function ImprimirCotizacionPage(
           nit: cotizacion.cliente.nit,
           direccion: cotizacion.cliente.direccion,
           email: cotizacion.cliente.email,
-          contacto: cotizacion.cliente.contacto || cotizacion.cliente.telefono,
+          contacto: cotizacion.cliente.contacto,
+          telefono: cotizacion.cliente.telefono,
         }}
         items={cotizacion.items.map((it) => ({
           id: it.id,
@@ -60,6 +61,12 @@ export default async function ImprimirCotizacionPage(
               }
             : null
         }
+        porcentajes={{
+          admin: cotizacion.pctAdmin,
+          imprevistos: cotizacion.pctImprevistos,
+          utilidad: cotizacion.pctUtilidadAiu,
+          iva: cotizacion.ivaPct,
+        }}
         hitos={cotizacion.hitos}
         configuracionEmpresa={configuracionEmpresa}
         polizas={cotizacion.polizas.map((p) => ({

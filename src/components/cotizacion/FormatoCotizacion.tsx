@@ -1,10 +1,57 @@
 import { formatCOP, type Categoria } from "@/lib/pricing";
 
-const CATEGORIA_LABEL: Record<Categoria, string> = {
-  EQUIPO: "Equipos",
-  MATERIAL: "Materiales",
-  MANO_DE_OBRA: "Mano de obra",
+// Réplica del documento formal real (PDF CSE-26-104 "CCTV Analíticas Tintal II",
+// generado desde el Excel de Jhojan): carta, página 1 = encabezado + datos + las tres
+// secciones de ítems; página 2 = resumen de la oferta con AIU, valores agregados,
+// observaciones y condiciones comerciales.
+
+const SECCIONES: { cat: Categoria; titulo: string; total: string }[] = [
+  { cat: "EQUIPO", titulo: "SUMINISTRO DE EQUIPOS", total: "TOTAL EQUIPOS" },
+  { cat: "MANO_DE_OBRA", titulo: "MANO DE OBRA E INSTALACIÓN", total: "TOTAL MANO DE OBRA" },
+  { cat: "MATERIAL", titulo: "MATERIALES PARA INSTALACIÓN", total: "TOTAL MATERIALES" },
+];
+
+// Datos fijos de la empresa tal como salen en el encabezado del documento real.
+const EMPRESA = {
+  razonSocial: "SERVICIOS ELECTRÓNICOS INDUSTRIALES SAS",
+  nitDireccion: "NIT: 901.235.322-4 - CRA 69 B NO. 37 B 33 SUR",
+  lineas: [
+    "PROYECTOS DE INGENIERÍA ELECTRÓNICA ENFOCADA EN SEGURIDAD Y PROYECTOS EFICIENTES.",
+    "GESTIÓN ADMINISTRATIVA Y OPERATIVA DE SEGURIDAD ELECTRÓNICA.",
+    "Proyectos Especiales, Capacitaciones. Consultoría - Auditoría e Interventoría - Mano de obra certificada a nivel nacional.",
+  ],
+  ciudad: "BOGOTÁ",
+  correo: "servielectrobogota@gmail.com",
+  movil: "300 489 3392",
 };
+
+// Textos fijos de la página 2, del documento real. [texto, resaltado en rojo]
+type Tramo = [string, boolean?];
+
+const VALORES_AGREGADOS: Tramo[] = [
+  ["Se realiza la entrega de la carpeta de ingeniería que incluye: Planimetría de cableado y tubería, posicionamiento en plano de dispositivos, cuadro de conexiones y configuración de colores punto por punto, fichas técnicas de equipos, certificado de capacitación a personal autorizado (Dossier relacionado con un proyecto de seguridad electrónica). "],
+  ["ENTREGABLES ADICIONALES COMO VALOR AGREGADO:", true],
+  [" • AVANCE PARA GESTIÓN DOCUMENTAL DE MANTENIMIENTOS: • Bitácoras para registro de mantenimientos preventivos y correctivos del sistema • Hoja de vida de equipos para aseguramiento de los mismos en pólizas del conjunto • Viabilidad para procesos predictivos y proactivos del sistema con el fin de obtener el mayor rendimiento en ingeniería de mantenimientos basados en MRR y mejoramiento del sistema. • Programa de Gestión de Activos."],
+];
+
+const OBSERVACIONES: Tramo[] = [
+  ["Junto con la planeación y para el inicio y durante el proyecto se entrega:", true],
+  [" • "],
+  ["Acta de constitución de proyecto", true],
+  [" mediante metodologías de Gestión de Proyectos (Project Charter - documento formal que autoriza el inicio, objetivos, alcance, gerente asignado y presupuesto inicial) • Cronograma basado en tiempos de ejecución y priorización de costos de activos y mano de obra. • "],
+  ["Documentación de Acta de Inicio de obra", true],
+  [" para stakeholders del proyecto (involucrados en el proyecto). • Planeación de criticidad y fases de proyecto para seguimiento del mismo; "],
+  ["Plan para la Dirección del Proyecto:", true],
+  [" El plan integral que guía la ejecución. • "],
+  ["Documentación de personal", true],
+  [" de ejecución (Parafiscales, certificados de manejo de marca, certificado de EPP's). • "],
+  ["Informes de Estado y Progreso:", true],
+  [" Documentos periódicos sobre el desempeño (avance, presupuesto, hitos). • "],
+  ["Informe Final del Proyecto:", true],
+  [" Resumen del desempeño, metas alcanzadas y desviaciones. • Documentación Técnica/Manuales: Manuales de usuario, documentación técnica de producto o planos finales. • "],
+  ["Cierre Administrativo y Contractual:", true],
+  [" Liquidación de contratos, pagos finales y liberación de recursos."],
+];
 
 export interface FormatoCotizacionItem {
   id: string;
@@ -33,6 +80,14 @@ export interface FormatoCotizacionTotales {
   total: number;
 }
 
+/** Porcentajes como fracción (0.05 = 5%), para mostrarlos en el resumen. */
+export interface FormatoCotizacionPorcentajes {
+  admin: number;
+  imprevistos: number;
+  utilidad: number;
+  iva: number;
+}
+
 export interface FormatoCotizacionConfiguracionEmpresa {
   textoDespachoAprobacion: string | null;
   bancoNombre: string | null;
@@ -59,21 +114,23 @@ export interface FormatoCotizacionProps {
     direccion: string | null;
     email: string | null;
     contacto: string | null;
+    telefono?: string | null;
   };
   items: FormatoCotizacionItem[];
   totales: FormatoCotizacionTotales | null;
+  porcentajes?: FormatoCotizacionPorcentajes | null;
   hitos: FormatoCotizacionHito[];
   configuracionEmpresa: FormatoCotizacionConfiguracionEmpresa | null;
   polizas: FormatoCotizacionPoliza[];
 }
 
-const CATEGORIAS_ORDEN: Categoria[] = ["EQUIPO", "MATERIAL", "MANO_DE_OBRA"];
+const ROJO = "bg-[#953735] text-white";
+const BORDE = "border border-black";
 
 /**
- * El documento que ve el cliente — formato "FormatoCotizacion". Es un componente puro
- * (sin fetch propio) para poder usarlo tanto en /cotizaciones/[id]/imprimir (con datos
- * reales de la base) como en la Vista Previa en vivo dentro de la pantalla de cotización
- * (con el estado en memoria, antes de guardar).
+ * El documento que ve el cliente. Componente puro (sin fetch propio) para usarlo tanto
+ * en /cotizaciones/[id]/imprimir (datos de la base) como en la Vista Previa en vivo del
+ * armador (estado en memoria, antes de guardar). Ancho fijo de carta (816px = 8.5in).
  */
 export function FormatoCotizacion({
   codigo,
@@ -83,254 +140,339 @@ export function FormatoCotizacion({
   cliente,
   items,
   totales,
+  porcentajes,
   hitos,
-  configuracionEmpresa,
+  configuracionEmpresa: conf,
   polizas,
 }: FormatoCotizacionProps) {
-  const formaPagoTexto = hitos
-    .map((h) => `${h.nombre} ${(h.porcentaje * 100).toFixed(0)}%`)
-    .join(", ");
+  const subtotalDe = (cat: Categoria) =>
+    items
+      .filter((i) => i.categoria === cat)
+      .reduce((acc, i) => acc + i.valorCalculoUnitario * i.cantidad, 0);
 
-  const datosBancariosTexto =
-    configuracionEmpresa?.bancoNombre || configuracionEmpresa?.bancoNumeroCuenta
-      ? [
-          configuracionEmpresa.bancoNombre,
-          configuracionEmpresa.bancoTipoCuenta,
-          configuracionEmpresa.bancoNumeroCuenta
-            ? `No. ${configuracionEmpresa.bancoNumeroCuenta}`
-            : null,
-          configuracionEmpresa.bancoTitular
-            ? `a nombre de ${configuracionEmpresa.bancoTitular}`
-            : null,
-        ]
-          .filter(Boolean)
-          .join(" ")
-      : null;
+  const pct = (v: number | undefined) =>
+    v === undefined ? "" : `${Math.round(v * 1000) / 10}%`;
+
   return (
-    <div className="mx-auto w-full max-w-[816px] bg-white p-6 shadow-sm sm:p-8 print:shadow-none">
-      <header className="mb-6 border-b-2 border-slate-900 pb-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-lg font-bold text-slate-900 sm:text-xl">
-              Servielectro SAS
-            </h1>
-            <p className="text-xs text-slate-600 sm:text-sm">
-              SERVICIOS ELECTRÓNICOS INDUSTRIALES SAS
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-slate-600 sm:text-sm">Cotización</p>
-            <p className="font-mono text-sm font-bold text-slate-900 sm:text-base">
-              {codigo}
-            </p>
+    <div className="formato-cotizacion mx-auto w-[816px] bg-white p-10 font-sans text-[10px] leading-snug text-black shadow-sm print:w-full print:p-0 print:shadow-none">
+      {/* ------------------------- Encabezado ------------------------- */}
+      <div className={`grid grid-cols-[1.45fr_1fr] ${BORDE}`}>
+        <div className="flex flex-col justify-center gap-0.5 border-r border-black px-3 py-2 text-center">
+          <p className="font-bold text-[#953735]">{EMPRESA.razonSocial}</p>
+          <p className="font-bold">{EMPRESA.nitDireccion}</p>
+          <p>{EMPRESA.lineas[0]}</p>
+          <p className="font-bold text-[#953735]">{EMPRESA.lineas[1]}</p>
+          <p>{EMPRESA.lineas[2]}</p>
+        </div>
+        <div className="flex items-center gap-2 px-2 py-2">
+          {/* eslint-disable-next-line @next/next/no-img-element -- en impresión next/image no aporta y complica el tamaño exacto */}
+          <img src="/logo-servielectro.png" alt="Servielectro" className="w-[62%]" />
+          <div className="flex flex-1 flex-col items-end gap-1.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logos/gmi.png" alt="GMI Gestión Mantenimiento Industrial" className="h-[22px] w-auto" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logos/perimetral.png" alt="Perimetral" className="h-[20px] w-auto" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logos/ecoenergy.png" alt="EcoEnergy" className="h-[13px] w-auto" />
           </div>
         </div>
+      </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs sm:text-sm">
-          <p>
-            <span className="font-medium text-slate-700">Proyecto: </span>
-            {proyecto || "—"}
-          </p>
-          <p>
-            <span className="font-medium text-slate-700">Ciudad: </span>
-            Bogotá
-          </p>
-          <p>
-            <span className="font-medium text-slate-700">Cliente: </span>
-            {cliente.nombre || "—"}
-          </p>
-          <p>
-            <span className="font-medium text-slate-700">Fecha: </span>
-            {new Date(fecha).toLocaleDateString("es-CO")}
-          </p>
-          <p>
-            <span className="font-medium text-slate-700">NIT: </span>
-            {cliente.nit || "—"}
-          </p>
-          <p>
-            <span className="font-medium text-slate-700">Comercial: </span>
-            {comercial || "—"}
-          </p>
-          <p>
-            <span className="font-medium text-slate-700">Dirección: </span>
-            {cliente.direccion || "—"}
-          </p>
-          <p>
-            <span className="font-medium text-slate-700">Contacto: </span>
-            {cliente.contacto || "—"}
-          </p>
-          <p className="col-span-2">
-            <span className="font-medium text-slate-700">Correo: </span>
-            {cliente.email || "—"}
-          </p>
-        </div>
-      </header>
+      {/* ------------------------- Datos ------------------------- */}
+      <table className={`mt-0 w-full border-collapse ${BORDE} border-t-0`}>
+        <colgroup>
+          <col className="w-[13%]" />
+          <col className="w-[45%]" />
+          <col className="w-[12%]" />
+          <col className="w-[11%]" />
+          <col className="w-[19%]" />
+        </colgroup>
+        <tbody className="[&_td]:border [&_td]:border-black [&_td]:px-1 [&_td]:py-[1px]">
+          <tr>
+            <td className="font-bold">PROYECTO:</td>
+            <td className="text-center font-bold">{cliente.nombre || "—"}</td>
+            <td className="font-bold">COTIZACIÓN</td>
+            <td className="font-bold">CIUDAD:</td>
+            <td className="text-center font-bold">{EMPRESA.ciudad}</td>
+          </tr>
+          <tr>
+            <td colSpan={2} className="bg-[#d9d9d9] text-center font-bold">CLIENTE</td>
+            <td className="text-center font-bold text-[#c00000]">{codigo}</td>
+            <td colSpan={2} className="bg-[#d9d9d9] text-center font-bold">SERVIELECTRO</td>
+          </tr>
+          <tr>
+            <td className="font-bold">Sr(a):</td>
+            <td className="text-center">{cliente.contacto || ""}</td>
+            <td rowSpan={2} className="text-center font-bold">PROYECTO</td>
+            <td colSpan={2} rowSpan={2} className="text-center font-bold">
+              {proyecto || "—"}
+            </td>
+          </tr>
+          <tr>
+            <td className="font-bold">Empresa</td>
+            <td className="text-center font-bold">{cliente.nombre || ""}</td>
+          </tr>
+          <FilaDato l="NIT" v={cliente.nit} r="Fecha:" rv={new Date(fecha).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })} />
+          <FilaDato l="Dirección:" v={cliente.direccion} r="Comercial:" rv={comercial?.toUpperCase()} />
+          <FilaDato l="Celular:" v={cliente.telefono} r="Correo:" rv={EMPRESA.correo} />
+          <FilaDato l="Email:" v={cliente.email} r="Móvil:" rv={EMPRESA.movil} />
+        </tbody>
+      </table>
 
-      {CATEGORIAS_ORDEN.map((cat) => {
-        const itemsCategoria = items.filter((i) => i.categoria === cat);
-        if (itemsCategoria.length === 0) return null;
-        const subtotal = itemsCategoria.reduce(
-          (acc, i) => acc + i.valorCalculoUnitario * i.cantidad,
-          0,
-        );
+      {/* ------------------------- Secciones de ítems ------------------------- */}
+      {SECCIONES.map(({ cat, titulo, total }) => {
+        const lineas = items.filter((i) => i.categoria === cat);
+        if (lineas.length === 0) return null;
         return (
-          <section key={cat} className="mb-5">
-            <h2 className="mb-1 text-sm font-bold uppercase text-slate-700">
-              {CATEGORIA_LABEL[cat]}
-            </h2>
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-slate-300 text-left text-xs text-slate-600">
-                  <th className="py-1">Descripción</th>
-                  <th className="py-1 text-right">Cant.</th>
-                  <th className="py-1 text-right">Unidad</th>
-                  <th className="py-1 text-right">Valor unitario</th>
-                  <th className="py-1 text-right">Subtotal</th>
+          <section key={cat} className="mt-4">
+            <table className="w-full border-collapse">
+              <colgroup>
+                <col className="w-[15%]" />
+                <col className="w-[45%]" />
+                <col className="w-[8%]" />
+                <col className="w-[8%]" />
+                <col className="w-[12%]" />
+                <col className="w-[12%]" />
+              </colgroup>
+              <thead className={ROJO}>
+                <tr>
+                  <th colSpan={6} className="pt-1 text-center font-bold">{titulo}</th>
+                </tr>
+                <tr className="[&_th]:px-1 [&_th]:pb-1 [&_th]:font-bold">
+                  <th>Ítem</th>
+                  <th>Descripción</th>
+                  <th>Unidades</th>
+                  <th>Cantidad</th>
+                  <th>Valor Unidad</th>
+                  <th>V/r. Total</th>
                 </tr>
               </thead>
               <tbody>
-                {itemsCategoria.map((it) => (
-                  <tr key={it.id} className="border-b border-slate-100">
-                    <td className="py-1.5 pr-2">
-                      {it.descripcionLarga || it.descripcion}
-                    </td>
-                    <td className="py-1.5 text-right">{it.cantidad}</td>
-                    <td className="py-1.5 text-right">{it.unidad}</td>
-                    <td className="py-1.5 text-right">
-                      {formatCOP(it.valorCalculoUnitario)}
-                    </td>
-                    <td className="py-1.5 text-right font-medium">
+                {lineas.map((it) => (
+                  <tr key={it.id} className="break-inside-avoid border-b border-slate-300 align-middle">
+                    <td className="px-1 py-1 text-center font-bold">{it.descripcion}</td>
+                    <td className="px-1 py-1 text-center">{it.descripcionLarga || it.descripcion}</td>
+                    <td className="px-1 py-1 text-center">{it.unidad}</td>
+                    <td className="px-1 py-1 text-center">{it.cantidad}</td>
+                    <td className="px-1 py-1 text-right">{formatCOP(it.valorCalculoUnitario)}</td>
+                    <td className="px-1 py-1 text-right font-bold">
                       {formatCOP(it.valorCalculoUnitario * it.cantidad)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <p className="mt-1 text-right text-sm font-semibold text-slate-800">
-              Subtotal {CATEGORIA_LABEL[cat]}: {formatCOP(subtotal)}
-            </p>
+            <div className="mt-1 flex justify-end">
+              <div className="flex w-[44%] border-2 border-black font-bold">
+                <span className="flex-1 px-2 py-0.5 text-center">{total}</span>
+                <span className="border-l-2 border-black px-2 py-0.5 text-right">
+                  {formatCOP(subtotalDe(cat))}
+                </span>
+              </div>
+            </div>
           </section>
         );
       })}
 
       {items.length === 0 && (
-        <p className="py-10 text-center text-sm text-slate-600">
-          Todavía no hay líneas cargadas.
-        </p>
+        <p className="py-10 text-center text-sm text-slate-600">Todavía no hay líneas cargadas.</p>
       )}
 
+      {/* Separador visual en pantalla; al imprimir, salto de página real. */}
+      <div className="salto-pagina my-6 border-t-2 border-dashed border-slate-300 text-center text-[9px] text-slate-400 print:my-0 print:border-0">
+        <span className="print:hidden">página 2</span>
+      </div>
+
+      {/* ------------------------- Resumen oferta ------------------------- */}
       {totales && (
-        <section className="ml-auto mt-6 w-full max-w-xs space-y-1 text-sm">
-          <FilaTotal label="Subtotal" valor={totales.subtotalCalculo} />
-          <FilaTotal label="Administración" valor={totales.valorAdmin} />
-          <FilaTotal label="Imprevistos" valor={totales.valorImprevistos} />
-          <FilaTotal label="Utilidad" valor={totales.valorUtilidadAiu} />
-          <div className="flex justify-between border-t border-slate-300 pt-1 font-medium text-slate-800">
-            <span>Subtotal general</span>
-            <span>{formatCOP(totales.subtotalGeneral)}</span>
+        <section className="break-inside-avoid">
+          <p className={`${ROJO} py-0.5 text-center font-bold`}>RESUMEN OFERTA</p>
+          <div className="grid grid-cols-[1fr_auto]">
+            <div className="text-center [&>p]:py-[1px]">
+              <p>SUMINISTROS DE EQUIPOS</p>
+              <p>MATERIALES PARA PROYECTO</p>
+              <p>MANO DE OBRA PARA PROYECTO</p>
+            </div>
+            <div className="w-[34%] min-w-[240px] text-right [&>p]:py-[1px]">
+              <p>{formatCOP(subtotalDe("EQUIPO"))}</p>
+              <p>{formatCOP(subtotalDe("MATERIAL"))}</p>
+              <p>{formatCOP(subtotalDe("MANO_DE_OBRA"))}</p>
+            </div>
           </div>
-          <FilaTotal label="IVA" valor={totales.valorIva} />
-          <div className="flex justify-between border-t-2 border-slate-900 pt-1 text-base font-bold text-slate-900">
-            <span>TOTAL</span>
-            <span>{formatCOP(totales.total)}</span>
-          </div>
-        </section>
-      )}
-
-      {hitos.length > 0 && (
-        <section className="mt-6">
-          <h2 className="mb-1 text-sm font-bold uppercase text-slate-700">
-            Esquema de pagos
-          </h2>
-          <table className="w-full max-w-sm border-collapse text-sm">
-            <tbody>
-              {hitos.map((h) => (
-                <tr key={h.id} className="border-b border-slate-100">
-                  <td className="py-1">
-                    {h.nombre} ({(h.porcentaje * 100).toFixed(0)}%)
-                  </td>
-                  <td className="py-1 text-right font-medium">
-                    {formatCOP(h.valorProgramado)}
-                  </td>
-                </tr>
+          <CajaTotal label="PROYECTO" valor={totales.subtotalCalculo} />
+          <div className="mt-2">
+            {[
+              ["ADMINISTRACIÓN", porcentajes?.admin, totales.valorAdmin],
+              ["IMPREVISTOS", porcentajes?.imprevistos, totales.valorImprevistos],
+              ["UTILIDAD", porcentajes?.utilidad, totales.valorUtilidadAiu],
+            ]
+              .filter(([, , v]) => (v as number) > 0)
+              .map(([label, p, v]) => (
+                <FilaResumen key={label as string} label={label as string} pct={pct(p as number | undefined)} valor={v as number} />
               ))}
-            </tbody>
-          </table>
+          </div>
+          <CajaTotal label="SUBTOTAL" valor={totales.subtotalGeneral} />
+          <div className="mt-2">
+            <FilaResumen label="IVA" pct={pct(porcentajes?.iva)} valor={totales.valorIva} negrita />
+          </div>
+          <CajaTotal label="TOTAL PROYECTO" valor={totales.total} />
         </section>
       )}
 
-      <section className="mt-6 border-t border-slate-300 pt-4">
-        <h2 className="mb-2 text-sm font-bold uppercase text-slate-700">
-          Condiciones comerciales
-        </h2>
-        <div className="space-y-3 text-xs text-slate-600">
-          {configuracionEmpresa?.textoDespachoAprobacion && (
-            <div>
-              <p className="font-semibold text-slate-700">
-                Plazos de entrega y aprobación
-              </p>
-              <p className="whitespace-pre-line">
-                {configuracionEmpresa.textoDespachoAprobacion}
-              </p>
-            </div>
-          )}
-
-          {formaPagoTexto && (
-            <div>
-              <p className="font-semibold text-slate-700">Forma de pago</p>
-              <p>{formaPagoTexto}</p>
-            </div>
-          )}
-
-          {polizas.length > 0 && (
-            <div>
-              <p className="font-semibold text-slate-700">
-                Pólizas disponibles
-              </p>
-              <p className="text-slate-600">
-                Se ofrece la posibilidad de tomar las siguientes pólizas
-                (costo asumido por Servielectro):
-              </p>
-              <ul className="list-disc pl-4">
-                {polizas.map((p) => (
-                  <li key={p.id}>{p.nombre}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {configuracionEmpresa?.textoGarantia && (
-            <div>
-              <p className="font-semibold text-slate-700">Garantía</p>
-              <p className="whitespace-pre-line">
-                {configuracionEmpresa.textoGarantia}
-              </p>
-            </div>
-          )}
-
-          {datosBancariosTexto && (
-            <div>
-              <p className="font-semibold text-slate-700">Datos bancarios</p>
-              <p>{datosBancariosTexto}</p>
-            </div>
-          )}
-
-          {configuracionEmpresa?.textoValidezOferta && (
-            <p className="text-slate-600">
-              {configuracionEmpresa.textoValidezOferta}
-            </p>
-          )}
+      {/* ------------------------- Valores agregados ------------------------- */}
+      <section className="mt-8 break-inside-avoid border border-black">
+        <div className={`${ROJO} py-0.5 text-center font-bold`}>
+          <p>VALORES AGREGADOS</p>
+          <p>GERENCIAMIENTO Y CARPETA DE INGENIERÍA</p>
         </div>
+        <p className="px-3 py-3 text-center font-bold">
+          <Tramos tramos={VALORES_AGREGADOS} />
+        </p>
       </section>
+
+      <section className="mt-6 break-inside-avoid border border-black">
+        <p className={`${ROJO} py-0.5 text-center font-bold`}>
+          OBSERVACIONES ADICIONALES DE LA EMPRESA CON EL PROYECTO:
+        </p>
+        <p className="px-3 py-3 text-center font-bold">
+          <Tramos tramos={OBSERVACIONES} />
+        </p>
+      </section>
+
+      {/* ------------------------- Condiciones comerciales ------------------------- */}
+      <table className={`mt-6 w-full break-inside-avoid border-collapse ${BORDE}`}>
+        <colgroup>
+          <col className="w-[53%]" />
+          <col className="w-[47%]" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th colSpan={2} className="border border-black py-0.5 text-center font-bold">
+              CONDICIONES COMERCIALES
+            </th>
+          </tr>
+        </thead>
+        <tbody className="[&_td]:border [&_td]:border-black [&_td]:px-1 [&_td]:py-1">
+          {conf?.textoDespachoAprobacion && (
+            <FilaCondicion titulo="PLAZOS DE ENTREGA">
+              <p>Plazos de entrega:</p>
+              <p className="whitespace-pre-line">{conf.textoDespachoAprobacion}</p>
+            </FilaCondicion>
+          )}
+          {(conf?.bancoNombre || conf?.bancoNumeroCuenta) && (
+            <FilaCondicion titulo="DATOS BANCARIOS">
+              <p>Cuentas Bancarias:</p>
+              <p>
+                <b>
+                  {[conf.bancoNombre, conf.bancoTipoCuenta, conf.bancoNumeroCuenta && `No. ${conf.bancoNumeroCuenta}`]
+                    .filter(Boolean)
+                    .join(" ")}
+                </b>
+                {conf.bancoTitular && (
+                  <>
+                    {" "}a nombre de <b className="text-[#c00000]">{conf.bancoTitular}.</b>
+                  </>
+                )}
+              </p>
+            </FilaCondicion>
+          )}
+          {conf?.textoGarantia && (
+            <FilaCondicion titulo="GARANTÍA">
+              <p className="whitespace-pre-line">{conf.textoGarantia}</p>
+            </FilaCondicion>
+          )}
+          {polizas.length > 0 && (
+            <tr>
+              <td className="text-center font-bold">Pólizas disponibles:</td>
+              <td className="text-center">
+                {polizas.map((p) => `*Póliza de ${p.nombre.toLowerCase()}`).join(" - ")}
+              </td>
+            </tr>
+          )}
+          {hitos.length > 0 && (
+            <FilaCondicion titulo="FORMA DE PAGO">
+              {hitos.map((h) => (
+                <p key={h.id} className="text-center">
+                  <b>{Math.round(h.porcentaje * 100)}%</b> {h.nombre}
+                </p>
+              ))}
+            </FilaCondicion>
+          )}
+          {conf?.textoValidezOferta && (
+            <FilaCondicion titulo="VALIDEZ OFERTA">
+              <p className="text-center font-bold text-[#c00000]">{conf.textoValidezOferta}</p>
+            </FilaCondicion>
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-function FilaTotal({ label, valor }: { label: string; valor: number }) {
+function FilaDato({ l, v, r, rv }: { l: string; v?: string | null; r: string; rv?: string | null }) {
   return (
-    <div className="flex justify-between text-slate-600">
-      <span>{label}</span>
-      <span>{formatCOP(valor)}</span>
+    <tr>
+      <td className="font-bold">{l}</td>
+      <td className="text-center">{v || ""}</td>
+      <td />
+      <td className="text-right font-bold">{r}</td>
+      <td className="text-center font-bold">{rv || ""}</td>
+    </tr>
+  );
+}
+
+function CajaTotal({ label, valor }: { label: string; valor: number }) {
+  return (
+    <div className="mt-1 flex justify-end">
+      <div className="flex w-[44%] border-2 border-black font-bold">
+        <span className="flex-1 px-2 py-0.5 text-center">{label}</span>
+        <span className="border-l-2 border-black px-2 py-0.5 text-right">{formatCOP(valor)}</span>
+      </div>
     </div>
+  );
+}
+
+function FilaResumen({
+  label,
+  pct,
+  valor,
+  negrita,
+}: {
+  label: string;
+  pct: string;
+  valor: number;
+  negrita?: boolean;
+}) {
+  return (
+    <div className="flex justify-end py-[1px]">
+      <span className="w-[16%] text-right">{label}</span>
+      <span className="w-[8%] text-right">{pct}</span>
+      <span className={`w-[20%] text-right ${negrita ? "font-bold" : ""}`}>{formatCOP(valor)}</span>
+    </div>
+  );
+}
+
+function FilaCondicion({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <tr className="break-inside-avoid">
+      <td className="text-center align-middle font-bold">{titulo}</td>
+      <td>{children}</td>
+    </tr>
+  );
+}
+
+function Tramos({ tramos }: { tramos: Tramo[] }) {
+  return (
+    <>
+      {tramos.map(([t, rojo], i) =>
+        rojo ? (
+          <span key={i} className="text-[#c00000]">
+            {t}
+          </span>
+        ) : (
+          <span key={i}>{t}</span>
+        ),
+      )}
+    </>
   );
 }

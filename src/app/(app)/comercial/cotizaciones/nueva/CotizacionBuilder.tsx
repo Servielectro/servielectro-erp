@@ -1054,6 +1054,12 @@ export function CotizacionBuilder({
             valorCalculoUnitario: l.valorCalculoUnitario,
           }))}
           totales={totales}
+          porcentajes={{
+            admin: config.pctAdmin,
+            imprevistos: config.pctImprevistos,
+            utilidad: config.pctUtilidadAiu,
+            iva: config.ivaPct,
+          }}
           hitos={hitos.map((h) => ({
             id: h.id,
             nombre: h.nombre,
