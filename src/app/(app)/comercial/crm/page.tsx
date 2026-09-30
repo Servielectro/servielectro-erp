@@ -12,6 +12,9 @@ export default async function CrmPage(props: PageProps<"/comercial/crm">) {
   const tipo: TipoPipeline = p === "renovacion" ? "renovacion" : "proyecto_nuevo";
 
   const supabase = await createClient();
+  // Renovaciones automáticas: crea las que vencen en los próximos 90 días (migración 28).
+  // Idempotente; si la migración todavía no se corrió, simplemente no hace nada.
+  await supabase.rpc("fn_crear_renovaciones_pendientes");
   let error: string | null = null;
   let etapas: Awaited<ReturnType<typeof getEtapas>> = [];
   let tarjetas: TarjetaOportunidad[] = [];
