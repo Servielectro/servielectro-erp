@@ -125,6 +125,13 @@ export interface FormatoCotizacionProps {
    * mecanismo: sale el bloque fijo de siempre. Lista vacía = sin bloque.
    */
   valoresAgregados?: { id?: string; titulo: string; texto: string }[] | null;
+  /**
+   * Bloques del documento (valores agregados, observaciones, los que haya) marcados en
+   * la cotización, en orden. Si viene, manda: cada bloque es una sección y ya no sale
+   * ningún texto fijo. Si no viene (cotizaciones guardadas antes), se usa
+   * `valoresAgregados` + el bloque fijo de observaciones, como siempre.
+   */
+  bloquesDocumento?: { id?: string; titulo: string; texto: string }[] | null;
   hitos: FormatoCotizacionHito[];
   configuracionEmpresa: FormatoCotizacionConfiguracionEmpresa | null;
   polizas: FormatoCotizacionPoliza[];
@@ -149,6 +156,7 @@ export function FormatoCotizacion({
   porcentajes,
   diasEjecucion,
   valoresAgregados,
+  bloquesDocumento,
   hitos,
   configuracionEmpresa: conf,
   polizas,
@@ -201,7 +209,7 @@ export function FormatoCotizacion({
                 <div className="flex items-center gap-2 px-2 py-2">
                   {/* eslint-disable-next-line @next/next/no-img-element -- en impresión next/image no aporta y complica el tamaño exacto */}
                   <img src="/logo-servielectro.png" alt="Servielectro" className="w-[62%]" />
-                  <div className="flex flex-1 flex-col items-start gap-1.5">
+                  <div className="flex flex-1 flex-col items-center gap-1.5">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src="/logos/gmi.png" alt="GMI Gestión Mantenimiento Industrial" className="h-[22px] w-auto" />
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -366,7 +374,23 @@ export function FormatoCotizacion({
         </section>
       )}
 
-      {/* ------------------------- Valores agregados ------------------------- */}
+      {/* ------------------------- Bloques del documento ------------------------- */}
+      {bloquesDocumento ? (
+        // Esquema actual: cada bloque marcado es su propia sección, en el orden elegido.
+        // El título es el encabezado de la sección; lo que va entre **…** sale en rojo.
+        bloquesDocumento.map((b, i) => (
+          <section key={b.id ?? i} className={`${i === 0 ? "mt-8" : "mt-6"} break-inside-avoid border border-black`}>
+            <p className={`${ROJO} whitespace-pre-line py-0.5 text-center font-bold uppercase`}>
+              {b.titulo}
+            </p>
+            <p className="whitespace-pre-line px-3 py-3 text-center font-bold">
+              <TextoMarcado texto={b.texto} />
+            </p>
+          </section>
+        ))
+      ) : (
+        <>
+      {/* ---- Cotizaciones guardadas antes de los bloques: se imprimen como siempre ---- */}
       {valoresAgregados === undefined || valoresAgregados === null ? (
         <section className="mt-8 break-inside-avoid border border-black">
           <div className={`${ROJO} py-0.5 text-center font-bold`}>
@@ -401,6 +425,8 @@ export function FormatoCotizacion({
           <Tramos tramos={OBSERVACIONES} />
         </p>
       </section>
+        </>
+      )}
 
       {/* ------------------------- Condiciones comerciales ------------------------- */}
       <table className={`mt-6 w-full break-inside-avoid border-collapse ${BORDE}`}>
@@ -553,6 +579,24 @@ function Tramos({ tramos }: { tramos: Tramo[] }) {
 }
 
 // Resalta en rojo la frase de "entregables adicionales" como en el documento original.
+// Bloques del documento: lo que va entre **dobles asteriscos** sale en rojo.
+function TextoMarcado({ texto }: { texto: string }) {
+  const partes = texto.split(/\*\*([\s\S]+?)\*\*/);
+  return (
+    <>
+      {partes.map((p, i) =>
+        i % 2 === 1 ? (
+          <span key={i} className="text-[#c00000]">
+            {p}
+          </span>
+        ) : (
+          <span key={i}>{p}</span>
+        ),
+      )}
+    </>
+  );
+}
+
 function TextoConResaltado({ texto }: { texto: string }) {
   const marca = "ENTREGABLES ADICIONALES COMO VALOR AGREGADO:";
   const i = texto.indexOf(marca);

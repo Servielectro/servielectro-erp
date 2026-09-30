@@ -987,7 +987,7 @@ export function CotizacionBuilder({
           onClick={() => setValoresAbierto((v) => !v)}
           className="text-sm font-medium text-slate-600"
         >
-          {valoresAbierto ? "▾" : "▸"} Valores agregados
+          {valoresAbierto ? "▾" : "▸"} Bloques del documento (valores agregados, observaciones…)
           {valoresAgregados.length > 0 && ` (${valoresAgregados.length})`}
         </button>
 
@@ -1352,7 +1352,7 @@ export function CotizacionBuilder({
           }))}
           totales={totales}
           diasEjecucion={diasEjecucion.trim() ? Number(diasEjecucion) || null : null}
-          valoresAgregados={valoresAgregados.filter((v) => v.titulo.trim() && v.texto.trim())}
+          bloquesDocumento={valoresAgregados.filter((v) => v.titulo.trim() && v.texto.trim())}
           porcentajes={{
             admin: config.pctAdmin,
             imprevistos: config.pctImprevistos,

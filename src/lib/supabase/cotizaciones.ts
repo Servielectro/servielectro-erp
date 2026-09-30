@@ -87,6 +87,8 @@ export interface CotizacionDetalle {
   // null = cotización anterior al mecanismo (el documento imprime el bloque fijo de
   // siempre); lista = los que se marcaron (vacía = sin bloque).
   valoresAgregados: { id: string; titulo: string; texto: string }[] | null;
+  // null = guardada antes de los bloques del documento (se imprime como siempre).
+  bloquesDocumento: { id: string; titulo: string; texto: string }[] | null;
   hitos: HitoDetalle[];
   polizas: PolizaDetalle[];
   cliente: {
@@ -163,6 +165,17 @@ export async function getCotizacionDetalle(
     valoresAgregados = (va ?? []) as { id: string; titulo: string; texto: string }[];
   }
 
+  // Bloques del documento (migración 34): mismas filas, pero la cotización se guardó con
+  // el esquema nuevo (cada bloque es una sección y no hay texto fijo). Tolerante: si la
+  // columna no existe todavía, la cotización se imprime como antes.
+  const { data: bloquesFlag } = await supabase
+    .from("cotizaciones")
+    .select("bloques_documento_definidos")
+    .eq("id", id)
+    .maybeSingle();
+  const bloquesDocumento: CotizacionDetalle["bloquesDocumento"] =
+    bloquesFlag?.bloques_documento_definidos ? (valoresAgregados ?? []) : null;
+
   const { data: items, error: errorItems } = await supabase
     .from("cotizacion_items")
     .select(
@@ -222,6 +235,7 @@ export async function getCotizacionDetalle(
     fechaEmision: cotizacion.fecha_emision,
     diasEjecucion: extra?.dias_ejecucion ?? null,
     valoresAgregados,
+    bloquesDocumento,
     hitos: (hitos ?? []).map((h) => ({
       id: h.id,
       orden: h.orden,

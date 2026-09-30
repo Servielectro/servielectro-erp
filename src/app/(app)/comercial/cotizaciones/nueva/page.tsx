@@ -17,6 +17,33 @@ import {
   type OrigenOportunidad,
 } from "./CotizacionBuilder";
 
+type Detalle = NonNullable<Awaited<ReturnType<typeof getCotizacionDetalle>>>;
+
+/**
+ * Bloques del documento que arrancan marcados al duplicar, para que la copia imprima lo
+ * mismo que el original:
+ * - original con bloques (esquema actual): los mismos bloques, en su orden.
+ * - original con valores agregados elegidos (esquema de la migración 30): esos, más el
+ *   bloque de observaciones del catálogo (que ese documento imprimía fijo).
+ * - original anterior a todo esto: el bloque de valores agregados y el de
+ *   observaciones del catálogo (lo que imprimía fijo).
+ */
+function bloquesAlDuplicar(original: Detalle, catalogo: ValorAgregadoCatalogo[]) {
+  const deCatalogo = (prefijo: string) =>
+    catalogo
+      .filter((c) => c.titulo.toUpperCase().startsWith(prefijo))
+      .slice(0, 1)
+      .map((c) => ({ valorAgregadoId: c.id, titulo: c.titulo, texto: c.texto }));
+  const copia = (filas: { titulo: string; texto: string }[]) =>
+    filas.map((v) => ({ valorAgregadoId: null, titulo: v.titulo, texto: v.texto }));
+
+  if (original.bloquesDocumento) return copia(original.bloquesDocumento);
+  if (original.valoresAgregados) {
+    return [...copia(original.valoresAgregados), ...deCatalogo("OBSERVACIONES")];
+  }
+  return [...deCatalogo("VALORES AGREGADOS"), ...deCatalogo("OBSERVACIONES")];
+}
+
 export default async function NuevaCotizacionPage(
   props: PageProps<"/comercial/cotizaciones/nueva">,
 ) {
@@ -96,12 +123,9 @@ export default async function NuevaCotizacionPage(
             porcentaje: Math.round(h.porcentaje * 100),
           })),
           diasEjecucion: original.diasEjecucion,
-          // Al duplicar, se copian los mismos valores agregados con su texto editado.
-          valoresAgregados: original.valoresAgregados?.map((v) => ({
-            valorAgregadoId: null,
-            titulo: v.titulo,
-            texto: v.texto,
-          })),
+          // Al duplicar, el documento nuevo conserva el mismo contenido que imprimía el
+          // original, ahora como bloques seleccionables (ver bloquesAlDuplicar).
+          valoresAgregados: bloquesAlDuplicar(original, valoresAgregadosCatalogo),
           polizas: original.polizas.map((p) => ({
             polizaId: p.polizaId,
             nombre: p.nombre,

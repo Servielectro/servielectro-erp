@@ -311,6 +311,15 @@ export async function guardarCotizacion(
   } else if (errVa) {
     console.error("Valores agregados sin guardar (¿falta la migración 30?):", errVa);
   }
+  // Esquema de bloques del documento (migración 34): esta cotización imprime SOLO los
+  // bloques marcados, cada uno como su sección (sin texto fijo de observaciones).
+  if (!errVa) {
+    const { error: errBloques } = await supabase
+      .from("cotizaciones")
+      .update({ bloques_documento_definidos: true })
+      .eq("id", cotizacionId);
+    if (errBloques) console.error("Bloques del documento sin marcar (¿falta la migración 34?):", errBloques);
+  }
 
   let avisoOportunidad: string | null = null;
   if (input.oportunidadId) {

@@ -103,6 +103,7 @@ export default async function ImprimirCotizacionPage(
         }}
         diasEjecucion={cotizacion.diasEjecucion}
         valoresAgregados={cotizacion.valoresAgregados}
+        bloquesDocumento={cotizacion.bloquesDocumento}
         hitos={cotizacion.hitos}
         configuracionEmpresa={configuracionEmpresa}
         polizas={cotizacion.polizas.map((p) => ({
