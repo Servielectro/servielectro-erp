@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { formatCOP, type Categoria, type LineaCotizacion } from "@/lib/pricing";
+import {
+  formatCOP,
+  UNIDADES_SUGERIDAS,
+  type Categoria,
+  type LineaCotizacion,
+} from "@/lib/pricing";
 import type { CatalogoItem } from "@/lib/supabase/catalogo";
 import { ItemCombobox } from "@/components/cotizacion/ItemCombobox";
 
@@ -98,6 +103,9 @@ export function ArmadoCotizacionModal({
         {lineasTab.map((linea) => {
           const calc = lineasCalculadas.find((l) => l.id === linea.id)!;
           const tieneItem = Boolean(linea.descripcion);
+          const itemCatalogo = linea.itemCatalogoId
+            ? catalogo.find((i) => i.id === linea.itemCatalogoId)
+            : undefined;
 
           return (
             <div
@@ -130,13 +138,24 @@ export function ArmadoCotizacionModal({
                   </div>
 
                   <div className="grid grid-cols-3 gap-2">
-                    <CampoNumero
-                      label={`Cant. (${linea.unidad})`}
-                      value={linea.cantidad}
-                      onChange={(v) =>
-                        onActualizarLinea(linea.id, { cantidad: v })
-                      }
-                    />
+                    <div>
+                      <CampoNumero
+                        label="Cantidad"
+                        value={linea.cantidad}
+                        onChange={(v) =>
+                          onActualizarLinea(linea.id, { cantidad: v })
+                        }
+                      />
+                      <input
+                        value={linea.unidad}
+                        onChange={(e) =>
+                          onActualizarLinea(linea.id, { unidad: e.target.value.toUpperCase() })
+                        }
+                        list="unidades-cotizacion"
+                        aria-label="Unidad"
+                        className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700"
+                      />
+                    </div>
                     <CampoNumero
                       label="Precio compra"
                       value={linea.valorCompraUnitario}
@@ -155,6 +174,22 @@ export function ArmadoCotizacionModal({
                       }
                     />
                   </div>
+
+                  <PrecioCatalogo
+                    linea={linea}
+                    precioCatalogo={itemCatalogo ? itemCatalogo.valorCompraIva : undefined}
+                    onCambiar={(guardar) =>
+                      onActualizarLinea(linea.id, { guardarPrecioCatalogo: guardar })
+                    }
+                  />
+
+                  <DescripcionCliente
+                    texto={linea.descripcionLarga ?? ""}
+                    nombreCorto={linea.descripcion}
+                    onCambiar={(t) =>
+                      onActualizarLinea(linea.id, { descripcionLarga: t || null })
+                    }
+                  />
 
                   <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2">
                     <span className="text-xs text-slate-600">
@@ -180,6 +215,12 @@ export function ArmadoCotizacionModal({
           {CATEGORIAS.find((c) => c.key === activeTab)?.label.toLowerCase()}
         </button>
       </main>
+
+      <datalist id="unidades-cotizacion">
+        {UNIDADES_SUGERIDAS.map((u) => (
+          <option key={u} value={u} />
+        ))}
+      </datalist>
 
       <footer className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white">
         <p className="mx-auto w-full max-w-2xl p-3 text-right text-sm text-slate-600 sm:p-4">
@@ -303,6 +344,103 @@ function CampoNumero({
         onChange={(e) => onChange(Number(e.target.value) || 0)}
         className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-2.5 text-sm sm:text-base"
       />
+    </div>
+  );
+}
+
+/**
+ * Estado del precio de la línea frente al catálogo:
+ * - precio en 0: aviso rojo (no se podrá imprimir ni enviar).
+ * - ítem sin precio en catálogo, o con precio distinto al escrito: casilla para llevar
+ *   este precio al catálogo al guardar la cotización (marcada por defecto si el ítem
+ *   venía sin precio), con texto explícito de qué va a pasar.
+ */
+function PrecioCatalogo({
+  linea,
+  precioCatalogo,
+  onCambiar,
+}: {
+  linea: LineaCotizacion;
+  precioCatalogo: number | null | undefined; // undefined = línea sin ítem de catálogo
+  onCambiar: (guardar: boolean) => void;
+}) {
+  const precio = linea.valorCompraUnitario;
+  const sinPrecioCatalogo = precioCatalogo === null;
+  const distinto = precioCatalogo !== undefined && precioCatalogo !== null && precio > 0 && precio !== precioCatalogo;
+  const puedeGuardar = precioCatalogo !== undefined && precio > 0 && (sinPrecioCatalogo || distinto);
+
+  return (
+    <div className="mt-2 space-y-1">
+      {!(precio > 0) && (
+        <p className="rounded bg-red-50 px-2 py-1 text-xs font-medium text-red-700">
+          ⚠ {sinPrecioCatalogo ? "Sin precio en catálogo" : "Precio en $0"}: escribe el precio de compra.
+        </p>
+      )}
+      {precio > 0 && sinPrecioCatalogo && !linea.guardarPrecioCatalogo && (
+        <p className="text-xs text-amber-700">Este ítem no tiene precio en el catálogo.</p>
+      )}
+      {puedeGuardar && (
+        <label className="flex items-start gap-2 text-xs text-slate-700">
+          <input
+            type="checkbox"
+            checked={Boolean(linea.guardarPrecioCatalogo)}
+            onChange={(e) => onCambiar(e.target.checked)}
+            className="mt-0.5 h-4 w-4"
+          />
+          <span>
+            Guardar este precio en el catálogo
+            {distinto && precioCatalogo ? ` (hoy tiene ${formatCOP(precioCatalogo)})` : ""}
+            {linea.guardarPrecioCatalogo && (
+              <span className="block text-blue-700">
+                Se guarda al guardar la cotización, con fecha y usuario.
+              </span>
+            )}
+          </span>
+        </label>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Lo que lee el cliente en la columna «Descripción» del documento. Arranca con el texto
+ * del catálogo y se puede ajustar por proyecto (ej. mano de obra: "Instalación de
+ * sistema de CCTV. Incluye: …"). El cambio queda solo en esta cotización.
+ */
+function DescripcionCliente({
+  texto,
+  nombreCorto,
+  onCambiar,
+}: {
+  texto: string;
+  nombreCorto: string;
+  onCambiar: (t: string) => void;
+}) {
+  const [abierta, setAbierta] = useState(false);
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setAbierta((v) => !v)}
+        className="text-left text-xs text-slate-600"
+      >
+        {abierta ? "▾" : "▸"} Descripción para el cliente
+        {!abierta && (
+          <span className="ml-1 text-slate-400">
+            — {(texto || nombreCorto).slice(0, 60)}
+            {(texto || nombreCorto).length > 60 ? "…" : ""}
+          </span>
+        )}
+      </button>
+      {abierta && (
+        <textarea
+          value={texto}
+          onChange={(e) => onCambiar(e.target.value)}
+          rows={4}
+          placeholder={`Si se deja vacía, sale "${nombreCorto}".`}
+          className="mt-1 w-full resize-y rounded-md border border-slate-300 px-2 py-2 text-sm"
+        />
+      )}
     </div>
   );
 }

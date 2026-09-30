@@ -59,6 +59,12 @@ export function VistaPreviaModal({
         </button>
       </div>
 
+      {props.items.some((i) => !(i.valorCalculoUnitario > 0)) && (
+        <p className="bg-red-600 px-3 py-2 text-center text-sm font-semibold text-white">
+          Borrador con líneas en $0 — no se puede enviar al cliente hasta completarlas.
+        </p>
+      )}
+
       <div className="flex-1 overflow-auto p-4">
         {/* `zoom` (no `transform: scale`) para que el layout se recalcule al tamaño
             real y el contenedor haga scroll correcto — con transform, la caja seguía

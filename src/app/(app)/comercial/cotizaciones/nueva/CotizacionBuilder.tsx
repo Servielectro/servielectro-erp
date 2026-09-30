@@ -244,6 +244,9 @@ export function CotizacionBuilder({
     cotizacionId: string;
     oportunidadId: string | null;
     aviso: string | null;
+    preciosGuardados: string[];
+    avisoPrecios: string | null;
+    lineasEnCero: string[];
   } | null>(
     null,
   );
@@ -356,6 +359,11 @@ export function CotizacionBuilder({
     [lineas, configConEsquema],
   );
 
+  // Líneas con precio de compra en 0: se permite guardar el borrador, pero el documento
+  // no se puede imprimir ni enviar (ver /imprimir). Mandarle al cliente una línea en $0
+  // es el peor error posible de este módulo.
+  const lineasEnCero = lineas.filter((l) => !(l.valorCompraUnitario > 0));
+
   const sumaHitos = hitos.reduce((acc, h) => acc + h.porcentaje, 0);
 
   function actualizarLinea(id: string, cambios: Partial<LineaUI>) {
@@ -380,6 +388,7 @@ export function CotizacionBuilder({
       unidad: item.unidad,
       valorCompraUnitario: item.valorCompraIva ?? 0,
       factorRentabilidadLinea: item.factorRentabilidadLinea,
+      guardarPrecioCatalogo: item.valorCompraIva === null,
     });
   }
 
@@ -510,7 +519,12 @@ export function CotizacionBuilder({
         ? hitos.map((h) => ({ nombre: h.nombre, porcentaje: h.porcentaje / 100 }))
         : [{ nombre: "Pago único", porcentaje: 1 }];
 
+    const preciosCatalogo = lineas
+      .filter((l) => l.guardarPrecioCatalogo && l.itemCatalogoId && l.valorCompraUnitario > 0)
+      .map((l) => ({ itemId: l.itemCatalogoId!, nombre: l.descripcion, valor: l.valorCompraUnitario }));
+
     const res = await guardarCotizacion({
+      preciosCatalogo,
       clienteId,
       clienteNombre: clienteNombre.trim(),
       clienteNit: clienteNit.trim(),
@@ -558,7 +572,21 @@ export function CotizacionBuilder({
       cotizacionId: res.cotizacionId,
       oportunidadId: origen?.startsWith("op:") ? origen.slice(3) : null,
       aviso: res.avisoOportunidad,
+      preciosGuardados: res.preciosGuardados,
+      avisoPrecios: res.avisoPrecios,
+      lineasEnCero: lineasEnCero.map((l) => l.descripcion || "(sin ítem)"),
     });
+    // El catálogo en pantalla también queda al día: la próxima cotización ya trae el precio.
+    if (res.preciosGuardados.length > 0) {
+      const nuevos = new Map(preciosCatalogo.map((p) => [p.itemId, p.valor]));
+      setCatalogo((prev) =>
+        prev.map((i) =>
+          nuevos.has(i.id)
+            ? { ...i, valorCompraIva: nuevos.get(i.id)!, precioActualizadoEn: new Date().toISOString().slice(0, 10) }
+            : i,
+        ),
+      );
+    }
     try {
       window.localStorage.removeItem(DRAFT_KEY);
     } catch {}
@@ -580,6 +608,43 @@ export function CotizacionBuilder({
             </p>
           )}
         </div>
+        {guardadoOk.preciosGuardados.length > 0 && (
+          <div className="max-w-md rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-left text-sm text-blue-900">
+            <p className="font-semibold">
+              ✓ {guardadoOk.preciosGuardados.length === 1
+                ? "1 precio quedó guardado en el catálogo"
+                : `${guardadoOk.preciosGuardados.length} precios quedaron guardados en el catálogo`}
+            </p>
+            <ul className="mt-1 list-disc pl-5 text-xs">
+              {guardadoOk.preciosGuardados.map((n, i) => (
+                <li key={i}>{n}</li>
+              ))}
+            </ul>
+            <p className="mt-1 text-xs">La próxima cotización ya los trae.</p>
+          </div>
+        )}
+        {guardadoOk.avisoPrecios && (
+          <p className="max-w-md rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            {guardadoOk.avisoPrecios}
+          </p>
+        )}
+        {guardadoOk.lineasEnCero.length > 0 && (
+          <div className="max-w-md rounded-md border border-red-200 bg-red-50 px-3 py-2 text-left text-sm text-red-900">
+            <p className="font-semibold">
+              Quedó como borrador con {guardadoOk.lineasEnCero.length}{" "}
+              {guardadoOk.lineasEnCero.length === 1 ? "línea" : "líneas"} en $0:
+            </p>
+            <ul className="mt-1 list-disc pl-5 text-xs">
+              {guardadoOk.lineasEnCero.map((n, i) => (
+                <li key={i}>{n}</li>
+              ))}
+            </ul>
+            <p className="mt-1 text-xs">
+              No se puede imprimir ni enviar al cliente hasta completarlas (en la oficina:
+              abrirla y usar &quot;Duplicar&quot; para terminarla).
+            </p>
+          </div>
+        )}
         {guardadoOk.aviso && (
           <p className="max-w-md rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
             {guardadoOk.aviso}
@@ -1085,6 +1150,14 @@ export function CotizacionBuilder({
 
         {error && (
           <p className="bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>
+        )}
+
+        {lineasEnCero.length > 0 && (
+          <p className="bg-amber-50 px-4 py-2 text-xs text-amber-900">
+            ⚠ {lineasEnCero.length} {lineasEnCero.length === 1 ? "línea" : "líneas"} en $0:{" "}
+            {lineasEnCero.map((l) => l.descripcion || "(sin ítem)").join(", ")}. Puedes guardarla
+            como borrador, pero no se podrá imprimir ni enviar al cliente hasta completarlas.
+          </p>
         )}
 
         <div className="flex items-center gap-3 p-4">

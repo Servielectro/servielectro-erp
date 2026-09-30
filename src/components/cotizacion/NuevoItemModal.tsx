@@ -26,7 +26,11 @@ export function NuevoItemModal({
   onCreado,
 }: Props) {
   const [codigo, setCodigo] = useState("");
-  const [descripcion, setDescripcion] = useState(descripcionInicial);
+  // Nombre corto (buscador y columna Ítem) y descripción para el cliente (columna
+  // Descripción del documento) van separados: si son el mismo texto, en el documento se
+  // ve repetido.
+  const [nombreCorto, setNombreCorto] = useState(descripcionInicial);
+  const [descripcion, setDescripcion] = useState("");
   const [unidad, setUnidad] = useState("UNI");
   const [valorUnitario, setValorUnitario] = useState("");
   const [proveedor, setProveedor] = useState("");
@@ -51,7 +55,7 @@ export function NuevoItemModal({
     setFuentesIa([]);
 
     const res = await describirEquipoConIA({
-      nombre: descripcion,
+      nombre: nombreCorto,
       referencia,
       categoria,
     });
@@ -69,8 +73,8 @@ export function NuevoItemModal({
   }
 
   async function guardar() {
-    if (!descripcion.trim()) {
-      setError("La descripción es obligatoria");
+    if (!nombreCorto.trim()) {
+      setError("El nombre corto es obligatorio");
       return;
     }
     const valor = Number(valorUnitario.replace(/[^0-9.]/g, ""));
@@ -85,7 +89,9 @@ export function NuevoItemModal({
     const factorDefault = FACTORES_RENTABILIDAD_DEFAULT[categoria];
     const res = await crearItemCatalogo({
       codigo,
-      descripcion: descripcion.trim(),
+      nombreCorto: nombreCorto.trim(),
+      // Sin descripción para el cliente, el documento usa el nombre corto.
+      descripcion: descripcion.trim() || nombreCorto.trim(),
       unidad,
       categoria,
       proveedor,
@@ -105,7 +111,7 @@ export function NuevoItemModal({
     onCreado({
       id: res.item.id,
       codigo: res.item.codigo,
-      nombreCorto: res.item.descripcion,
+      nombreCorto: nombreCorto.trim(),
       descripcion: res.item.descripcion,
       unidad: res.item.unidad,
       categoria: res.item.categoria,
@@ -135,9 +141,25 @@ export function NuevoItemModal({
 
         <div className="space-y-3">
           <div>
+            <label className="text-sm font-medium text-slate-700">
+              Nombre corto *
+            </label>
+            <input
+              autoFocus
+              value={nombreCorto}
+              onChange={(e) => setNombreCorto(e.target.value)}
+              placeholder="Ej. Cámara domo 4MP IA"
+              className="mt-1 w-full rounded-md border border-slate-300 bg-white/90 px-3 py-2.5 text-base"
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Para buscarlo y para la columna «Ítem» del documento.
+            </p>
+          </div>
+
+          <div>
             <div className="flex items-baseline justify-between gap-2">
               <label className="text-sm font-medium text-slate-700">
-                Descripción *
+                Descripción para el cliente
               </label>
               {esEquipo && (
                 <button
@@ -151,9 +173,9 @@ export function NuevoItemModal({
               )}
             </div>
             <textarea
-              autoFocus
               rows={3}
               value={descripcion}
+              placeholder="Lo que lee el cliente en la columna «Descripción». Si se deja vacía, se usa el nombre corto."
               onChange={(e) => setDescripcion(e.target.value)}
               className="mt-1 w-full resize-y rounded-md border border-slate-300 bg-white/90 px-3 py-2.5 text-base"
             />

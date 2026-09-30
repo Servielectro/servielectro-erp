@@ -23,6 +23,11 @@ export interface LineaCotizacion {
   cantidad: number;
   valorCompraUnitario: number;
   factorRentabilidadLinea: number;
+  /**
+   * Solo UI: al guardar la cotización, escribir este precio de compra en el catálogo
+   * (items_precios_historico). Marcado por defecto cuando el ítem venía sin precio.
+   */
+  guardarPrecioCatalogo?: boolean;
 }
 
 export interface ConfigPrecio {

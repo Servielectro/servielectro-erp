@@ -5,6 +5,9 @@ import type { Categoria } from "@/lib/pricing";
 
 export interface NuevoItemCatalogoInput {
   codigo: string;
+  /** Nombre corto: buscador y columna Ítem del documento. */
+  nombreCorto: string;
+  /** Descripción para el cliente: columna Descripción del documento. */
   descripcion: string;
   unidad: string;
   categoria: Categoria;
@@ -49,6 +52,19 @@ export async function crearItemCatalogo(
 
   if (error) {
     return { ok: false, error: error.message };
+  }
+
+  // fn_crear_item_catalogo pone el mismo texto como nombre corto y descripción; el
+  // nombre corto se corrige aparte (evita reescribir la función). Si esto fallara, el
+  // ítem queda igual de usable, con la descripción como nombre.
+  const creado = data as { id: string };
+  const nombreCorto = input.nombreCorto.trim();
+  if (nombreCorto && nombreCorto !== input.descripcion) {
+    const { error: errNombre } = await supabase
+      .from("items_catalogo")
+      .update({ nombre_corto: nombreCorto })
+      .eq("id", creado.id);
+    if (errNombre) console.error("No se pudo fijar el nombre corto:", errNombre);
   }
 
   const item = data as {
@@ -116,6 +132,8 @@ export interface GuardarCotizacionInput {
   pctAdminGasto: number;
   pctComision: number;
   lineas: LineaGuardarInput[];
+  // Precios escritos en la cotización que hay que llevar al catálogo.
+  preciosCatalogo: { itemId: string; nombre: string; valor: number }[];
   hitos: HitoGuardarInput[];
   polizas: PolizaGuardarInput[];
   diasEjecucion: number | null;
@@ -144,7 +162,14 @@ export async function crearPoliza(
 export async function guardarCotizacion(
   input: GuardarCotizacionInput,
 ): Promise<
-  | { ok: true; cotizacionId: string; codigo: string; avisoOportunidad: string | null }
+  | {
+      ok: true;
+      cotizacionId: string;
+      codigo: string;
+      avisoOportunidad: string | null;
+      preciosGuardados: string[]; // nombres de los ítems cuyo precio quedó en el catálogo
+      avisoPrecios: string | null;
+    }
   | { ok: false; error: string }
 > {
   const supabase = await createClient();
@@ -233,7 +258,53 @@ export async function guardarCotizacion(
     avisoOportunidad = await asociarAOportunidad(supabase, input.oportunidadId, cotizacionId);
   }
 
-  return { ok: true, cotizacionId, codigo: cotizacion.codigo as string, avisoOportunidad };
+  const { guardados: preciosGuardados, aviso: avisoPrecios } = await guardarPreciosEnCatalogo(
+    supabase,
+    input.preciosCatalogo,
+    cotizacion.codigo as string,
+  );
+
+  return {
+    ok: true,
+    cotizacionId,
+    codigo: cotizacion.codigo as string,
+    avisoOportunidad,
+    preciosGuardados,
+    avisoPrecios,
+  };
+}
+
+/**
+ * Precio escrito en la línea → historial de precios del ítem, con fecha y usuario.
+ * Es un registro nuevo, nunca pisa el anterior: el historial queda completo. Si falla,
+ * la cotización ya está guardada: se avisa sin deshacer nada.
+ */
+async function guardarPreciosEnCatalogo(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  precios: { itemId: string; nombre: string; valor: number }[],
+  codigoCotizacion: string,
+): Promise<{ guardados: string[]; aviso: string | null }> {
+  const validos = precios.filter((p) => p.itemId && p.valor > 0);
+  if (validos.length === 0) return { guardados: [], aviso: null };
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { error } = await supabase.from("items_precios_historico").insert(
+    validos.map((p) => ({
+      item_id: p.itemId,
+      valor_compra_iva: p.valor,
+      fuente: "MANUAL",
+      observaciones: `Cargado desde la cotización ${codigoCotizacion}`,
+      created_by: user?.id ?? null,
+    })),
+  );
+  if (error) {
+    return {
+      guardados: [],
+      aviso: `La cotización se guardó, pero los precios no quedaron en el catálogo (${error.message}).`,
+    };
+  }
+  return { guardados: validos.map((p) => p.nombre), aviso: null };
 }
 
 /**
