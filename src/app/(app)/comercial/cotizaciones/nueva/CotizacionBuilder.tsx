@@ -15,11 +15,16 @@ import type { CatalogoItem } from "@/lib/supabase/catalogo";
 import type {
   ConfiguracionEmpresa,
   PolizaCatalogo,
+  ValorAgregadoCatalogo,
 } from "@/lib/supabase/condicionesComerciales";
 import { ArmadoCotizacionModal } from "@/components/cotizacion/ArmadoCotizacionModal";
 import { NuevoItemModal } from "@/components/cotizacion/NuevoItemModal";
 import { RutUploader } from "@/components/cotizacion/RutUploader";
 import { VistaPreviaModal } from "@/components/cotizacion/VistaPreviaModal";
+import {
+  ValoresAgregadosSelector,
+  type ValorAgregadoUI,
+} from "@/components/cotizacion/ValoresAgregadosSelector";
 import { guardarCotizacion, crearPoliza } from "@/app/(app)/comercial/cotizaciones/actions";
 
 const CATEGORIAS: { key: Categoria; label: string }[] = [
@@ -77,6 +82,8 @@ export interface DatosIniciales {
   hitos: Omit<HitoUI, "id">[];
   polizas: Omit<PolizaSeleccionadaUI, "id">[];
   diasEjecucion: number | null;
+  // undefined = la cotización original es anterior a los valores agregados seleccionables.
+  valoresAgregados?: Omit<ValorAgregadoUI, "id">[];
 }
 
 export interface OrigenOportunidad {
@@ -110,6 +117,7 @@ interface Draft {
   origen?: string | null;
   diasEjecucion?: string;
   clienteTelefono?: string;
+  valoresAgregados?: ValorAgregadoUI[];
   guardadoEn: string;
 }
 
@@ -130,6 +138,7 @@ function nuevaLinea(categoria: Categoria): LineaUI {
 export function CotizacionBuilder({
   catalogoInicial,
   polizasCatalogoInicial,
+  valoresAgregadosCatalogo = [],
   configuracionEmpresa,
   datosIniciales,
   duplicarId,
@@ -137,6 +146,7 @@ export function CotizacionBuilder({
 }: {
   catalogoInicial: CatalogoItem[];
   polizasCatalogoInicial: PolizaCatalogo[];
+  valoresAgregadosCatalogo?: ValorAgregadoCatalogo[];
   configuracionEmpresa: ConfiguracionEmpresa | null;
   datosIniciales?: DatosIniciales;
   duplicarId?: string;
@@ -149,6 +159,22 @@ export function CotizacionBuilder({
   const origenInicial = duplicarId ?? (oportunidad ? `op:${oportunidad.id}` : null);
   const [catalogo, setCatalogo] = useState(catalogoInicial);
   const [catalogoPolizas, setCatalogoPolizas] = useState(polizasCatalogoInicial);
+  const [catalogoValores, setCatalogoValores] = useState(valoresAgregadosCatalogo);
+  // Por defecto queda marcado el primero del catálogo (el bloque que hasta hoy salía fijo
+  // en todas las cotizaciones); se desmarca si no aplica al cliente.
+  const valoresPorDefecto = (): ValorAgregadoUI[] =>
+    valoresAgregadosCatalogo.slice(0, 1).map((v) => ({
+      id: crypto.randomUUID(),
+      valorAgregadoId: v.id,
+      titulo: v.titulo,
+      texto: v.texto,
+    }));
+  const [valoresAgregados, setValoresAgregados] = useState<ValorAgregadoUI[]>(() =>
+    datosIniciales?.valoresAgregados
+      ? datosIniciales.valoresAgregados.map((v) => ({ ...v, id: crypto.randomUUID() }))
+      : valoresPorDefecto(),
+  );
+  const [valoresAbierto, setValoresAbierto] = useState(false);
   const [nuevaPolizaNombre, setNuevaPolizaNombre] = useState("");
   const [creandoPoliza, setCreandoPoliza] = useState(false);
   const [clienteNombre, setClienteNombre] = useState(
@@ -297,6 +323,7 @@ export function CotizacionBuilder({
         setHitos(draft.hitos ?? []);
         setPolizasSeleccionadas(draft.polizas ?? []);
         setDiasEjecucion(draft.diasEjecucion ?? "");
+        if (draft.valoresAgregados) setValoresAgregados(draft.valoresAgregados);
         setOrigen(origenDraft);
         setRestauradoDe(draft.guardadoEn ?? null);
       }
@@ -331,6 +358,7 @@ export function CotizacionBuilder({
         origen,
         diasEjecucion,
         clienteTelefono,
+        valoresAgregados,
         guardadoEn: new Date().toISOString(),
       };
       window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
@@ -352,6 +380,7 @@ export function CotizacionBuilder({
     origen,
     diasEjecucion,
     clienteTelefono,
+    valoresAgregados,
   ]);
 
   const totales = useMemo(
@@ -469,6 +498,7 @@ export function CotizacionBuilder({
     setHitos([]);
     setPolizasSeleccionadas([]);
     setDiasEjecucion("");
+    setValoresAgregados(valoresPorDefecto());
     setOrigen(null);
     setRestauradoDe(null);
     setGuardadoOk(null);
@@ -557,6 +587,9 @@ export function CotizacionBuilder({
         nombre: p.nombre,
       })),
       diasEjecucion: diasEjecucionNum,
+      valoresAgregados: valoresAgregados
+        .filter((v) => v.titulo.trim() && v.texto.trim())
+        .map((v) => ({ valorAgregadoId: v.valorAgregadoId, titulo: v.titulo, texto: v.texto })),
     });
     setGuardando(false);
 
@@ -922,6 +955,24 @@ export function CotizacionBuilder({
 
         <button
           type="button"
+          onClick={() => setValoresAbierto((v) => !v)}
+          className="text-sm font-medium text-slate-600"
+        >
+          {valoresAbierto ? "▾" : "▸"} Valores agregados
+          {valoresAgregados.length > 0 && ` (${valoresAgregados.length})`}
+        </button>
+
+        {valoresAbierto && (
+          <ValoresAgregadosSelector
+            catalogo={catalogoValores}
+            seleccionados={valoresAgregados}
+            onCambiar={setValoresAgregados}
+            onCatalogoNuevo={(v) => setCatalogoValores((prev) => [...prev, v])}
+          />
+        )}
+
+        <button
+          type="button"
           onClick={() => setDatosClienteAbierto((v) => !v)}
           className="text-sm font-medium text-slate-600"
         >
@@ -1263,6 +1314,7 @@ export function CotizacionBuilder({
           }))}
           totales={totales}
           diasEjecucion={diasEjecucion.trim() ? Number(diasEjecucion) || null : null}
+          valoresAgregados={valoresAgregados.filter((v) => v.titulo.trim() && v.texto.trim())}
           porcentajes={{
             admin: config.pctAdmin,
             imprevistos: config.pctImprevistos,

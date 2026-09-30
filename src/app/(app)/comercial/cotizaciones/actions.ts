@@ -137,6 +137,7 @@ export interface GuardarCotizacionInput {
   hitos: HitoGuardarInput[];
   polizas: PolizaGuardarInput[];
   diasEjecucion: number | null;
+  valoresAgregados: { valorAgregadoId: string | null; titulo: string; texto: string }[];
 }
 
 export async function crearPoliza(
@@ -157,6 +158,31 @@ export async function crearPoliza(
   }
 
   return { ok: true, poliza: { id: data.id, nombre: data.nombre } };
+}
+
+export async function crearValorAgregado(
+  titulo: string,
+  texto: string,
+): Promise<
+  | { ok: true; valorAgregado: { id: string; titulo: string; texto: string } }
+  | { ok: false; error: string }
+> {
+  const t = titulo.trim();
+  const x = texto.trim();
+  if (!t || !x) return { ok: false, error: "Falta el título o el texto" };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("valores_agregados_catalogo")
+    .insert({ titulo: t, texto: x, orden: 100 })
+    .select("id, titulo, texto")
+    .single();
+  if (error) {
+    return {
+      ok: false,
+      error: error.code === "23505" ? "Ya existe un valor agregado con ese título" : error.message,
+    };
+  }
+  return { ok: true, valorAgregado: data as { id: string; titulo: string; texto: string } };
 }
 
 export async function guardarCotizacion(
@@ -251,6 +277,27 @@ export async function guardarCotizacion(
       .update({ telefono: input.clienteTelefono })
       .eq("id", cotizacion.cliente_id);
     if (errTel) console.error("No se pudo guardar el teléfono del cliente:", errTel);
+  }
+
+  // Valores agregados marcados (migración 30): snapshot con el texto editado. La
+  // marca `valores_agregados_definidos` hace que el documento use exactamente estos.
+  const { error: errVa } = await supabase
+    .from("cotizaciones")
+    .update({ valores_agregados_definidos: true })
+    .eq("id", cotizacionId);
+  if (!errVa && input.valoresAgregados.length > 0) {
+    const { error: errVaFilas } = await supabase.from("cotizacion_valores_agregados").insert(
+      input.valoresAgregados.map((v, i) => ({
+        cotizacion_id: cotizacionId,
+        valor_agregado_id: v.valorAgregadoId,
+        titulo: v.titulo.trim(),
+        texto: v.texto.trim(),
+        orden: i + 1,
+      })),
+    );
+    if (errVaFilas) console.error("No se pudieron guardar los valores agregados:", errVaFilas);
+  } else if (errVa) {
+    console.error("Valores agregados sin guardar (¿falta la migración 30?):", errVa);
   }
 
   let avisoOportunidad: string | null = null;

@@ -4,6 +4,8 @@ import { getCotizacionDetalle } from "@/lib/supabase/cotizaciones";
 import {
   getConfiguracionEmpresa,
   getPolizasCatalogo,
+  getValoresAgregadosCatalogo,
+  type ValorAgregadoCatalogo,
   type ConfiguracionEmpresa,
   type PolizaCatalogo,
 } from "@/lib/supabase/condicionesComerciales";
@@ -41,6 +43,9 @@ export default async function NuevaCotizacionPage(
   } catch (err) {
     console.error("No se pudo cargar el catálogo de pólizas o la configuración de la empresa:", err);
   }
+
+  const valoresAgregadosCatalogo: ValorAgregadoCatalogo[] =
+    await getValoresAgregadosCatalogo(supabase);
 
   let datosIniciales: DatosIniciales | undefined;
   if (typeof duplicarId === "string") {
@@ -82,6 +87,12 @@ export default async function NuevaCotizacionPage(
             porcentaje: Math.round(h.porcentaje * 100),
           })),
           diasEjecucion: original.diasEjecucion,
+          // Al duplicar, se copian los mismos valores agregados con su texto editado.
+          valoresAgregados: original.valoresAgregados?.map((v) => ({
+            valorAgregadoId: null,
+            titulo: v.titulo,
+            texto: v.texto,
+          })),
           polizas: original.polizas.map((p) => ({
             polizaId: p.polizaId,
             nombre: p.nombre,
@@ -114,6 +125,7 @@ export default async function NuevaCotizacionPage(
     <CotizacionBuilder
       catalogoInicial={catalogo}
       polizasCatalogoInicial={polizasCatalogo}
+      valoresAgregadosCatalogo={valoresAgregadosCatalogo}
       configuracionEmpresa={configuracionEmpresa}
       datosIniciales={datosIniciales}
       duplicarId={typeof duplicarId === "string" ? duplicarId : undefined}

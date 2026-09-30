@@ -84,6 +84,9 @@ export interface CotizacionDetalle {
   ivaPct: number;
   fechaEmision: string;
   diasEjecucion: number | null;
+  // null = cotización anterior al mecanismo (el documento imprime el bloque fijo de
+  // siempre); lista = los que se marcaron (vacía = sin bloque).
+  valoresAgregados: { id: string; titulo: string; texto: string }[] | null;
   hitos: HitoDetalle[];
   polizas: PolizaDetalle[];
   cliente: {
@@ -144,6 +147,22 @@ export async function getCotizacionDetalle(
     .eq("id", id)
     .maybeSingle();
 
+  // Valores agregados (migración 30), leídos aparte y de forma tolerante.
+  const { data: vaFlag } = await supabase
+    .from("cotizaciones")
+    .select("valores_agregados_definidos")
+    .eq("id", id)
+    .maybeSingle();
+  let valoresAgregados: CotizacionDetalle["valoresAgregados"] = null;
+  if (vaFlag?.valores_agregados_definidos) {
+    const { data: va } = await supabase
+      .from("cotizacion_valores_agregados")
+      .select("id, titulo, texto")
+      .eq("cotizacion_id", id)
+      .order("orden");
+    valoresAgregados = (va ?? []) as { id: string; titulo: string; texto: string }[];
+  }
+
   const { data: items, error: errorItems } = await supabase
     .from("cotizacion_items")
     .select(
@@ -202,6 +221,7 @@ export async function getCotizacionDetalle(
     ivaPct: Number(cotizacion.iva_pct),
     fechaEmision: cotizacion.fecha_emision,
     diasEjecucion: extra?.dias_ejecucion ?? null,
+    valoresAgregados,
     hitos: (hitos ?? []).map((h) => ({
       id: h.id,
       orden: h.orden,

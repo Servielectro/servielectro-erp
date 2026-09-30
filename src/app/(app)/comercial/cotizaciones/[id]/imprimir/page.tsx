@@ -102,6 +102,7 @@ export default async function ImprimirCotizacionPage(
           iva: cotizacion.ivaPct,
         }}
         diasEjecucion={cotizacion.diasEjecucion}
+        valoresAgregados={cotizacion.valoresAgregados}
         hitos={cotizacion.hitos}
         configuracionEmpresa={configuracionEmpresa}
         polizas={cotizacion.polizas.map((p) => ({

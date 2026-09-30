@@ -13,6 +13,12 @@ function normalizar(texto: string): string {
 
 const MAX_RESULTADOS = 40;
 
+const CATEGORIA_CORTA: Record<Categoria, string> = {
+  EQUIPO: "Equipo",
+  MATERIAL: "Material",
+  MANO_DE_OBRA: "Mano de obra",
+};
+
 interface Props {
   catalogo: CatalogoItem[];
   categoria: Categoria;
@@ -32,25 +38,27 @@ export function ItemCombobox({
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const itemsCategoria = useMemo(
-    () => catalogo.filter((i) => i.categoria === categoria),
-    [catalogo, categoria],
-  );
-
+  // Listado único (como el Excel de Jhojan): se busca en TODO el catálogo. La categoría
+  // del catálogo es solo una sugerencia; el ítem queda en la sección de esta línea, y la
+  // línea se puede mover de sección después. Los de la sección actual salen primero.
   const resultados = useMemo(() => {
     const q = normalizar(query.trim());
-    const base = q
-      ? itemsCategoria.filter(
+    const coinciden = q
+      ? catalogo.filter(
           (i) =>
             normalizar(i.nombreCorto).includes(q) ||
             normalizar(i.codigo).includes(q) ||
             (i.referencia && normalizar(i.referencia).includes(q)),
         )
-      : itemsCategoria;
-    return base.slice(0, MAX_RESULTADOS);
-  }, [itemsCategoria, query]);
+      : catalogo;
+    const ordenados = [
+      ...coinciden.filter((i) => i.categoria === categoria),
+      ...coinciden.filter((i) => i.categoria !== categoria),
+    ];
+    return { lista: ordenados.slice(0, MAX_RESULTADOS), total: ordenados.length };
+  }, [catalogo, categoria, query]);
 
-  const hayMas = itemsCategoria.length > resultados.length;
+  const hayMas = resultados.total > resultados.lista.length;
 
   return (
     <div className="relative">
@@ -86,13 +94,13 @@ export function ItemCombobox({
             + Nuevo ítem{query.trim() ? `: "${query.trim()}"` : ""}
           </button>
 
-          {resultados.length === 0 && (
+          {resultados.lista.length === 0 && (
             <p className="px-3 py-3 text-sm text-slate-600">
-              Sin resultados en {categoria.replace("_", " ")}.
+              Sin resultados en el catálogo.
             </p>
           )}
 
-          {resultados.map((item) => (
+          {resultados.lista.map((item) => (
             <button
               key={item.id}
               type="button"
@@ -108,6 +116,7 @@ export function ItemCombobox({
               </span>
               <span className="text-xs text-slate-600">
                 {item.codigo} · {item.unidad}
+                {item.categoria !== categoria && ` · catálogo: ${CATEGORIA_CORTA[item.categoria]}`}
                 {item.valorCompraIva === null && " · sin precio"}
               </span>
             </button>

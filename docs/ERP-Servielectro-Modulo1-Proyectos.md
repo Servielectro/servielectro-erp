@@ -217,7 +217,7 @@ Jhojan mandó el contrato modelo real: `CONTRATO CSE-26-151 MANTO PUERTAS VEHICU
 **Campos que hoy NO existen y hay que agregar (todavía sin construir):**
 - **Plazo de ejecución** (ej. "doce días hábiles desde el Acta de Inicio") — no hay campo de plazo en `cotizaciones` ni `proyectos` hoy.
 - **Garantías configurables** (en este contrato: 12 meses equipos, 6 meses mano de obra) — hoy la garantía es un texto fijo único en `configuracion_empresa` (§16), no configurable por proyecto.
-- **Datos fijos del contratista** — faltan en `configuracion_empresa`: representante legal (nombre, cédula), dirección exacta de Servielectro (`Calle 36 Sur No. 69 A 06, Piso 5, Edificio ZN, Bogotá` — nota: **distinta** a la dirección `CRA 69 B NO. 37 B 33 SUR` del encabezado de cotización del Excel; hay que confirmar con Jhojan cuál es la vigente antes de cargar ninguna).
+- **Datos fijos del contratista** — faltan en `configuracion_empresa`: representante legal (nombre, cédula), dirección exacta de Servielectro (`Calle 36 Sur No. 69 A 06, Piso 5, Edificio ZN, Bogotá` — nota: **distinta** a la dirección `CRA 69 B NO. 37 B 33 SUR` del encabezado de cotización del Excel; ✅ confirmada por Jhojan 2026-09-30: la vigente es la de Calle 36 Sur, ya corregida en el encabezado de la cotización).
 - **Pólizas reales confirmadas por Jhojan 2026-09-24** (las que de verdad usa, con cifras):
   - Cumplimiento — 30% del valor del contrato, vigencia = plazo + 6 meses.
   - Calidad y correcto funcionamiento — 40% del valor del contrato.

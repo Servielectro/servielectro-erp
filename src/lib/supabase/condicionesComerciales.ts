@@ -63,3 +63,27 @@ export async function getPolizasCatalogo(
     vigenciaMesesDefault: row.vigencia_meses_default,
   }));
 }
+
+export interface ValorAgregadoCatalogo {
+  id: string;
+  titulo: string;
+  texto: string;
+}
+
+/** Tolerante: si la migración 30 no se corrió, devuelve lista vacía en vez de romper. */
+export async function getValoresAgregadosCatalogo(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
+): Promise<ValorAgregadoCatalogo[]> {
+  const { data, error } = await supabase
+    .from("valores_agregados_catalogo")
+    .select("id, titulo, texto")
+    .eq("activo", true)
+    .order("orden")
+    .order("titulo");
+  if (error) {
+    console.error("No se pudo cargar el catálogo de valores agregados:", error);
+    return [];
+  }
+  return (data ?? []) as ValorAgregadoCatalogo[];
+}

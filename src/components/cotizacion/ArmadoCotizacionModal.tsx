@@ -47,6 +47,16 @@ export function ArmadoCotizacionModal({
   onCerrar: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<Categoria>("EQUIPO");
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  // Mover una línea de sección cambia la categoría de ESTA línea en ESTA cotización
+  // (documento y métricas salen de la línea). El catálogo no se toca.
+  function moverLinea(id: string, destino: Categoria) {
+    onActualizarLinea(id, { categoria: destino });
+    const nombre = CATEGORIAS.find((c) => c.key === destino)?.label ?? destino;
+    setAviso(`Línea movida a ${nombre}.`);
+    window.setTimeout(() => setAviso(null), 3000);
+  }
 
   const lineasTab = lineas.filter((l) => l.categoria === activeTab);
   const subtotalTab = lineasCalculadas
@@ -93,6 +103,9 @@ export function ArmadoCotizacionModal({
       </nav>
 
       <main className="mx-auto w-full max-w-2xl flex-1 space-y-3 overflow-y-auto p-3 pb-28 sm:p-4">
+        {aviso && (
+          <p className="rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-800">{aviso}</p>
+        )}
         {lineasTab.length === 0 && (
           <p className="py-8 text-center text-sm text-slate-600">
             Sin líneas todavía en{" "}
@@ -136,6 +149,20 @@ export function ArmadoCotizacionModal({
                       Quitar
                     </button>
                   </div>
+                  <label className="mb-2 flex items-center gap-2 text-xs text-slate-600">
+                    Sección
+                    <select
+                      value={linea.categoria}
+                      onChange={(e) => moverLinea(linea.id, e.target.value as Categoria)}
+                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800"
+                    >
+                      {CATEGORIAS.map((c) => (
+                        <option key={c.key} value={c.key}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
                   <div className="grid grid-cols-3 gap-2">
                     <div>

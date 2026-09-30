@@ -14,7 +14,7 @@ const SECCIONES: { cat: Categoria; titulo: string; total: string }[] = [
 // Datos fijos de la empresa tal como salen en el encabezado del documento real.
 const EMPRESA = {
   razonSocial: "SERVICIOS ELECTRÓNICOS INDUSTRIALES SAS",
-  nitDireccion: "NIT: 901.235.322-4 - CRA 69 B NO. 37 B 33 SUR",
+  nitDireccion: "NIT: 901.235.322-4 - CALLE 36 SUR NO. 69 A 06, PISO 5, EDIFICIO ZN",
   lineas: [
     "PROYECTOS DE INGENIERÍA ELECTRÓNICA ENFOCADA EN SEGURIDAD Y PROYECTOS EFICIENTES.",
     "GESTIÓN ADMINISTRATIVA Y OPERATIVA DE SEGURIDAD ELECTRÓNICA.",
@@ -120,6 +120,11 @@ export interface FormatoCotizacionProps {
   totales: FormatoCotizacionTotales | null;
   porcentajes?: FormatoCotizacionPorcentajes | null;
   diasEjecucion?: number | null;
+  /**
+   * Valores agregados marcados en la cotización. `null`/omitido = cotización anterior al
+   * mecanismo: sale el bloque fijo de siempre. Lista vacía = sin bloque.
+   */
+  valoresAgregados?: { id?: string; titulo: string; texto: string }[] | null;
   hitos: FormatoCotizacionHito[];
   configuracionEmpresa: FormatoCotizacionConfiguracionEmpresa | null;
   polizas: FormatoCotizacionPoliza[];
@@ -143,6 +148,7 @@ export function FormatoCotizacion({
   totales,
   porcentajes,
   diasEjecucion,
+  valoresAgregados,
   hitos,
   configuracionEmpresa: conf,
   polizas,
@@ -157,76 +163,93 @@ export function FormatoCotizacion({
 
   return (
     <div className="formato-cotizacion mx-auto w-[816px] bg-white p-10 font-sans text-[10px] leading-snug text-black shadow-sm print:w-full print:p-0 print:shadow-none">
+      {/* Tabla externa: el encabezado va en <thead> para que el navegador lo repita
+          arriba de cada hoja impresa; cada bloque es una fila, así ningún bloque se
+          corta feo (las filas de ítems no se parten y el título de cada sección se
+          repite si la sección sigue en la hoja siguiente). La cantidad de hojas crece
+          sola con lo largo de cada bloque. */}
+      <table className="w-full border-collapse">
+        <thead>
+          <tr>
+            <td className="p-0">
       {/* ------------------------- Encabezado ------------------------- */}
-      <div className={`grid grid-cols-[1.45fr_1fr] ${BORDE}`}>
-        <div className="flex flex-col justify-center gap-0.5 border-r border-black px-3 py-2 text-center">
-          <p className="font-bold text-[#953735]">{EMPRESA.razonSocial}</p>
-          <p className="font-bold">{EMPRESA.nitDireccion}</p>
-          <p>{EMPRESA.lineas[0]}</p>
-          <p className="font-bold text-[#953735]">{EMPRESA.lineas[1]}</p>
-          <p>{EMPRESA.lineas[2]}</p>
-        </div>
-        <div className="flex items-center gap-2 px-2 py-2">
-          {/* eslint-disable-next-line @next/next/no-img-element -- en impresión next/image no aporta y complica el tamaño exacto */}
-          <img src="/logo-servielectro.png" alt="Servielectro" className="w-[62%]" />
-          <div className="flex flex-1 flex-col items-end gap-1.5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logos/gmi.png" alt="GMI Gestión Mantenimiento Industrial" className="h-[22px] w-auto" />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logos/besafe.png" alt="beSafe" className="h-[15px] w-auto" />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logos/perimetral.png" alt="Perimetral" className="h-[20px] w-auto" />
-          </div>
-        </div>
-      </div>
+              <div className={`grid grid-cols-[1.45fr_1fr] ${BORDE}`}>
+                <div className="flex flex-col justify-center gap-0.5 border-r border-black px-3 py-2 text-center text-[9px]">
+                  <p className="font-bold text-[#953735]">{EMPRESA.razonSocial}</p>
+                  <p className="font-bold">{EMPRESA.nitDireccion}</p>
+                  <p>{EMPRESA.lineas[0]}</p>
+                  <p className="font-bold text-[#953735]">{EMPRESA.lineas[1]}</p>
+                  <p>{EMPRESA.lineas[2]}</p>
+                </div>
+                <div className="flex items-center gap-2 py-2 pl-2 pr-0.5">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- en impresión next/image no aporta y complica el tamaño exacto */}
+                  <img src="/logo-servielectro.png" alt="Servielectro" className="w-[62%]" />
+                  <div className="flex flex-1 flex-col items-end gap-1.5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/logos/gmi.png" alt="GMI Gestión Mantenimiento Industrial" className="h-[22px] w-auto" />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/logos/besafe.png" alt="beSafe" className="h-[15px] w-auto" />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/logos/perimetral.png" alt="Perimetral" className="h-[20px] w-auto" />
+                  </div>
+                </div>
+              </div>
 
-      {/* ------------------------- Datos ------------------------- */}
-      <table className={`mt-0 w-full border-collapse ${BORDE} border-t-0`}>
-        <colgroup>
-          <col className="w-[13%]" />
-          <col className="w-[45%]" />
-          <col className="w-[12%]" />
-          <col className="w-[11%]" />
-          <col className="w-[19%]" />
-        </colgroup>
-        <tbody className="[&_td]:border [&_td]:border-black [&_td]:px-1 [&_td]:py-[1px]">
-          <tr>
-            <td className="font-bold">PROYECTO:</td>
-            <td className="text-center font-bold">{cliente.nombre || "—"}</td>
-            <td className="font-bold">COTIZACIÓN</td>
-            <td className="font-bold">CIUDAD:</td>
-            <td className="text-center font-bold">{EMPRESA.ciudad}</td>
-          </tr>
-          <tr>
-            <td colSpan={2} className="bg-[#d9d9d9] text-center font-bold">CLIENTE</td>
-            <td className="text-center font-bold text-[#c00000]">{codigo}</td>
-            <td colSpan={2} className="bg-[#d9d9d9] text-center font-bold">SERVIELECTRO</td>
-          </tr>
-          <tr>
-            <td className="font-bold">Sr(a):</td>
-            <td className="text-center">{cliente.contacto || ""}</td>
-            <td rowSpan={2} className="text-center font-bold">PROYECTO</td>
-            <td colSpan={2} rowSpan={2} className="text-center font-bold">
-              {proyecto || "—"}
             </td>
           </tr>
+        </thead>
+        <tbody>
           <tr>
-            <td className="font-bold">Empresa</td>
-            <td className="text-center font-bold">{cliente.nombre || ""}</td>
-          </tr>
-          <FilaDato l="NIT" v={cliente.nit} r="Fecha:" rv={new Date(fecha).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })} />
-          <FilaDato l="Dirección:" v={cliente.direccion} r="Comercial:" rv={comercial?.toUpperCase()} />
-          <FilaDato l="Celular:" v={cliente.telefono} r="Correo:" rv={EMPRESA.correo} />
-          <FilaDato l="Email:" v={cliente.email} r="Móvil:" rv={EMPRESA.movil} />
-        </tbody>
-      </table>
+            <td className="p-0">
+      {/* ------------------------- Datos ------------------------- */}
+              <table className={`mt-0 w-full border-collapse ${BORDE} border-t-0`}>
+                <colgroup>
+                  <col className="w-[13%]" />
+                  <col className="w-[45%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[19%]" />
+                </colgroup>
+                <tbody className="[&_td]:border [&_td]:border-black [&_td]:px-1 [&_td]:py-[1px]">
+                  <tr>
+                    <td className="font-bold">PROYECTO:</td>
+                    <td className="text-center font-bold">{cliente.nombre || "—"}</td>
+                    <td className="font-bold">COTIZACIÓN</td>
+                    <td className="font-bold">CIUDAD:</td>
+                    <td className="text-center font-bold">{EMPRESA.ciudad}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={2} className="bg-[#d9d9d9] text-center font-bold">CLIENTE</td>
+                    <td className="text-center font-bold text-[#c00000]">{codigo}</td>
+                    <td colSpan={2} className="bg-[#d9d9d9] text-center font-bold">SERVIELECTRO</td>
+                  </tr>
+                  <tr>
+                    <td className="font-bold">Sr(a):</td>
+                    <td className="text-center">{cliente.contacto || ""}</td>
+                    <td rowSpan={2} className="text-center font-bold">PROYECTO</td>
+                    <td colSpan={2} rowSpan={2} className="text-center font-bold">
+                      {proyecto || "—"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="font-bold">Empresa</td>
+                    <td className="text-center font-bold">{cliente.nombre || ""}</td>
+                  </tr>
+                  <FilaDato l="NIT" v={cliente.nit} r="Fecha:" rv={new Date(fecha).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })} />
+                  <FilaDato l="Dirección:" v={cliente.direccion} r="Comercial:" rv={comercial?.toUpperCase()} />
+                  <FilaDato l="Celular:" v={cliente.telefono} r="Correo:" rv={EMPRESA.correo} />
+                  <FilaDato l="Email:" v={cliente.email} r="Móvil:" rv={EMPRESA.movil} />
+                </tbody>
+              </table>
 
+            </td>
+          </tr>
       {/* ------------------------- Secciones de ítems ------------------------- */}
       {SECCIONES.map(({ cat, titulo, total }) => {
         const lineas = items.filter((i) => i.categoria === cat);
         if (lineas.length === 0) return null;
         return (
-          <section key={cat} className="mt-4">
+          <tr key={cat}><td className="p-0"><section className="mt-4">
             <table className="w-full border-collapse">
               <colgroup>
                 <col className="w-[15%]" />
@@ -264,7 +287,7 @@ export function FormatoCotizacion({
                 ))}
               </tbody>
             </table>
-            <div className="mt-1 flex justify-end">
+            <div className="mt-1 flex break-before-avoid justify-end">
               <div className="flex w-[44%] border-2 border-black font-bold">
                 <span className="flex-1 px-2 py-0.5 text-center">{total}</span>
                 <span className="border-l-2 border-black px-2 py-0.5 text-right">
@@ -272,22 +295,29 @@ export function FormatoCotizacion({
                 </span>
               </div>
             </div>
-          </section>
+          </section></td></tr>
         );
       })}
 
       {items.length === 0 && (
-        <p className="py-10 text-center text-sm text-slate-600">Todavía no hay líneas cargadas.</p>
+        <tr><td className="py-10 text-center text-sm text-slate-600">Todavía no hay líneas cargadas.</td></tr>
       )}
 
-      {/* Separador visual en pantalla; al imprimir, salto de página real. */}
-      <div className="salto-pagina my-6 border-t-2 border-dashed border-slate-300 text-center text-[9px] text-slate-400 print:my-0 print:border-0">
-        <span className="print:hidden">página 2</span>
-      </div>
 
+          {/* Separador visual en pantalla; al imprimir, la fila siguiente empieza hoja. */}
+          <tr className="print:hidden">
+            <td className="py-6">
+              <div className="border-t-2 border-dashed border-slate-300 text-center text-[9px] text-slate-400">
+                hoja del resumen
+              </div>
+            </td>
+          </tr>
+
+          <tr className="salto-pagina">
+            <td className="p-0">
       {/* ------------------------- Resumen oferta ------------------------- */}
       {totales && (
-        <section className="break-inside-avoid">
+        <section className="mt-4 break-inside-avoid">
           <p className={`${ROJO} py-0.5 text-center font-bold`}>RESUMEN OFERTA</p>
           <div className="grid grid-cols-[1fr_auto]">
             <div className="text-center [&>p]:py-[1px]">
@@ -322,15 +352,31 @@ export function FormatoCotizacion({
       )}
 
       {/* ------------------------- Valores agregados ------------------------- */}
-      <section className="mt-8 break-inside-avoid border border-black">
-        <div className={`${ROJO} py-0.5 text-center font-bold`}>
-          <p>VALORES AGREGADOS</p>
-          <p>GERENCIAMIENTO Y CARPETA DE INGENIERÍA</p>
-        </div>
-        <p className="px-3 py-3 text-center font-bold">
-          <Tramos tramos={VALORES_AGREGADOS} />
-        </p>
-      </section>
+      {valoresAgregados === undefined || valoresAgregados === null ? (
+        <section className="mt-8 break-inside-avoid border border-black">
+          <div className={`${ROJO} py-0.5 text-center font-bold`}>
+            <p>VALORES AGREGADOS</p>
+            <p>GERENCIAMIENTO Y CARPETA DE INGENIERÍA</p>
+          </div>
+          <p className="px-3 py-3 text-center font-bold">
+            <Tramos tramos={VALORES_AGREGADOS} />
+          </p>
+        </section>
+      ) : (
+        valoresAgregados.length > 0 && (
+          <section className="mt-8 border border-black">
+            <p className={`${ROJO} py-0.5 text-center font-bold`}>VALORES AGREGADOS</p>
+            {valoresAgregados.map((v, i) => (
+              <div key={v.id ?? i} className={`break-inside-avoid ${i > 0 ? "border-t border-black" : ""}`}>
+                <p className="pt-2 text-center font-bold uppercase text-[#953735]">{v.titulo}</p>
+                <p className="whitespace-pre-line px-3 pb-3 pt-1 text-center font-bold">
+                  <TextoConResaltado texto={v.texto} />
+                </p>
+              </div>
+            ))}
+          </section>
+        )
+      )}
 
       <section className="mt-6 break-inside-avoid border border-black">
         <p className={`${ROJO} py-0.5 text-center font-bold`}>
@@ -415,6 +461,10 @@ export function FormatoCotizacion({
           )}
         </tbody>
       </table>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -483,6 +533,20 @@ function Tramos({ tramos }: { tramos: Tramo[] }) {
           <span key={i}>{t}</span>
         ),
       )}
+    </>
+  );
+}
+
+// Resalta en rojo la frase de "entregables adicionales" como en el documento original.
+function TextoConResaltado({ texto }: { texto: string }) {
+  const marca = "ENTREGABLES ADICIONALES COMO VALOR AGREGADO:";
+  const i = texto.indexOf(marca);
+  if (i < 0) return <>{texto}</>;
+  return (
+    <>
+      {texto.slice(0, i)}
+      <span className="text-[#c00000]">{marca}</span>
+      {texto.slice(i + marca.length)}
     </>
   );
 }
