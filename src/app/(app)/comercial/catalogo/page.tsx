@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCatalogoActivo, type CatalogoItem } from "@/lib/supabase/catalogo";
 import { ReclasificarCatalogo } from "./ReclasificarCatalogo";
@@ -23,5 +24,21 @@ export default async function CatalogoPage() {
     );
   }
 
-  return <ReclasificarCatalogo catalogoInicial={catalogo} />;
+  const sinPrecio = catalogo.filter((i) => i.valorCompraIva === null).length;
+  return (
+    <>
+      <div className="mx-auto w-full max-w-3xl px-4 pt-4 sm:px-6">
+        <Link
+          href="/comercial/catalogo/precios"
+          className="block rounded-lg border border-brand-red/40 bg-white px-4 py-3 text-sm shadow-sm active:bg-slate-50"
+        >
+          <span className="font-semibold text-slate-900">Cargar precios en lote</span>
+          <span className="block text-xs text-slate-600">
+            {sinPrecio} ítems sin precio. Filtra por categoría y digita con el teclado.
+          </span>
+        </Link>
+      </div>
+      <ReclasificarCatalogo catalogoInicial={catalogo} />
+    </>
+  );
 }
