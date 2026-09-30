@@ -10,6 +10,7 @@ import {
   type PolizaCatalogo,
 } from "@/lib/supabase/condicionesComerciales";
 import { CONFIG_PRECIO_DEFAULT } from "@/lib/pricing";
+import { getClientesActivos, type ClienteResumen } from "@/lib/supabase/clientes";
 import {
   CotizacionBuilder,
   type DatosIniciales,
@@ -47,12 +48,20 @@ export default async function NuevaCotizacionPage(
   const valoresAgregadosCatalogo: ValorAgregadoCatalogo[] =
     await getValoresAgregadosCatalogo(supabase);
 
+  let clientes: ClienteResumen[] = [];
+  try {
+    clientes = await getClientesActivos(supabase);
+  } catch (err) {
+    console.error("No se pudo cargar la lista de clientes:", err);
+  }
+
   let datosIniciales: DatosIniciales | undefined;
   if (typeof duplicarId === "string") {
     try {
       const original = await getCotizacionDetalle(supabase, duplicarId);
       if (original) {
         datosIniciales = {
+          clienteId: original.cliente.id,
           clienteNombre: original.cliente.nombre,
           clienteNit: original.cliente.nit ?? "",
           clienteDireccion: original.cliente.direccion ?? "",
@@ -125,6 +134,7 @@ export default async function NuevaCotizacionPage(
     <CotizacionBuilder
       catalogoInicial={catalogo}
       polizasCatalogoInicial={polizasCatalogo}
+      clientesIniciales={clientes}
       valoresAgregadosCatalogo={valoresAgregadosCatalogo}
       configuracionEmpresa={configuracionEmpresa}
       datosIniciales={datosIniciales}

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PIPELINE_LABEL, type TipoPipeline } from "@/lib/crm";
 import { NuevaOportunidadForm } from "./NuevaOportunidadForm";
+import type { ClienteResumen } from "@/lib/supabase/clientes";
 
 export default async function NuevaOportunidadPage(props: PageProps<"/comercial/crm/nueva">) {
   const { p } = await props.searchParams;
@@ -9,7 +10,11 @@ export default async function NuevaOportunidadPage(props: PageProps<"/comercial/
 
   const supabase = await createClient();
   const [{ data }, { data: cotizaciones }, { data: totales }] = await Promise.all([
-    supabase.from("clientes").select("id, nombre").eq("activo", true).order("nombre"),
+    supabase
+      .from("clientes")
+      .select("id, nombre, nit, direccion, email, contacto, telefono")
+      .eq("activo", true)
+      .order("nombre"),
     supabase
       .from("cotizaciones")
       .select("id, codigo, descripcion, cliente_id")
@@ -34,7 +39,7 @@ export default async function NuevaOportunidadPage(props: PageProps<"/comercial/
       </p>
       <NuevaOportunidadForm
         tipo={tipo}
-        clientes={(data ?? []) as { id: string; nombre: string }[]}
+        clientes={(data ?? []) as ClienteResumen[]}
         cotizaciones={(cotizaciones ?? []).map((c) => ({
           id: c.id as string,
           codigo: c.codigo as string,

@@ -157,7 +157,7 @@ export async function confirmarRut(
       municipio: campos.municipio || null,
       departamento: campos.departamento || null,
       email: campos.correo || null,
-      contacto: campos.telefono || null,
+      telefono: campos.telefono || null,
       tipo_contribuyente: campos.tipoContribuyente,
       responsable_iva: campos.responsableIva,
       nombre: campos.razonSocial || undefined,
@@ -181,4 +181,75 @@ export async function confirmarRut(
   }
 
   return { ok: true };
+}
+
+export interface RutLeidoSinCliente {
+  storagePath: string;
+  nombreArchivo: string;
+  extraccion: unknown;
+  costoEstimadoUsd: number | null;
+}
+
+/**
+ * RUT de un cliente que TODAVÍA NO EXISTE (ventana "Nuevo cliente"): sube el archivo a
+ * una carpeta de pendientes y lo lee con IA, sin crear ni tocar ningún cliente. El
+ * registro del documento se crea recién cuando el cliente se guarda (crearCliente), así
+ * no quedan clientes a medio crear si se cancela.
+ */
+export async function leerRutClienteNuevo(
+  formData: FormData,
+): Promise<
+  | { ok: true; resultado: ResultadoExtraccionRut; rut: RutLeidoSinCliente }
+  | SubirRutError
+> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sesión no válida. Volvé a iniciar sesión." };
+
+  const archivo = formData.get("archivo");
+  if (!(archivo instanceof File) || archivo.size === 0) {
+    return { ok: false, error: "No se recibió ningún archivo." };
+  }
+  const tiposPermitidos = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+  if (archivo.type && !tiposPermitidos.includes(archivo.type)) {
+    return {
+      ok: false,
+      error: `Tipo de archivo no soportado (${archivo.type}). Subí un PDF o una foto (JPG/PNG).`,
+    };
+  }
+
+  const buffer = Buffer.from(await archivo.arrayBuffer());
+  const nombreArchivo = archivo.name || "rut";
+  const storagePath = `pendientes/${user.id}/${Date.now()}-${nombreArchivo}`;
+  const { error: errorSubida } = await supabase.storage
+    .from(BUCKET)
+    .upload(storagePath, buffer, {
+      contentType: archivo.type || "application/octet-stream",
+      upsert: false,
+    });
+  if (errorSubida) {
+    return { ok: false, error: `No se pudo guardar el archivo: ${errorSubida.message}` };
+  }
+
+  try {
+    const resultado = await extraerRut(buffer, nombreArchivo);
+    return {
+      ok: true,
+      resultado,
+      rut: {
+        storagePath,
+        nombreArchivo,
+        extraccion: resultado.extraccion,
+        costoEstimadoUsd: resultado.costoEstimadoUsd,
+      },
+    };
+  } catch (err) {
+    const mensaje = err instanceof Error ? err.message : "Error desconocido leyendo el RUT";
+    return {
+      ok: false,
+      error: `No se pudo leer el RUT automáticamente (${mensaje}). Completá los datos a mano.`,
+    };
+  }
 }

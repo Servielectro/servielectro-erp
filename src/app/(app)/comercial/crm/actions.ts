@@ -42,40 +42,21 @@ export async function crearOportunidad(input: {
   tipoPipeline: TipoPipeline;
   nombre: string;
   clienteId: string | null;
-  clienteNombre: string;
   valorEstimado: number | null;
   cotizacionId: string | null;
   viaAprobacion: ViaAprobacion | null;
 }): Promise<Resultado<{ id: string }>> {
   if (!(await puedeTrabajar())) return { ok: false, error: SIN_PERMISO };
   const nombre = input.nombre.trim();
-  const clienteNombre = input.clienteNombre.trim();
   if (!nombre) return { ok: false, error: "Falta el nombre del negocio" };
-  if (!input.clienteId && !clienteNombre) return { ok: false, error: "Falta el cliente" };
+  // El cliente se elige de la lista o se crea en la ventana «+ Nuevo cliente» (que no
+  // duplica NIT): acá ya no se crean clientes por nombre.
+  if (!input.clienteId) {
+    return { ok: false, error: "Elige el cliente de la lista o créalo con «+ Nuevo cliente»" };
+  }
+  const clienteId = input.clienteId;
 
   const supabase = await createClient();
-
-  // Cliente: el elegido de la lista, o uno existente con el mismo nombre, o uno nuevo.
-  let clienteId = input.clienteId;
-  if (!clienteId) {
-    const { data: existente } = await supabase
-      .from("clientes")
-      .select("id")
-      .ilike("nombre", clienteNombre.replace(/[\\%_]/g, (c) => "\\" + c))
-      .limit(1)
-      .maybeSingle();
-    if (existente) {
-      clienteId = existente.id;
-    } else {
-      const { data: nuevo, error } = await supabase
-        .from("clientes")
-        .insert({ nombre: clienteNombre })
-        .select("id")
-        .single();
-      if (error) return { ok: false, error: mensaje(error) };
-      clienteId = nuevo.id;
-    }
-  }
 
   const { data, error } = await supabase
     .from("oportunidades")

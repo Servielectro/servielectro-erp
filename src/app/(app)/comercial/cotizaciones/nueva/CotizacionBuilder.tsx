@@ -19,6 +19,9 @@ import type {
 } from "@/lib/supabase/condicionesComerciales";
 import { ArmadoCotizacionModal } from "@/components/cotizacion/ArmadoCotizacionModal";
 import { NuevoItemModal } from "@/components/cotizacion/NuevoItemModal";
+import { ClienteCombobox } from "@/components/clientes/ClienteCombobox";
+import { NuevoClienteModal } from "@/components/clientes/NuevoClienteModal";
+import type { ClienteResumen } from "@/lib/supabase/clientes";
 import { RutUploader } from "@/components/cotizacion/RutUploader";
 import { VistaPreviaModal } from "@/components/cotizacion/VistaPreviaModal";
 import {
@@ -68,6 +71,7 @@ const PLANTILLAS_PAGO: { label: string; hitos: Omit<HitoUI, "id">[] }[] = [
 ];
 
 export interface DatosIniciales {
+  clienteId?: string | null;
   clienteNombre: string;
   clienteNit: string;
   clienteDireccion: string;
@@ -101,6 +105,7 @@ export interface OrigenOportunidad {
 }
 
 interface Draft {
+  clienteId?: string | null;
   clienteNombre: string;
   clienteNit: string;
   clienteDireccion: string;
@@ -138,6 +143,7 @@ function nuevaLinea(categoria: Categoria): LineaUI {
 export function CotizacionBuilder({
   catalogoInicial,
   polizasCatalogoInicial,
+  clientesIniciales = [],
   valoresAgregadosCatalogo = [],
   configuracionEmpresa,
   datosIniciales,
@@ -146,6 +152,7 @@ export function CotizacionBuilder({
 }: {
   catalogoInicial: CatalogoItem[];
   polizasCatalogoInicial: PolizaCatalogo[];
+  clientesIniciales?: ClienteResumen[];
   valoresAgregadosCatalogo?: ValorAgregadoCatalogo[];
   configuracionEmpresa: ConfiguracionEmpresa | null;
   datosIniciales?: DatosIniciales;
@@ -178,8 +185,24 @@ export function CotizacionBuilder({
   // Si el nombre se edita después, se limpia — ya no se puede confiar en que siga
   // siendo el mismo cliente que resolvió el RUT.
   const [clienteId, setClienteId] = useState<string | null>(
-    datosIniciales ? null : (clienteOp?.id ?? null),
+    datosIniciales ? (datosIniciales.clienteId ?? null) : (clienteOp?.id ?? null),
   );
+  // Lista de clientes para el buscador (estilo Siigo) y la ventana de cliente nuevo.
+  const [clientes, setClientes] = useState(clientesIniciales);
+  const [nuevoCliente, setNuevoCliente] = useState<string | null>(null);
+  const [avisoCliente, setAvisoCliente] = useState<string | null>(null);
+
+  // Elegir un cliente reemplaza TODOS sus datos en la cotización y fija su id real.
+  function elegirCliente(c: ClienteResumen) {
+    setClienteId(c.id);
+    setClienteNombre(c.nombre);
+    setClienteNit(c.nit ?? "");
+    setClienteDireccion(c.direccion ?? "");
+    setClienteEmail(c.email ?? "");
+    setClienteContacto(c.contacto ?? "");
+    setClienteTelefono(c.telefono ?? "");
+    setAvisoCliente(null);
+  }
   const [rutModalAbierto, setRutModalAbierto] = useState(false);
   const [vistaPreviaAbierta, setVistaPreviaAbierta] = useState(false);
   const [clienteNit, setClienteNit] = useState(
@@ -303,7 +326,14 @@ export function CotizacionBuilder({
         setClienteNombre(draft.clienteNombre ?? "");
         // El borrador no guarda el id de cliente: solo se conserva el del negocio si el
         // borrador es de ese mismo negocio; si es de otra cotización, no se hereda.
-        setClienteId(origenDraft === origenInicial && clienteOp ? clienteOp.id : null);
+        setClienteId(
+          draft.clienteId ??
+            (origenDraft === origenInicial && clienteOp ? clienteOp.id : null) ??
+            clientesIniciales.find(
+              (c) => c.nombre.toLowerCase() === (draft.clienteNombre ?? "").trim().toLowerCase(),
+            )?.id ??
+            null,
+        );
         setClienteNit(draft.clienteNit ?? "");
         setClienteDireccion(draft.clienteDireccion ?? "");
         setClienteEmail(draft.clienteEmail ?? "");
@@ -338,6 +368,7 @@ export function CotizacionBuilder({
     if (lineas.length === 0) return;
     try {
       const draft: Draft = {
+        clienteId,
         clienteNombre,
         clienteNit,
         clienteDireccion,
@@ -375,6 +406,7 @@ export function CotizacionBuilder({
     diasEjecucion,
     clienteTelefono,
     valoresAgregados,
+    clienteId,
   ]);
 
   const totales = useMemo(
@@ -506,7 +538,13 @@ export function CotizacionBuilder({
     setError(null);
 
     if (!clienteNombre.trim()) {
-      setError("Falta el nombre del cliente");
+      setError("Falta el cliente");
+      return;
+    }
+    if (!clienteId) {
+      setError(
+        "Elige el cliente de la lista o créalo con «+ Nuevo cliente» (así no se duplica).",
+      );
       return;
     }
     if (lineas.length === 0) {
@@ -751,16 +789,13 @@ export function CotizacionBuilder({
 
           <div className="space-y-2">
             <div>
-              <label className="text-xs text-slate-600">Cliente *</label>
-              <input
-                value={clienteNombre}
-                onChange={(e) => {
-                  setClienteNombre(e.target.value);
-                  if (clienteId) setClienteId(null);
-                }}
-                placeholder="Nombre del cliente"
-                className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm sm:text-base"
+              <ClienteCombobox
+                clientes={clientes}
+                seleccionado={clienteNombre ? { id: clienteId, nombre: clienteNombre } : null}
+                onSeleccionar={elegirCliente}
+                onCrearNuevo={(busqueda) => setNuevoCliente(busqueda)}
               />
+              {avisoCliente && <p className="mt-1 text-xs text-blue-700">{avisoCliente}</p>}
             </div>
             <div>
               <label className="text-xs text-slate-600">
@@ -976,18 +1011,10 @@ export function CotizacionBuilder({
 
         {datosClienteAbierto && (
           <div className="space-y-2 rounded-md bg-slate-100 p-3 text-sm">
-            <button
-              type="button"
-              onClick={() => setRutModalAbierto(true)}
-              className="w-full rounded-md border border-dashed border-slate-400 bg-white/70 px-3 py-2 text-sm font-medium text-slate-700"
-            >
-              📄 Cargar RUT del cliente (autocompleta estos campos)
-            </button>
-            {clienteId && (
-              <p className="text-xs text-green-700">
-                ✓ Datos confirmados desde el RUT — cliente vinculado.
-              </p>
-            )}
+            <p className="text-xs text-slate-500">
+              Datos del cliente elegido. Lo que cambies aquí se actualiza en su ficha al
+              guardar. El RUT se lee al crear un cliente nuevo.
+            </p>
             <div>
               <label className="text-xs text-slate-600">Comercial</label>
               <input
@@ -1262,6 +1289,23 @@ export function CotizacionBuilder({
             setCatalogo((prev) => [...prev, item]);
             seleccionarItem(modal.lineaId, item);
             setModal(null);
+          }}
+        />
+      )}
+
+      {nuevoCliente !== null && (
+        <NuevoClienteModal
+          nombreInicial={nuevoCliente}
+          onCerrar={() => setNuevoCliente(null)}
+          onCreado={(c, yaExistia) => {
+            if (!yaExistia) setClientes((prev) => [...prev, c].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+            elegirCliente(c);
+            setAvisoCliente(
+              yaExistia
+                ? `Ya existía un cliente con ese NIT (${c.nombre}): quedó seleccionado, no se duplicó.`
+                : `Cliente ${c.nombre} creado y seleccionado.`,
+            );
+            setNuevoCliente(null);
           }}
         />
       )}

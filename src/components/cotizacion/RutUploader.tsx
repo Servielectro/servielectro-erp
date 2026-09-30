@@ -4,7 +4,9 @@ import { useState } from "react";
 import {
   subirYLeerRut,
   confirmarRut,
+  leerRutClienteNuevo,
   type CamposConfirmadosRut,
+  type RutLeidoSinCliente,
 } from "@/app/(app)/comercial/cotizaciones/documentos-actions";
 import type { ResultadoExtraccionRut } from "@/lib/documentos/extraer-rut";
 import type { Confianza } from "@/lib/documentos/rut-schema";
@@ -12,7 +14,12 @@ import type { Confianza } from "@/lib/documentos/rut-schema";
 interface Props {
   clienteNombre: string;
   onCerrar: () => void;
-  onConfirmado: (clienteId: string, campos: CamposConfirmadosRut) => void;
+  onConfirmado?: (clienteId: string, campos: CamposConfirmadosRut) => void;
+  /**
+   * Modo "cliente nuevo" (ventana Nuevo cliente): el RUT solo se lee y los campos
+   * revisados vuelven a la ventana; no se crea ni se toca ningún cliente acá.
+   */
+  onLeidoClienteNuevo?: (campos: CamposConfirmadosRut, rut: RutLeidoSinCliente) => void;
 }
 
 type Estado =
@@ -22,6 +29,7 @@ type Estado =
       paso: "revisar";
       documentoId: string;
       clienteId: string;
+      rutPendiente?: RutLeidoSinCliente;
       resultado: ResultadoExtraccionRut;
       campos: CamposConfirmadosRut;
     }
@@ -42,12 +50,13 @@ const BADGE_LABEL: Record<Confianza, string> = {
   no_legible: "No legible",
 };
 
-export function RutUploader({ clienteNombre, onCerrar, onConfirmado }: Props) {
+export function RutUploader({ clienteNombre, onCerrar, onConfirmado, onLeidoClienteNuevo }: Props) {
+  const clienteNuevo = Boolean(onLeidoClienteNuevo);
   const [estado, setEstado] = useState<Estado>({ paso: "elegir_archivo" });
   const [error, setError] = useState<string | null>(null);
 
   async function onArchivoSeleccionado(file: File) {
-    if (!clienteNombre.trim()) {
+    if (!clienteNuevo && !clienteNombre.trim()) {
       setError("Escribí primero el nombre del cliente, arriba.");
       return;
     }
@@ -58,7 +67,7 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado }: Props) {
     formData.append("archivo", file);
     formData.append("clienteNombre", clienteNombre);
 
-    const res = await subirYLeerRut(formData);
+    const res = clienteNuevo ? await leerRutClienteNuevo(formData) : await subirYLeerRut(formData);
 
     if (!res.ok) {
       setError(res.error);
@@ -66,7 +75,10 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado }: Props) {
       return;
     }
 
-    const { resultado, documentoId, clienteId } = res;
+    const { resultado } = res;
+    const documentoId = "documentoId" in res ? res.documentoId : "";
+    const clienteId = "clienteId" in res ? res.clienteId : "";
+    const rutPendiente = "rut" in res ? res.rut : undefined;
 
     if (!resultado.extraccion.es_documento_rut) {
       setEstado({
@@ -84,6 +96,7 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado }: Props) {
       paso: "revisar",
       documentoId,
       clienteId,
+      rutPendiente,
       resultado,
       campos: {
         nit: valorSiConfianza(e.nit),
@@ -109,6 +122,13 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado }: Props) {
   async function onConfirmar() {
     if (estado.paso !== "revisar") return;
     setError(null);
+
+    // Cliente nuevo: los campos revisados vuelven a la ventana; el cliente se crea allá.
+    if (clienteNuevo && estado.rutPendiente) {
+      onLeidoClienteNuevo!(estado.campos, estado.rutPendiente);
+      return;
+    }
+
     setEstado({ paso: "guardando" });
 
     const res = await confirmarRut(estado.documentoId, estado.clienteId, estado.campos);
@@ -118,14 +138,14 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado }: Props) {
       return;
     }
 
-    onConfirmado(estado.clienteId, estado.campos);
+    onConfirmado?.(estado.clienteId, estado.campos);
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
       <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/40 bg-white/80 p-6 shadow-2xl backdrop-blur-xl">
         <h2 className="text-lg font-semibold text-slate-900">
-          Cargar RUT de {clienteNombre || "el cliente"}
+          {clienteNuevo ? "Leer RUT del cliente nuevo" : `Cargar RUT de ${clienteNombre || "el cliente"}`}
         </h2>
         <p className="mb-4 text-sm text-slate-600">
           La IA lee el documento y vos confirmás cada dato antes de que se guarde.

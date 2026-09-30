@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { VIA_LABEL, type TipoPipeline, type ViaAprobacion } from "@/lib/crm";
 import { formatCOP } from "@/lib/pricing";
 import { crearOportunidad } from "../actions";
+import { ClienteCombobox } from "@/components/clientes/ClienteCombobox";
+import { NuevoClienteModal } from "@/components/clientes/NuevoClienteModal";
+import type { ClienteResumen } from "@/lib/supabase/clientes";
 
 // Cuatro campos y nada más: si crear un negocio cuesta, no se registra. Si el cliente
 // ya tiene cotizaciones, el valor sale de la que se elija (valor real, no estimado);
@@ -15,21 +18,22 @@ export function NuevaOportunidadForm({
   cotizaciones,
 }: {
   tipo: TipoPipeline;
-  clientes: { id: string; nombre: string }[];
+  clientes: ClienteResumen[];
   cotizaciones: { id: string; codigo: string; descripcion: string; clienteId: string; total: number | null }[];
 }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [nombre, setNombre] = useState("");
-  const [cliente, setCliente] = useState("");
+  // Mismo buscador y misma ventana de cliente nuevo que el armador de cotizaciones.
+  const [listaClientes, setListaClientes] = useState(clientes);
+  const [clienteElegido, setClienteElegido] = useState<ClienteResumen | null>(null);
+  const [nuevoCliente, setNuevoCliente] = useState<string | null>(null);
+  const [avisoCliente, setAvisoCliente] = useState<string | null>(null);
   const [valor, setValor] = useState("");
   const [via, setVia] = useState<ViaAprobacion | "">("");
   const [cotizacionId, setCotizacionId] = useState("");
 
-  const clienteElegido = clientes.find(
-    (c) => c.nombre.toLowerCase() === cliente.trim().toLowerCase(),
-  );
   const cotizacionesCliente = clienteElegido
     ? cotizaciones.filter((c) => c.clienteId === clienteElegido.id)
     : [];
@@ -53,7 +57,6 @@ export function NuevaOportunidadForm({
             tipoPipeline: tipo,
             nombre,
             clienteId: clienteElegido?.id ?? null,
-            clienteNombre: cliente,
             valorEstimado: valorNum,
             cotizacionId: cotizacionValida || null,
             viaAprobacion: via || null,
@@ -75,23 +78,35 @@ export function NuevaOportunidadForm({
         />
       </Campo>
 
-      <Campo label="Cliente *">
-        <input
-          value={cliente}
-          onChange={(e) => setCliente(e.target.value)}
-          list="clientes-crm"
-          placeholder="Escribe para buscar o crear uno nuevo"
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+      <div>
+        <ClienteCombobox
+          clientes={listaClientes}
+          seleccionado={clienteElegido ? { id: clienteElegido.id, nombre: clienteElegido.nombre } : null}
+          onSeleccionar={(c) => {
+            setClienteElegido(c);
+            setAvisoCliente(null);
+          }}
+          onCrearNuevo={(busqueda) => setNuevoCliente(busqueda)}
         />
-        <datalist id="clientes-crm">
-          {clientes.map((c) => (
-            <option key={c.id} value={c.nombre} />
-          ))}
-        </datalist>
-        {cliente.trim() && !clienteElegido && (
-          <p className="mt-1 text-xs text-slate-500">Cliente nuevo: se crea al guardar.</p>
-        )}
-      </Campo>
+        {avisoCliente && <p className="mt-1 text-xs text-blue-700">{avisoCliente}</p>}
+      </div>
+
+      {nuevoCliente !== null && (
+        <NuevoClienteModal
+          nombreInicial={nuevoCliente}
+          onCerrar={() => setNuevoCliente(null)}
+          onCreado={(c, yaExistia) => {
+            if (!yaExistia) setListaClientes((prev) => [...prev, c]);
+            setClienteElegido(c);
+            setAvisoCliente(
+              yaExistia
+                ? `Ya existía un cliente con ese NIT (${c.nombre}): quedó seleccionado, no se duplicó.`
+                : `Cliente ${c.nombre} creado y seleccionado.`,
+            );
+            setNuevoCliente(null);
+          }}
+        />
+      )}
 
       {cotizacionesCliente.length > 0 && (
         <Campo label="Cotización de este cliente">

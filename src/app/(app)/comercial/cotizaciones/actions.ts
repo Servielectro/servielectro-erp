@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { nitBase } from "@/lib/clientes/nit";
 import type { Categoria } from "@/lib/pricing";
 
 export interface NuevoItemCatalogoInput {
@@ -200,9 +201,20 @@ export async function guardarCotizacion(
 > {
   const supabase = await createClient();
 
+  // Un NIT, un cliente: si no vino el id pero el NIT ya está registrado, se usa ese
+  // cliente en lugar de dejar que el guardado cree otro por nombre.
+  let clienteId = input.clienteId;
+  if (!clienteId && nitBase(input.clienteNit)) {
+    const { data: conNit } = await supabase.from("clientes").select("id, nit").not("nit", "is", null);
+    clienteId =
+      ((conNit ?? []) as { id: string; nit: string }[]).find(
+        (c) => nitBase(c.nit) === nitBase(input.clienteNit),
+      )?.id ?? null;
+  }
+
   const { data, error } = await supabase.rpc("fn_guardar_cotizacion_completa", {
     p_cliente_nombre: input.clienteNombre,
-    p_cliente_id: input.clienteId,
+    p_cliente_id: clienteId,
     p_esquema_iva: input.esquemaIva,
     p_descripcion: input.descripcion,
     p_pct_admin: input.pctAdmin,
