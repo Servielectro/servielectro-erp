@@ -33,12 +33,18 @@ function mensaje(error: { message: string }) {
   return error.message;
 }
 
+function etapaInicial(tipo: TipoPipeline, conCotizacion: boolean) {
+  if (tipo === "renovacion") return conCotizacion ? "renovacion_propuesta_enviada" : "renovacion_proxima";
+  return conCotizacion ? "cotizacion_enviada" : "solicitud";
+}
+
 export async function crearOportunidad(input: {
   tipoPipeline: TipoPipeline;
   nombre: string;
   clienteId: string | null;
   clienteNombre: string;
   valorEstimado: number | null;
+  cotizacionId: string | null;
   viaAprobacion: ViaAprobacion | null;
 }): Promise<Resultado<{ id: string }>> {
   if (!(await puedeTrabajar())) return { ok: false, error: SIN_PERMISO };
@@ -77,8 +83,10 @@ export async function crearOportunidad(input: {
       tipo_pipeline: input.tipoPipeline,
       nombre,
       cliente_id: clienteId,
-      etapa_id: input.tipoPipeline === "renovacion" ? "renovacion_proxima" : "solicitud",
-      valor_estimado: input.valorEstimado,
+      // Con cotización ya hecha, el negocio entra donde realmente está: enviada.
+      etapa_id: etapaInicial(input.tipoPipeline, Boolean(input.cotizacionId)),
+      cotizacion_id: input.cotizacionId,
+      valor_estimado: input.cotizacionId ? null : input.valorEstimado,
       via_aprobacion: input.viaAprobacion,
     })
     .select("id")

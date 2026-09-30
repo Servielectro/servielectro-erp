@@ -38,7 +38,9 @@ export interface TarjetaOportunidad {
   clienteNombre: string;
   etapaId: string;
   estado: EstadoOportunidad;
+  // Valor que manda: el de la cotización asociada si existe; si no, el estimado.
   valor: number | null;
+  valorEsCotizado: boolean;
   diasEnEtapa: number;
   semaforo: Semaforo;
   fechaReactivacion: string | null;
@@ -49,6 +51,18 @@ export interface TarjetaOportunidad {
   reactivacionVencida: boolean;
   fechaCierre: string | null;
   motivoPerdida: MotivoPerdida | null;
+}
+
+/**
+ * El valor real es el total de la cotización asociada; el estimado solo cuenta
+ * mientras todavía no hay cotización (etapas tempranas).
+ */
+function valorQueManda(totalCotizacion: number | undefined, estimado: unknown) {
+  if (totalCotizacion !== undefined) return { valor: totalCotizacion, valorEsCotizado: true };
+  return {
+    valor: estimado === null || estimado === undefined ? null : Number(estimado),
+    valorEsCotizado: false,
+  };
 }
 
 /** Valor que manda: el total de la cotización vinculada; si no hay, el estimado. */
@@ -127,7 +141,10 @@ export async function getTablero(
       clienteNombre: (cliente as { nombre?: string } | null)?.nombre ?? "—",
       etapaId: o.etapa_id,
       estado: o.estado,
-      valor: (o.cotizacion_id && totales.get(o.cotizacion_id)) ?? (o.valor_estimado === null ? null : Number(o.valor_estimado)),
+      ...valorQueManda(
+        o.cotizacion_id ? totales.get(o.cotizacion_id) : undefined,
+        o.valor_estimado,
+      ),
       diasEnEtapa: dias,
       semaforo: o.estado === "activa" ? semaforo(dias, etapaPorId.get(o.etapa_id)) : "verde",
       fechaReactivacion: o.fecha_reactivacion,
@@ -181,7 +198,13 @@ export interface OportunidadDetalle {
     fechaProgramada: string | null;
     fechaRealizada: string | null;
   }[];
-  cotizacionesCliente: { id: string; codigo: string; descripcion: string; estado: string }[];
+  cotizacionesCliente: {
+    id: string;
+    codigo: string;
+    descripcion: string;
+    estado: string;
+    total: number | null;
+  }[];
 }
 
 export async function getOportunidadDetalle(
@@ -221,6 +244,16 @@ export async function getOportunidadDetalle(
       .order("created_at", { ascending: false }),
     totalesCotizaciones(supabase, o.cotizacion_id ? [o.cotizacion_id] : []),
   ]);
+  const cotizacionesCliente = (cotizacionesRes.data ?? []) as {
+    id: string;
+    codigo: string;
+    descripcion: string;
+    estado: string;
+  }[];
+  const totalesCliente = await totalesCotizaciones(
+    supabase,
+    cotizacionesCliente.map((c) => c.id),
+  );
 
   return {
     id: o.id,
@@ -259,6 +292,9 @@ export async function getOportunidadDetalle(
       fechaProgramada: c.fecha_programada,
       fechaRealizada: c.fecha_realizada,
     })),
-    cotizacionesCliente: (cotizacionesRes.data ?? []) as OportunidadDetalle["cotizacionesCliente"],
+    cotizacionesCliente: cotizacionesCliente.map((c) => ({
+      ...c,
+      total: totalesCliente.get(c.id) ?? null,
+    })),
   };
 }

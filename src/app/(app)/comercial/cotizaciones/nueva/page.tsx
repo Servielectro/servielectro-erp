@@ -8,7 +8,11 @@ import {
   type PolizaCatalogo,
 } from "@/lib/supabase/condicionesComerciales";
 import { CONFIG_PRECIO_DEFAULT } from "@/lib/pricing";
-import { CotizacionBuilder, type DatosIniciales } from "./CotizacionBuilder";
+import {
+  CotizacionBuilder,
+  type DatosIniciales,
+  type OrigenOportunidad,
+} from "./CotizacionBuilder";
 
 export default async function NuevaCotizacionPage(
   props: PageProps<"/comercial/cotizaciones/nueva">,
@@ -16,6 +20,7 @@ export default async function NuevaCotizacionPage(
   const supabase = await createClient();
   const searchParams = await props.searchParams;
   const duplicarId = searchParams.duplicar;
+  const oportunidadId = searchParams.oportunidad;
 
   let catalogo: CatalogoItem[] = [];
   try {
@@ -48,6 +53,7 @@ export default async function NuevaCotizacionPage(
           clienteDireccion: original.cliente.direccion ?? "",
           clienteEmail: original.cliente.email ?? "",
           clienteContacto: original.cliente.contacto ?? "",
+          clienteTelefono: original.cliente.telefono ?? "",
           descripcion: original.descripcion,
           comercial: original.comercial ?? "",
           esquemaIva: original.esquemaIva,
@@ -87,6 +93,23 @@ export default async function NuevaCotizacionPage(
     }
   }
 
+  let oportunidad: OrigenOportunidad | undefined;
+  if (typeof oportunidadId === "string" && !datosIniciales) {
+    const { data: op } = await supabase
+      .from("oportunidades")
+      .select("id, nombre, clientes(id, nombre, nit, direccion, email, contacto, telefono)")
+      .eq("id", oportunidadId)
+      .maybeSingle();
+    const cliente = op && (Array.isArray(op.clientes) ? op.clientes[0] : op.clientes);
+    if (op && cliente) {
+      oportunidad = {
+        id: op.id,
+        nombre: op.nombre,
+        cliente: cliente as OrigenOportunidad["cliente"],
+      };
+    }
+  }
+
   return (
     <CotizacionBuilder
       catalogoInicial={catalogo}
@@ -94,6 +117,7 @@ export default async function NuevaCotizacionPage(
       configuracionEmpresa={configuracionEmpresa}
       datosIniciales={datosIniciales}
       duplicarId={typeof duplicarId === "string" ? duplicarId : undefined}
+      oportunidad={oportunidad}
     />
   );
 }

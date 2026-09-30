@@ -121,14 +121,16 @@ export default async function CrmPage(props: PageProps<"/comercial/crm">) {
           <div className="flex gap-3">
             {abiertas.map((e) => {
               const deEtapa = activas.filter((t) => t.etapaId === e.id);
-              const total = deEtapa.reduce((a, t) => a + (t.valor ?? 0), 0);
+              const cotizado = deEtapa.reduce((a, t) => a + (t.valorEsCotizado ? (t.valor ?? 0) : 0), 0);
+              const estimado = deEtapa.reduce((a, t) => a + (!t.valorEsCotizado ? (t.valor ?? 0) : 0), 0);
               return (
                 <div key={e.id} className="w-60 shrink-0 rounded-lg bg-slate-100 p-2">
                   <div className="mb-2 px-1">
                     <p className="text-xs font-semibold text-slate-800">
                       {e.nombre} <span className="font-normal text-slate-500">({deEtapa.length})</span>
                     </p>
-                    {total > 0 && <p className="text-[11px] text-slate-500">{formatCOP(total)}</p>}
+                    {cotizado > 0 && <p className="text-[11px] text-slate-700">{formatCOP(cotizado)} cotizado</p>}
+                    {estimado > 0 && <p className="text-[11px] text-slate-400">~{formatCOP(estimado)} estimado</p>}
                   </div>
                   <div className="space-y-2">
                     {deEtapa.map((t) => (
@@ -182,7 +184,12 @@ export default async function CrmPage(props: PageProps<"/comercial/crm">) {
                         <p className="truncate text-xs text-slate-500">{MOTIVO_LABEL[t.motivoPerdida]}</p>
                       )}
                     </div>
-                    {t.valor !== null && <span className="shrink-0 text-xs text-slate-600">{formatCOP(t.valor)}</span>}
+                    {t.valor !== null && (
+                      <span className={`shrink-0 text-xs ${t.valorEsCotizado ? "text-slate-600" : "text-slate-400"}`}>
+                        {t.valorEsCotizado ? "" : "~"}
+                        {formatCOP(t.valor)}
+                      </span>
+                    )}
                   </Link>
                 </li>
               );
@@ -212,7 +219,12 @@ function Tarjeta({ t, etapa }: { t: TarjetaOportunidad; etapa?: string }) {
     >
       <p className="text-sm font-medium leading-tight text-slate-900">{t.nombre}</p>
       <p className="truncate text-xs text-slate-500">{t.clienteNombre}</p>
-      {t.valor !== null && <p className="mt-1 text-xs font-medium text-slate-700">{formatCOP(t.valor)}</p>}
+      {t.valor !== null &&
+        (t.valorEsCotizado ? (
+          <p className="mt-1 text-xs font-medium text-slate-700">{formatCOP(t.valor)} cotizado</p>
+        ) : (
+          <p className="mt-1 text-xs text-slate-400">~{formatCOP(t.valor)} estimado</p>
+        ))}
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
         {t.estado === "aplazada" ? (
           <span className={`rounded-full px-2 py-0.5 ${t.reactivacionVencida ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"}`}>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { OportunidadDetalle } from "@/lib/supabase/crm";
 import {
   CONTACTO_LABEL,
+  ETAPAS_CON_ESTIMADO,
   MOTIVO_LABEL,
   MOTIVOS_CON_COMPETIDOR,
   MOTIVOS_PERDIDA,
@@ -401,62 +402,103 @@ function PanelAplazar({
   );
 }
 
-// Cinco campos, los que sirven para pronosticar: cuánto vale, qué cotización es, quién
-// decide, si necesita expensa extraordinaria y para cuándo se espera la decisión.
+// El valor del negocio sale de la cotización real: se asocia una del cliente (o se
+// arma con "Cotizar", que la deja asociada sola). El estimado solo se pide en las
+// etapas tempranas, sin cotización; después queda como dato histórico.
 function Pronostico({ o, pendiente, correr }: { o: OportunidadDetalle; pendiente: boolean; correr: Correr }) {
-  const [valor, setValor] = useState(o.valorEstimado === null ? "" : String(o.valorEstimado));
+  const conEstimado = ETAPAS_CON_ESTIMADO.includes(o.etapaId);
+  const estimadoTexto = o.valorEstimado === null ? "" : String(o.valorEstimado);
+  const expensaTexto =
+    o.requiereExpensaExtraordinaria === null ? "" : o.requiereExpensaExtraordinaria ? "si" : "no";
+
   const [cotizacionId, setCotizacionId] = useState(o.cotizacionId ?? "");
+  const [valor, setValor] = useState(estimadoTexto);
   const [via, setVia] = useState<ViaAprobacion | "">(o.viaAprobacion ?? "");
-  const [expensa, setExpensa] = useState(
-    o.requiereExpensaExtraordinaria === null ? "" : o.requiereExpensaExtraordinaria ? "si" : "no",
-  );
+  const [expensa, setExpensa] = useState(expensaTexto);
   const [fechaDecision, setFechaDecision] = useState(o.fechaEstimadaDecision ?? "");
   const [guardado, setGuardado] = useState(false);
 
+  const cotizacionElegida = o.cotizacionesCliente.find((c) => c.id === cotizacionId);
+  const pideEstimado = conEstimado && !cotizacionId;
   const cambiado =
-    valor !== (o.valorEstimado === null ? "" : String(o.valorEstimado)) ||
     cotizacionId !== (o.cotizacionId ?? "") ||
+    (pideEstimado && valor !== estimadoTexto) ||
     via !== (o.viaAprobacion ?? "") ||
-    expensa !== (o.requiereExpensaExtraordinaria === null ? "" : o.requiereExpensaExtraordinaria ? "si" : "no") ||
+    expensa !== expensaTexto ||
     fechaDecision !== (o.fechaEstimadaDecision ?? "");
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-3">
+      {/* ---- Cotización asociada: de acá sale el valor real ---- */}
+      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Cotización asociada
+      </h2>
+      <div className="mb-4 space-y-2">
+        <select
+          value={cotizacionId}
+          onChange={(e) => setCotizacionId(e.target.value)}
+          className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm"
+          aria-label="Cotización asociada"
+        >
+          <option value="">
+            {o.cotizacionesCliente.length === 0
+              ? "Este cliente todavía no tiene cotizaciones"
+              : "Sin cotización asociada"}
+          </option>
+          {o.cotizacionesCliente.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.codigo} — {c.descripcion}
+              {c.total !== null ? ` — ${formatCOP(c.total)}` : ""}
+            </option>
+          ))}
+        </select>
+        {cotizacionElegida && (
+          <p className="text-sm text-slate-800">
+            Valor cotizado:{" "}
+            <span className="font-semibold">
+              {cotizacionElegida.total !== null ? formatCOP(cotizacionElegida.total) : "—"}
+            </span>{" "}
+            ·{" "}
+            <Link href={`/comercial/cotizaciones/${cotizacionElegida.id}`} className="underline">
+              ver cotización
+            </Link>
+          </p>
+        )}
+        {o.estado !== "cerrada" && (
+          <Link
+            href={`/comercial/cotizaciones/nueva?oportunidad=${o.id}`}
+            className="block rounded-md border border-slate-900 px-3 py-2 text-center text-sm font-semibold text-slate-900"
+          >
+            {o.cotizacionId ? "Cotizar de nuevo (nueva versión)" : "Cotizar"}
+          </Link>
+        )}
+        <p className="text-xs text-slate-500">
+          &quot;Cotizar&quot; abre el armador con este cliente; al guardar, la cotización queda
+          asociada sola y el negocio pasa a Cotización enviada.
+        </p>
+      </div>
+
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Pronóstico</h2>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block text-xs text-slate-600">
-          Cotización
-          <select
-            value={cotizacionId}
-            onChange={(e) => setCotizacionId(e.target.value)}
-            className="mt-0.5 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm"
-          >
-            <option value="">Sin cotización todavía</option>
-            {o.cotizacionesCliente.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.codigo} — {c.descripcion}
-              </option>
-            ))}
-          </select>
-          {o.cotizacionId && o.valorCotizacion !== null && (
-            <span className="mt-0.5 block text-slate-700">
-              Total: {formatCOP(o.valorCotizacion)} ·{" "}
-              <Link href={`/comercial/cotizaciones/${o.cotizacionId}`} className="underline">
-                ver
-              </Link>
-            </span>
-          )}
-        </label>
-        <label className="block text-xs text-slate-600">
-          Valor estimado {o.cotizacionId ? "(manda la cotización)" : ""}
-          <input
-            value={valor}
-            onChange={(e) => setValor(e.target.value)}
-            inputMode="numeric"
-            placeholder="Ej. 40000000"
-            className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-2 text-sm"
-          />
-        </label>
+        {pideEstimado ? (
+          <label className="block text-xs text-slate-600 sm:col-span-2">
+            Valor estimado (mientras no hay cotización)
+            <input
+              value={valor}
+              onChange={(e) => setValor(e.target.value)}
+              inputMode="numeric"
+              placeholder="Ej. 40000000"
+              className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-2 text-sm"
+            />
+          </label>
+        ) : (
+          o.valorEstimado !== null && (
+            <p className="text-xs text-slate-500 sm:col-span-2">
+              Estimado inicial: {formatCOP(o.valorEstimado)} (dato histórico; el valor del
+              negocio es el de la cotización)
+            </p>
+          )
+        )}
         <label className="block text-xs text-slate-600">
           ¿Quién aprueba?
           <select
@@ -504,12 +546,16 @@ function Pronostico({ o, pendiente, correr }: { o: OportunidadDetalle; pendiente
           type="button"
           disabled={pendiente || !cambiado}
           onClick={() => {
-            const v = valor.trim() ? Number(valor.replace(/[.\s$]/g, "")) : null;
+            let estimado = o.valorEstimado; // fuera de las etapas tempranas no se toca
+            if (pideEstimado) {
+              const v = valor.trim() ? Number(valor.replace(/[.\s$]/g, "")) : null;
+              estimado = v !== null && !Number.isNaN(v) ? v : null;
+            }
             correr(
               () =>
                 actualizarDatos(o.id, {
                   nombre: o.nombre,
-                  valorEstimado: v !== null && !Number.isNaN(v) ? v : null,
+                  valorEstimado: estimado,
                   cotizacionId: cotizacionId || null,
                   viaAprobacion: via || null,
                   requiereExpensaExtraordinaria: expensa === "" ? null : expensa === "si",
@@ -520,7 +566,7 @@ function Pronostico({ o, pendiente, correr }: { o: OportunidadDetalle; pendiente
           }}
           className="mt-3 w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
         >
-          {cambiado ? "Guardar pronóstico" : "Guardado ✓"}
+          {cambiado ? "Guardar cambios" : "Guardado ✓"}
         </button>
       )}
     </section>

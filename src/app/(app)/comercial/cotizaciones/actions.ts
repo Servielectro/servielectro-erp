@@ -105,6 +105,8 @@ export interface GuardarCotizacionInput {
   clienteDireccion: string;
   clienteEmail: string;
   clienteContacto: string;
+  clienteTelefono: string;
+  oportunidadId: string | null;
   descripcion: string;
   comercial: string;
   esquemaIva: "IVA_FULL" | "IVA_AIU";
@@ -142,7 +144,7 @@ export async function crearPoliza(
 export async function guardarCotizacion(
   input: GuardarCotizacionInput,
 ): Promise<
-  | { ok: true; cotizacionId: string; codigo: string }
+  | { ok: true; cotizacionId: string; codigo: string; avisoOportunidad: string | null }
   | { ok: false; error: string }
 > {
   const supabase = await createClient();
@@ -209,7 +211,7 @@ export async function guardarCotizacion(
 
   const { data: cotizacion, error: errorCodigo } = await supabase
     .from("cotizaciones")
-    .select("codigo")
+    .select("codigo, cliente_id")
     .eq("id", cotizacionId)
     .single();
 
@@ -217,5 +219,58 @@ export async function guardarCotizacion(
     return { ok: false, error: errorCodigo.message };
   }
 
-  return { ok: true, cotizacionId, codigo: cotizacion.codigo as string };
+  // El RPC no recibe teléfono: se actualiza en el cliente aparte (no es parte del cálculo).
+  if (input.clienteTelefono) {
+    const { error: errTel } = await supabase
+      .from("clientes")
+      .update({ telefono: input.clienteTelefono })
+      .eq("id", cotizacion.cliente_id);
+    if (errTel) console.error("No se pudo guardar el teléfono del cliente:", errTel);
+  }
+
+  let avisoOportunidad: string | null = null;
+  if (input.oportunidadId) {
+    avisoOportunidad = await asociarAOportunidad(supabase, input.oportunidadId, cotizacionId);
+  }
+
+  return { ok: true, cotizacionId, codigo: cotizacion.codigo as string, avisoOportunidad };
+}
+
+/**
+ * Amarre CRM ↔ cotizador: la cotización guardada desde "Cotizar" queda asociada al
+ * negocio (su total pasa a ser el valor real) y el negocio avanza a "enviada" si
+ * todavía estaba antes. Nunca lo hace retroceder (una nueva versión en negociación
+ * solo cambia la cotización asociada). Si falla, la cotización ya quedó guardada: se
+ * devuelve un aviso en vez de un error.
+ */
+async function asociarAOportunidad(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  oportunidadId: string,
+  cotizacionId: string,
+): Promise<string | null> {
+  const { data: op } = await supabase
+    .from("oportunidades")
+    .select("etapa_id, tipo_pipeline, estado")
+    .eq("id", oportunidadId)
+    .maybeSingle();
+  if (!op) return "No se encontró el negocio para asociar la cotización";
+
+  const destino = op.tipo_pipeline === "renovacion" ? "renovacion_propuesta_enviada" : "cotizacion_enviada";
+  const { data: etapas } = await supabase
+    .from("etapas_config")
+    .select("id, orden, resultado")
+    .in("id", [op.etapa_id, destino]);
+  const orden = new Map((etapas ?? []).map((e) => [e.id as string, e.orden as number]));
+  const actualAbierta = !(etapas ?? []).find((e) => e.id === op.etapa_id)?.resultado;
+  const avanzar =
+    op.estado === "activa" &&
+    actualAbierta &&
+    (orden.get(op.etapa_id) ?? 0) < (orden.get(destino) ?? 0);
+
+  const { error } = await supabase
+    .from("oportunidades")
+    .update(avanzar ? { cotizacion_id: cotizacionId, etapa_id: destino } : { cotizacion_id: cotizacionId })
+    .eq("id", oportunidadId);
+  if (error) return `La cotización se guardó, pero no se pudo asociar al negocio (${error.message})`;
+  return null;
 }

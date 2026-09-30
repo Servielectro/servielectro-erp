@@ -68,6 +68,7 @@ export interface DatosIniciales {
   clienteDireccion: string;
   clienteEmail: string;
   clienteContacto: string;
+  clienteTelefono: string;
   descripcion: string;
   comercial: string;
   esquemaIva: EsquemaIva;
@@ -76,6 +77,20 @@ export interface DatosIniciales {
   hitos: Omit<HitoUI, "id">[];
   polizas: Omit<PolizaSeleccionadaUI, "id">[];
   diasEjecucion: number | null;
+}
+
+export interface OrigenOportunidad {
+  id: string;
+  nombre: string;
+  cliente: {
+    id: string;
+    nombre: string;
+    nit: string | null;
+    direccion: string | null;
+    email: string | null;
+    contacto: string | null;
+    telefono: string | null;
+  };
 }
 
 interface Draft {
@@ -94,6 +109,7 @@ interface Draft {
   // Borradores viejos no lo traen: se toman como null.
   origen?: string | null;
   diasEjecucion?: string;
+  clienteTelefono?: string;
   guardadoEn: string;
 }
 
@@ -117,39 +133,53 @@ export function CotizacionBuilder({
   configuracionEmpresa,
   datosIniciales,
   duplicarId,
+  oportunidad,
 }: {
   catalogoInicial: CatalogoItem[];
   polizasCatalogoInicial: PolizaCatalogo[];
   configuracionEmpresa: ConfiguracionEmpresa | null;
   datosIniciales?: DatosIniciales;
   duplicarId?: string;
+  // "Cotizar" desde un negocio del CRM: cliente y nombre precargados, y al guardar la
+  // cotización queda asociada al negocio.
+  oportunidad?: OrigenOportunidad;
 }) {
+  const clienteOp = oportunidad?.cliente;
+  // Clave del borrador: un borrador solo se recupera sobre la misma cotización de origen.
+  const origenInicial = duplicarId ?? (oportunidad ? `op:${oportunidad.id}` : null);
   const [catalogo, setCatalogo] = useState(catalogoInicial);
   const [catalogoPolizas, setCatalogoPolizas] = useState(polizasCatalogoInicial);
   const [nuevaPolizaNombre, setNuevaPolizaNombre] = useState("");
   const [creandoPoliza, setCreandoPoliza] = useState(false);
   const [clienteNombre, setClienteNombre] = useState(
-    datosIniciales?.clienteNombre ?? "",
+    datosIniciales?.clienteNombre ?? clienteOp?.nombre ?? "",
   );
   // Se resuelve al confirmar un RUT (fn_buscar_o_crear_cliente ya devuelve un id real).
   // Si el nombre se edita después, se limpia — ya no se puede confiar en que siga
   // siendo el mismo cliente que resolvió el RUT.
-  const [clienteId, setClienteId] = useState<string | null>(null);
+  const [clienteId, setClienteId] = useState<string | null>(
+    datosIniciales ? null : (clienteOp?.id ?? null),
+  );
   const [rutModalAbierto, setRutModalAbierto] = useState(false);
   const [vistaPreviaAbierta, setVistaPreviaAbierta] = useState(false);
-  const [clienteNit, setClienteNit] = useState(datosIniciales?.clienteNit ?? "");
+  const [clienteNit, setClienteNit] = useState(
+    datosIniciales?.clienteNit ?? clienteOp?.nit ?? "",
+  );
   const [clienteDireccion, setClienteDireccion] = useState(
-    datosIniciales?.clienteDireccion ?? "",
+    datosIniciales?.clienteDireccion ?? clienteOp?.direccion ?? "",
   );
   const [clienteEmail, setClienteEmail] = useState(
-    datosIniciales?.clienteEmail ?? "",
+    datosIniciales?.clienteEmail ?? clienteOp?.email ?? "",
   );
   const [clienteContacto, setClienteContacto] = useState(
-    datosIniciales?.clienteContacto ?? "",
+    datosIniciales?.clienteContacto ?? clienteOp?.contacto ?? "",
+  );
+  const [clienteTelefono, setClienteTelefono] = useState(
+    datosIniciales?.clienteTelefono ?? clienteOp?.telefono ?? "",
   );
   const [comercial, setComercial] = useState(datosIniciales?.comercial ?? "");
   const [descripcion, setDescripcion] = useState(
-    datosIniciales?.descripcion ?? "",
+    datosIniciales?.descripcion ?? oportunidad?.nombre ?? "",
   );
   const [esquemaIva, setEsquemaIva] = useState<EsquemaIva>(
     datosIniciales?.esquemaIva ?? "IVA_FULL",
@@ -188,7 +218,9 @@ export function CotizacionBuilder({
   );
   const [datosClienteAbierto, setDatosClienteAbierto] = useState(
     Boolean(
-      datosIniciales?.comercial ||
+      clienteOp?.nit ||
+        clienteOp?.telefono ||
+        datosIniciales?.comercial ||
         datosIniciales?.clienteNit ||
         datosIniciales?.clienteDireccion ||
         datosIniciales?.clienteEmail ||
@@ -201,13 +233,18 @@ export function CotizacionBuilder({
     lineaId: string;
     busquedaInicial: string;
   } | null>(null);
-  const [origen, setOrigen] = useState<string | null>(duplicarId ?? null);
+  const [origen, setOrigen] = useState<string | null>(origenInicial);
   // Hora del borrador recuperado, para que se vea que el trabajo no se perdió
   // (p. ej. al volver después de un cierre de sesión por inactividad).
   const [restauradoDe, setRestauradoDe] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [guardadoOk, setGuardadoOk] = useState<{ codigo: string } | null>(
+  const [guardadoOk, setGuardadoOk] = useState<{
+    codigo: string;
+    cotizacionId: string;
+    oportunidadId: string | null;
+    aviso: string | null;
+  } | null>(
     null,
   );
 
@@ -225,13 +262,30 @@ export function CotizacionBuilder({
       // el borrador ES el duplicado de esta misma cotización (se volvió a esta URL tras
       // un cierre por inactividad), lo que vale es el trabajo en curso, no el original.
       const origenDraft = draft.origen ?? null;
-      if (datosIniciales && origenDraft !== (duplicarId ?? null)) return;
+      if ((datosIniciales || oportunidad) && origenDraft !== origenInicial) {
+        // Hay un borrador sin guardar de OTRA cotización: si se sigue, el precargado lo
+        // pisa. Se pregunta en vez de perderlo en silencio.
+        const otroConLineas = draft.lineas?.length > 0;
+        if (
+          !otroConLineas ||
+          window.confirm(
+            `Hay un borrador sin guardar de otra cotización (${draft.clienteNombre || "sin cliente"}, ${draft.lineas.length} líneas). ¿Descartarlo y empezar esta?`,
+          )
+        ) {
+          return;
+        }
+        // Eligió conservar el borrador: se recupera ese en lugar del precargado.
+      }
       if (draft.lineas?.length) {
         setClienteNombre(draft.clienteNombre ?? "");
+        // El borrador no guarda el id de cliente: solo se conserva el del negocio si el
+        // borrador es de ese mismo negocio; si es de otra cotización, no se hereda.
+        setClienteId(origenDraft === origenInicial && clienteOp ? clienteOp.id : null);
         setClienteNit(draft.clienteNit ?? "");
         setClienteDireccion(draft.clienteDireccion ?? "");
         setClienteEmail(draft.clienteEmail ?? "");
         setClienteContacto(draft.clienteContacto ?? "");
+        setClienteTelefono(draft.clienteTelefono ?? "");
         setComercial(draft.comercial ?? "");
         setDescripcion(draft.descripcion ?? "");
         setConfig(draft.config ?? CONFIG_PRECIO_DEFAULT);
@@ -273,6 +327,7 @@ export function CotizacionBuilder({
         polizas: polizasSeleccionadas,
         origen,
         diasEjecucion,
+        clienteTelefono,
         guardadoEn: new Date().toISOString(),
       };
       window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
@@ -293,6 +348,7 @@ export function CotizacionBuilder({
     polizasSeleccionadas,
     origen,
     diasEjecucion,
+    clienteTelefono,
   ]);
 
   const totales = useMemo(
@@ -395,6 +451,7 @@ export function CotizacionBuilder({
     setClienteDireccion("");
     setClienteEmail("");
     setClienteContacto("");
+    setClienteTelefono("");
     setComercial("");
     setDescripcion("");
     setConfig(CONFIG_PRECIO_DEFAULT);
@@ -460,6 +517,8 @@ export function CotizacionBuilder({
       clienteDireccion: clienteDireccion.trim(),
       clienteEmail: clienteEmail.trim(),
       clienteContacto: clienteContacto.trim(),
+      clienteTelefono: clienteTelefono.trim(),
+      oportunidadId: origen?.startsWith("op:") ? origen.slice(3) : null,
       comercial: comercial.trim(),
       descripcion: descripcion.trim() || clienteNombre.trim(),
       esquemaIva,
@@ -494,7 +553,12 @@ export function CotizacionBuilder({
       return;
     }
 
-    setGuardadoOk({ codigo: res.codigo });
+    setGuardadoOk({
+      codigo: res.codigo,
+      cotizacionId: res.cotizacionId,
+      oportunidadId: origen?.startsWith("op:") ? origen.slice(3) : null,
+      aviso: res.avisoOportunidad,
+    });
     try {
       window.localStorage.removeItem(DRAFT_KEY);
     } catch {}
@@ -510,6 +574,32 @@ export function CotizacionBuilder({
           <p className="mt-1 text-sm text-green-700">
             Total: {formatCOP(totales.total)}
           </p>
+          {guardadoOk.oportunidadId && !guardadoOk.aviso && (
+            <p className="mt-1 text-sm text-green-700">
+              Quedó asociada al negocio del CRM.
+            </p>
+          )}
+        </div>
+        {guardadoOk.aviso && (
+          <p className="max-w-md rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            {guardadoOk.aviso}
+          </p>
+        )}
+        <div className="flex flex-wrap justify-center gap-2">
+          <a
+            href={`/comercial/cotizaciones/${guardadoOk.cotizacionId}`}
+            className="rounded-md border border-slate-300 bg-white px-5 py-3 text-base font-medium text-slate-800"
+          >
+            Ver cotización
+          </a>
+          {guardadoOk.oportunidadId && (
+            <a
+              href={`/comercial/crm/${guardadoOk.oportunidadId}`}
+              className="rounded-md border border-slate-300 bg-white px-5 py-3 text-base font-medium text-slate-800"
+            >
+              Volver al negocio
+            </a>
+          )}
         </div>
         <button
           type="button"
@@ -814,10 +904,20 @@ export function CotizacionBuilder({
                 <input
                   value={clienteContacto}
                   onChange={(e) => setClienteContacto(e.target.value)}
-                  placeholder="Nombre o teléfono"
+                  placeholder="Ej. Administradora"
                   className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                 />
               </div>
+            </div>
+            <div>
+              <label className="text-xs text-slate-600">Celular / teléfono</label>
+              <input
+                value={clienteTelefono}
+                onChange={(e) => setClienteTelefono(e.target.value)}
+                inputMode="tel"
+                placeholder="Ej. 300 123 4567"
+                className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
             </div>
             <div>
               <label className="text-xs text-slate-600">Dirección</label>
@@ -1058,7 +1158,7 @@ export function CotizacionBuilder({
             setClienteNit(campos.nit ? `${campos.nit}-${campos.dv}` : "");
             setClienteDireccion(campos.direccion);
             setClienteEmail(campos.correo);
-            setClienteContacto(campos.telefono);
+            setClienteTelefono(campos.telefono);
             setRutModalAbierto(false);
           }}
         />
@@ -1077,6 +1177,7 @@ export function CotizacionBuilder({
             direccion: clienteDireccion || null,
             email: clienteEmail || null,
             contacto: clienteContacto || null,
+            telefono: clienteTelefono || null,
           }}
           items={totales.lineas.map((l) => ({
             id: l.id,

@@ -3,16 +3,20 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { VIA_LABEL, type TipoPipeline, type ViaAprobacion } from "@/lib/crm";
+import { formatCOP } from "@/lib/pricing";
 import { crearOportunidad } from "../actions";
 
-// Cuatro campos y nada más: si crear un negocio cuesta, no se registra. Todo lo demás
-// (cotización, fecha de decisión, expensa) se completa después, cuando se sabe.
+// Cuatro campos y nada más: si crear un negocio cuesta, no se registra. Si el cliente
+// ya tiene cotizaciones, el valor sale de la que se elija (valor real, no estimado);
+// el estimado solo se pide cuando todavía no hay cotización.
 export function NuevaOportunidadForm({
   tipo,
   clientes,
+  cotizaciones,
 }: {
   tipo: TipoPipeline;
   clientes: { id: string; nombre: string }[];
+  cotizaciones: { id: string; codigo: string; descripcion: string; clienteId: string; total: number | null }[];
 }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
@@ -21,10 +25,16 @@ export function NuevaOportunidadForm({
   const [cliente, setCliente] = useState("");
   const [valor, setValor] = useState("");
   const [via, setVia] = useState<ViaAprobacion | "">("");
+  const [cotizacionId, setCotizacionId] = useState("");
 
   const clienteElegido = clientes.find(
     (c) => c.nombre.toLowerCase() === cliente.trim().toLowerCase(),
   );
+  const cotizacionesCliente = clienteElegido
+    ? cotizaciones.filter((c) => c.clienteId === clienteElegido.id)
+    : [];
+  // Si se cambia de cliente, la cotización elegida deja de aplicar.
+  const cotizacionValida = cotizacionesCliente.some((c) => c.id === cotizacionId) ? cotizacionId : "";
 
   return (
     <form
@@ -32,7 +42,8 @@ export function NuevaOportunidadForm({
       onSubmit={(e) => {
         e.preventDefault();
         setError(null);
-        const valorNum = valor.trim() ? Number(valor.replace(/[.\s$]/g, "")) : null;
+        const valorNum =
+          !cotizacionValida && valor.trim() ? Number(valor.replace(/[.\s$]/g, "")) : null;
         if (valorNum !== null && (Number.isNaN(valorNum) || valorNum < 0)) {
           setError("El valor estimado tiene que ser un número");
           return;
@@ -44,6 +55,7 @@ export function NuevaOportunidadForm({
             clienteId: clienteElegido?.id ?? null,
             clienteNombre: cliente,
             valorEstimado: valorNum,
+            cotizacionId: cotizacionValida || null,
             viaAprobacion: via || null,
           });
           if (!res.ok) setError(res.error);
@@ -81,15 +93,41 @@ export function NuevaOportunidadForm({
         )}
       </Campo>
 
-      <Campo label="Valor estimado (opcional)">
-        <input
-          value={valor}
-          onChange={(e) => setValor(e.target.value)}
-          inputMode="numeric"
-          placeholder="Ej. 40000000"
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-        />
-      </Campo>
+      {cotizacionesCliente.length > 0 && (
+        <Campo label="Cotización de este cliente">
+          <select
+            value={cotizacionValida}
+            onChange={(e) => setCotizacionId(e.target.value)}
+            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+          >
+            <option value="">Todavía no hay cotización para este negocio</option>
+            {cotizacionesCliente.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.codigo} — {c.descripcion}
+                {c.total !== null ? ` — ${formatCOP(c.total)}` : ""}
+              </option>
+            ))}
+          </select>
+          {cotizacionValida && (
+            <p className="mt-1 text-xs text-slate-600">
+              El valor del negocio es el total real de esta cotización, y entra directo en
+              Cotización enviada.
+            </p>
+          )}
+        </Campo>
+      )}
+
+      {!cotizacionValida && (
+        <Campo label="Valor estimado (opcional, mientras no hay cotización)">
+          <input
+            value={valor}
+            onChange={(e) => setValor(e.target.value)}
+            inputMode="numeric"
+            placeholder="Ej. 40000000"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </Campo>
+      )}
 
       <Campo label="¿Quién aprueba? (opcional)">
         <select

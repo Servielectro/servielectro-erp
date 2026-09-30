@@ -94,3 +94,7 @@ export function semaforo(dias: number, etapa: EtapaConfig | undefined): Semaforo
 export function hoyColombia(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
 }
+
+// Etapas donde todavía no hay cotización y el valor solo puede ser un estimado. De
+// "Cotización en elaboración" en adelante manda el total de la cotización asociada.
+export const ETAPAS_CON_ESTIMADO = ["solicitud", "visita_tecnica", "go_no_go", "renovacion_proxima"];
