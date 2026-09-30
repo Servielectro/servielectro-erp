@@ -173,7 +173,10 @@ export function MenuPrincipal({
           </button>
         </div>
 
-        <nav className="space-y-1 text-sm">
+        {/* Cualquier opción elegida cierra el menú (el nav solo contiene enlaces). */}
+        <nav className="space-y-1 text-sm" onClick={(e) => {
+          if ((e.target as HTMLElement).closest("a")) onCerrar();
+        }}>
           <Link href="/" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
             Inicio (módulos)
           </Link>
