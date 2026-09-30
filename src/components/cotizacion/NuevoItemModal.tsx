@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { crearItemCatalogo } from "@/app/(app)/comercial/cotizaciones/actions";
+import { describirEquipoConIA } from "@/app/(app)/comercial/cotizaciones/ia-actions";
 import {
   FACTORES_RENTABILIDAD_DEFAULT,
   UNIDADES_SUGERIDAS,
@@ -33,6 +34,39 @@ export function NuevoItemModal({
   const [fecha, setFecha] = useState(hoyIso());
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Descripción automática — solo equipos. Ver src/lib/catalogo/describir-equipo.ts
+  const esEquipo = categoria === "EQUIPO";
+  const [buscandoIa, setBuscandoIa] = useState(false);
+  const [avisoIa, setAvisoIa] = useState<string | null>(null);
+  const [fuentesIa, setFuentesIa] = useState<string[]>([]);
+
+  async function buscarDescripcion() {
+    if (!referencia.trim()) {
+      setAvisoIa("Escribe la referencia del equipo para poder buscarla.");
+      return;
+    }
+    setBuscandoIa(true);
+    setAvisoIa(null);
+    setFuentesIa([]);
+
+    const res = await describirEquipoConIA({
+      nombre: descripcion,
+      referencia,
+      categoria,
+    });
+
+    setBuscandoIa(false);
+
+    if (!res.ok) {
+      setAvisoIa(res.error);
+      return;
+    }
+
+    setDescripcion(res.descripcion);
+    setFuentesIa(res.fuentes);
+    setAvisoIa("Léela antes de guardar. Puedes corregirla.");
+  }
 
   async function guardar() {
     if (!descripcion.trim()) {
@@ -101,15 +135,55 @@ export function NuevoItemModal({
 
         <div className="space-y-3">
           <div>
-            <label className="text-sm font-medium text-slate-700">
-              Descripción *
-            </label>
-            <input
+            <div className="flex items-baseline justify-between gap-2">
+              <label className="text-sm font-medium text-slate-700">
+                Descripción *
+              </label>
+              {esEquipo && (
+                <button
+                  type="button"
+                  onClick={buscarDescripcion}
+                  disabled={buscandoIa || guardando}
+                  className="text-sm font-medium text-[#A82323] underline underline-offset-2 disabled:opacity-50"
+                >
+                  {buscandoIa ? "Buscando…" : "Buscar con IA"}
+                </button>
+              )}
+            </div>
+            <textarea
               autoFocus
+              rows={3}
               value={descripcion}
               onChange={(e) => setDescripcion(e.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-300 bg-white/90 px-3 py-2.5 text-base"
+              className="mt-1 w-full resize-y rounded-md border border-slate-300 bg-white/90 px-3 py-2.5 text-base"
             />
+            {esEquipo && !avisoIa && !buscandoIa && (
+              <p className="mt-1 text-xs text-slate-500">
+                Escribe la referencia abajo y toca «Buscar con IA» para traer las
+                características del equipo.
+              </p>
+            )}
+            {avisoIa && (
+              <p className="mt-1 text-xs text-slate-600">{avisoIa}</p>
+            )}
+            {fuentesIa.length > 0 && (
+              <p className="mt-1 text-xs text-slate-500">
+                Fuentes:{" "}
+                {fuentesIa.map((url, i) => (
+                  <span key={url}>
+                    {i > 0 && " · "}
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-2"
+                    >
+                      {i + 1}
+                    </a>
+                  </span>
+                ))}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
