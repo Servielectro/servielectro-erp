@@ -84,9 +84,13 @@ select {
 /* Documento de cotización: carta, colores de las barras aunque el navegador
    tenga "gráficos de fondo" apagado, y la página 2 (resumen) siempre aparte. */
 @media print {
+  /* Márgenes en 0: así el navegador no tiene dónde poner su encabezado y pie de
+     página (fecha, URL, número de página) que Jhojan no quiere en la cotización. Los
+     márgenes reales los ponen los espaciadores de .formato-cotizacion (arriba y abajo,
+     repetidos en cada hoja) y su padding lateral. */
   @page {
     size: letter;
-    margin: 0.45in;
+    margin: 0;
   }
   html,
   body {

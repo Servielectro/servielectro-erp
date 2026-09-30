@@ -162,14 +162,31 @@ export function FormatoCotizacion({
     v === undefined ? "" : `${Math.round(v * 1000) / 10}%`;
 
   return (
-    <div className="formato-cotizacion mx-auto w-[816px] bg-white p-10 font-sans text-[10px] leading-snug text-black shadow-sm print:w-full print:p-0 print:shadow-none">
-      {/* Tabla externa: el encabezado va en <thead> para que el navegador lo repita
-          arriba de cada hoja impresa; cada bloque es una fila, así ningún bloque se
-          corta feo (las filas de ítems no se parten y el título de cada sección se
-          repite si la sección sigue en la hoja siguiente). La cantidad de hojas crece
-          sola con lo largo de cada bloque. */}
+    <div className="formato-cotizacion mx-auto w-[816px] bg-white p-10 font-sans text-[10px] leading-snug text-black shadow-sm print:w-full print:px-[0.45in] print:py-0 print:shadow-none">
+      {/* Tabla externa: el membrete (logos, datos de Servielectro y del cliente) sale
+          solo en la hoja 1; las hojas siguientes siguen directo con la tabla. Cada bloque
+          es una fila, así ningún bloque se corta feo: las filas de ítems no se parten y
+          el título de la sección y los de columna se repiten si la sección continúa. La
+          cantidad de hojas crece sola con lo largo de cada bloque. */}
       <table className="w-full border-collapse">
+        {/* Espaciadores del margen superior e inferior: se repiten en cada hoja impresa
+            (en pantalla no ocupan lugar). El membrete NO va acá: sale solo en la hoja 1. */}
         <thead>
+          <tr>
+            <td className="p-0">
+              <div className="hidden h-[0.45in] print:block" />
+            </td>
+          </tr>
+        </thead>
+        <tfoot>
+          <tr>
+            <td className="p-0">
+              <div className="hidden h-[0.45in] print:block" />
+            </td>
+          </tr>
+        </tfoot>
+        <tbody>
+          {/* Membrete de la empresa: solo en la primera hoja. */}
           <tr>
             <td className="p-0">
       {/* ------------------------- Encabezado ------------------------- */}
@@ -181,10 +198,10 @@ export function FormatoCotizacion({
                   <p className="font-bold text-[#953735]">{EMPRESA.lineas[1]}</p>
                   <p>{EMPRESA.lineas[2]}</p>
                 </div>
-                <div className="flex items-center gap-2 py-2 pl-2 pr-0.5">
+                <div className="flex items-center gap-2 px-2 py-2">
                   {/* eslint-disable-next-line @next/next/no-img-element -- en impresión next/image no aporta y complica el tamaño exacto */}
                   <img src="/logo-servielectro.png" alt="Servielectro" className="w-[62%]" />
-                  <div className="flex flex-1 flex-col items-end gap-1.5">
+                  <div className="flex flex-1 flex-col items-start gap-1.5">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src="/logos/gmi.png" alt="GMI Gestión Mantenimiento Industrial" className="h-[22px] w-auto" />
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -197,8 +214,6 @@ export function FormatoCotizacion({
 
             </td>
           </tr>
-        </thead>
-        <tbody>
           <tr>
             <td className="p-0">
       {/* ------------------------- Datos ------------------------- */}

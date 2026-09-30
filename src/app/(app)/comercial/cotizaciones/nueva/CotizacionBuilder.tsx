@@ -160,15 +160,9 @@ export function CotizacionBuilder({
   const [catalogo, setCatalogo] = useState(catalogoInicial);
   const [catalogoPolizas, setCatalogoPolizas] = useState(polizasCatalogoInicial);
   const [catalogoValores, setCatalogoValores] = useState(valoresAgregadosCatalogo);
-  // Por defecto queda marcado el primero del catálogo (el bloque que hasta hoy salía fijo
-  // en todas las cotizaciones); se desmarca si no aplica al cliente.
-  const valoresPorDefecto = (): ValorAgregadoUI[] =>
-    valoresAgregadosCatalogo.slice(0, 1).map((v) => ({
-      id: crypto.randomUUID(),
-      valorAgregadoId: v.id,
-      titulo: v.titulo,
-      texto: v.texto,
-    }));
+  // Ninguno viene marcado (pedido de Jhojan): el comercial elige y edita los que
+  // correspondan a cada cliente.
+  const valoresPorDefecto = (): ValorAgregadoUI[] => [];
   const [valoresAgregados, setValoresAgregados] = useState<ValorAgregadoUI[]>(() =>
     datosIniciales?.valoresAgregados
       ? datosIniciales.valoresAgregados.map((v) => ({ ...v, id: crypto.randomUUID() }))
