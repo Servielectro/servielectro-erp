@@ -48,7 +48,7 @@ export default function ComercialPage() {
             <span className="text-3xl">🤝</span>
             <div>
               <p className="text-base font-semibold text-slate-900">CRM</p>
-              <p className="text-xs text-slate-600">Clientes y su historial de cotizaciones</p>
+              <p className="text-xs text-slate-600">Pipeline de negocios, seguimientos y clientes</p>
             </div>
           </div>
         </Link>
