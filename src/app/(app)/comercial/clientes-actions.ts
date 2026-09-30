@@ -34,6 +34,7 @@ export async function crearCliente(input: {
   contacto: string;
   telefono: string;
   rut?: { campos: CamposConfirmadosRut; archivo: RutLeidoSinCliente } | null;
+  ubicacion?: { latitud: number; longitud: number; precisionM: number | null } | null;
 }): Promise<
   { ok: true; cliente: ClienteResumen; yaExistia: boolean } | { ok: false; error: string }
 > {
@@ -52,9 +53,20 @@ export async function crearCliente(input: {
   const existente = await buscarPorNit(supabase, input.nit);
   if (existente) return { ok: true, cliente: existente, yaExistia: true };
 
-  const { data, error } = await supabase
-    .from("clientes")
-    .insert({
+  const u = input.ubicacion;
+  const ubicacionValida =
+    u && Number.isFinite(u.latitud) && Number.isFinite(u.longitud) &&
+    Math.abs(u.latitud) <= 90 && Math.abs(u.longitud) <= 180;
+  const columnasUbicacion = ubicacionValida
+    ? {
+        latitud: u!.latitud,
+        longitud: u!.longitud,
+        ubicacion_precision_m: u!.precisionM,
+        ubicacion_tomada_en: new Date().toISOString(),
+      }
+    : {};
+
+  const fila = {
       nombre,
       nit: input.nit.trim() || null,
       direccion: input.direccion.trim() || null,
@@ -69,9 +81,19 @@ export async function crearCliente(input: {
             responsable_iva: input.rut.campos.responsableIva,
           }
         : {}),
-    })
+  };
+
+  let { data, error } = await supabase
+    .from("clientes")
+    .insert({ ...fila, ...columnasUbicacion })
     .select(COLUMNAS)
     .single();
+  // Si la migración 32 (columnas de ubicación) no se corrió, el cliente se guarda igual
+  // sin la ubicación: no se pierde el alta por eso.
+  if (error && ubicacionValida && /latitud|longitud|ubicacion/.test(error.message)) {
+    console.error("Ubicación no guardada (¿falta la migración 32?):", error.message);
+    ({ data, error } = await supabase.from("clientes").insert(fila).select(COLUMNAS).single());
+  }
 
   if (error) {
     // El índice único (migración 31) rechazó un NIT repetido entre la búsqueda y el
@@ -82,6 +104,8 @@ export async function crearCliente(input: {
     }
     return { ok: false, error: error.message };
   }
+
+  if (!data) return { ok: false, error: "No se pudo crear el cliente" };
 
   // El RUT leído en la ventana queda registrado y confirmado en el cliente nuevo.
   if (input.rut) {

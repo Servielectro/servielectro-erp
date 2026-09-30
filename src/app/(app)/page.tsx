@@ -7,6 +7,7 @@ import { getMisPermisos } from "@/lib/permisos";
 const MODULOS = [
   { id: "comercial", nombre: "Comercial", icono: "💼", href: "/comercial", activo: true },
   { id: "configuracion", nombre: "Configuración", icono: "🔐", href: "/configuracion", activo: true },
+  { id: "licitaciones", nombre: "Licitaciones", icono: "📑", href: "/licitaciones", activo: true },
   { id: "financiero", nombre: "Financiero", icono: "💰", activo: false },
   { id: "contable", nombre: "Contable", icono: "📊", activo: false },
   { id: "marketing", nombre: "Marketing", icono: "📣", activo: false },
