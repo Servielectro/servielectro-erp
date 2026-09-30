@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requierePermiso, type NivelPermiso } from "@/lib/permisos";
+import { hayClaveSecreta } from "@/lib/supabase/admin";
 import { UsuariosAdmin, type DatosUsuariosAdmin } from "./UsuariosAdmin";
 
 export default async function UsuariosPage() {
@@ -27,14 +28,17 @@ export default async function UsuariosPage() {
 
   const datos: DatosUsuariosAdmin = {
     miId: user?.id ?? "",
+    puedeCrearUsuarios: hayClaveSecreta(),
     usuarios: ((usuariosRes.data ?? []) as {
       id: string;
       email: string;
+      nombre?: string | null; // desde la migración 29
       rol_id: string | null;
       ultimo_ingreso: string | null;
     }[]).map((u) => ({
       id: u.id,
       email: u.email,
+      nombre: u.nombre ?? null,
       rolId: u.rol_id,
       ultimoIngreso: u.ultimo_ingreso,
     })),

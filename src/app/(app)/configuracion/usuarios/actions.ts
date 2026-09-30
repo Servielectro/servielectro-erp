@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, type NivelPermiso } from "@/lib/permisos";
+import { createAdminClient, hayClaveSecreta } from "@/lib/supabase/admin";
 
 // Toda escritura exige ser responsable de Configuración — se revisa acá (servidor)
 // y además lo exige la RLS de roles / permisos_rol / perfiles.
@@ -55,6 +56,89 @@ export async function asignarRol(
     .from("perfiles")
     .upsert({ id: usuarioId, rol_id: rolId }, { onConflict: "id" });
   if (error) return { ok: false, error: error.message };
+  refrescar();
+  return { ok: true };
+}
+
+/**
+ * Crea el usuario en Supabase Auth (con la clave secreta, solo en el servidor) y le
+ * asigna rol y nombre. El permiso se verifica ANTES de tocar la clave secreta; el perfil
+ * se escribe con el cliente normal, así que la RLS de perfiles también lo exige.
+ */
+export async function crearUsuario(input: {
+  nombre: string;
+  email: string;
+  password: string;
+  rolId: string | null;
+}): Promise<Resultado<{ id: string }>> {
+  const ctx = await contexto();
+  if (!ctx.ok) return ctx;
+  if (!hayClaveSecreta()) {
+    return {
+      ok: false,
+      error: "Falta configurar la clave secreta de Supabase en Vercel (SUPABASE_SECRET_KEY)",
+    };
+  }
+
+  const nombre = input.nombre.trim();
+  const email = input.email.trim().toLowerCase();
+  if (!nombre) return { ok: false, error: "Falta el nombre" };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: "El correo no es válido" };
+  if (input.password.length < 8) {
+    return { ok: false, error: "La contraseña inicial tiene que tener al menos 8 caracteres" };
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.auth.admin.createUser({
+    email,
+    password: input.password,
+    email_confirm: true, // lo crea el administrador: no hace falta que confirme el correo
+    user_metadata: { nombre },
+  });
+  if (error || !data.user) {
+    const yaExiste = /already|registered|exists/i.test(error?.message ?? "");
+    return {
+      ok: false,
+      error: yaExiste ? "Ya existe un usuario con ese correo" : (error?.message ?? "No se pudo crear el usuario"),
+    };
+  }
+
+  let { error: errPerfil } = await ctx.supabase
+    .from("perfiles")
+    .upsert({ id: data.user.id, rol_id: input.rolId, nombre }, { onConflict: "id" });
+  if (errPerfil && /nombre/.test(errPerfil.message)) {
+    // La migración 29 (columna nombre) todavía no se corrió: se guarda solo el rol.
+    ({ error: errPerfil } = await ctx.supabase
+      .from("perfiles")
+      .upsert({ id: data.user.id, rol_id: input.rolId }, { onConflict: "id" }));
+  }
+  if (errPerfil) {
+    // Sin perfil el usuario quedaría huérfano: se deshace la creación.
+    await admin.auth.admin.deleteUser(data.user.id);
+    return { ok: false, error: `No se pudo asignar el rol (${errPerfil.message})` };
+  }
+
+  refrescar();
+  return { ok: true, id: data.user.id };
+}
+
+export async function cambiarNombre(usuarioId: string, nombre: string): Promise<Resultado> {
+  const ctx = await contexto();
+  if (!ctx.ok) return ctx;
+  const limpio = nombre.trim();
+  if (!limpio) return { ok: false, error: "El nombre no puede quedar vacío" };
+  // Solo se envía el nombre: si el perfil ya existe, el rol no se toca.
+  const { error } = await ctx.supabase
+    .from("perfiles")
+    .upsert({ id: usuarioId, nombre: limpio }, { onConflict: "id" });
+  if (error) {
+    return {
+      ok: false,
+      error: /nombre/.test(error.message)
+        ? "Falta correr la migración 29 (columna nombre) en Supabase"
+        : error.message,
+    };
+  }
   refrescar();
   return { ok: true };
 }
