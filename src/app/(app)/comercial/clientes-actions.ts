@@ -84,7 +84,7 @@ export async function crearCliente(input: {
       // Lo que quedó en el formulario (leído del RUT o marcado a mano).
       responsable_iva: input.responsableIva ?? null,
   };
-  // Códigos crudos de la casilla 53 (migración 39): opcionales.
+  // Códigos crudos de la casilla 53 (migración 40): opcionales.
   const columnasRut =
     input.rut && input.rut.campos.responsabilidades.length > 0
       ? { responsabilidades_rut: input.rut.campos.responsabilidades }
@@ -100,7 +100,7 @@ export async function crearCliente(input: {
   // Si falta alguna migración de columnas opcionales (32 ubicación, 39 responsabilidades),
   // el cliente se guarda igual sin ellas: no se pierde el alta por eso.
   if (error && /latitud|longitud|ubicacion|responsabilidades_rut/.test(error.message)) {
-    console.error("Columnas opcionales no guardadas (¿falta la migración 32 o 39?):", error.message);
+    console.error("Columnas opcionales no guardadas (¿falta la migración 32 o 40?):", error.message);
     ({ data, error } = await supabase.from("clientes").insert(fila).select(COLUMNAS).single());
   }
 
