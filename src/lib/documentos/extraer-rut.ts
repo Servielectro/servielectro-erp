@@ -13,7 +13,7 @@ import { generarConGemini } from "@/lib/ia/gemini";
 // Studio de Jhojan. Gemini lee PDF e imagen nativamente y devuelve JSON con el esquema
 // que se le pasa; igual se valida con Zod antes de usarlo.
 //
-// Costo de referencia de gemini-2.5-flash por millón de tokens (precio de pago por uso
+// Costo de referencia del modelo flash de Gemini por millón de tokens (precio de pago por uso
 // de Google; con la licencia de Jhojan se descuenta de sus créditos): entrada $0.30,
 // salida $2.50. Se guarda una estimación en documentos.costo_estimado_usd.
 const PRECIO_INPUT_POR_MILLON = 0.3;

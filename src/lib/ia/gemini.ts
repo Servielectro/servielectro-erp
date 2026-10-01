@@ -8,7 +8,9 @@ import "server-only";
  * NUNCA se llama desde el navegador.
  */
 
-export const MODELO_GEMINI = "gemini-2.5-flash";
+// Único lugar donde se nombra el modelo (lo usan el RUT y la descripción de equipos).
+// Si Google lo retira, el error de abajo lista los modelos habilitados para la clave.
+export const MODELO_GEMINI = "gemini-3.8-flash";
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
 
 /** Parte de entrada: texto, o un archivo (PDF / imagen) embebido en base64. */
@@ -28,6 +30,24 @@ interface CuerpoGemini {
   }>;
   usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
   error?: { message?: string };
+}
+
+/** Modelos "flash" que la clave puede usar con generateContent (para el mensaje de error). */
+async function modelosFlashDisponibles(apiKey: string): Promise<string[]> {
+  try {
+    const r = await fetch(`${ENDPOINT}?pageSize=200&key=${encodeURIComponent(apiKey)}`, {
+      signal: AbortSignal.timeout(8_000),
+    });
+    const j = (await r.json()) as {
+      models?: { name?: string; supportedGenerationMethods?: string[] }[];
+    };
+    return (j.models ?? [])
+      .filter((m) => m.name?.includes("flash") && m.supportedGenerationMethods?.includes("generateContent"))
+      .map((m) => (m.name ?? "").replace(/^models\//, ""))
+      .slice(0, 15);
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -77,7 +97,17 @@ export async function generarConGemini(opciones: {
 
   const cuerpo = (await respuesta.json().catch(() => null)) as CuerpoGemini | null;
   if (!respuesta.ok) {
-    throw new Error(`Gemini rechazó la consulta: ${cuerpo?.error?.message ?? `HTTP ${respuesta.status}`}`);
+    const detalle = cuerpo?.error?.message ?? `HTTP ${respuesta.status}`;
+    // Modelo retirado o inexistente: se listan los habilitados para esta clave, para
+    // cambiar MODELO_GEMINI sin adivinar.
+    if (respuesta.status === 404 || /not found|no longer available|not supported/i.test(detalle)) {
+      const disponibles = await modelosFlashDisponibles(apiKey);
+      throw new Error(
+        `Gemini rechazó el modelo "${MODELO_GEMINI}": ${detalle}` +
+          (disponibles.length ? ` — Modelos flash habilitados para esta clave: ${disponibles.join(", ")}` : ""),
+      );
+    }
+    throw new Error(`Gemini rechazó la consulta: ${detalle}`);
   }
 
   const candidato = cuerpo?.candidates?.[0];
