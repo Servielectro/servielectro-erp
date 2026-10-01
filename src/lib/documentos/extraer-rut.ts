@@ -74,8 +74,11 @@ export async function extraerRut(
         responseMimeType: "application/json",
         ...(conEsquemaEstructurado ? { responseJsonSchema: ESQUEMA_JSON } : {}),
       },
-      // Un PDF escaneado tarda más que una búsqueda corta; igual tiene tope.
-      timeoutMs: 60_000,
+      // Un PDF escaneado tarda más que una búsqueda corta; igual tiene tope por llamada
+      // y un tope total (reintentos por saturación incluidos) por debajo del límite de
+      // tiempo del servidor.
+      timeoutMs: 40_000,
+      presupuestoMs: 55_000,
     });
 
   // Plan B: si la API rechazara el esquema estructurado, se pide el JSON con el esquema

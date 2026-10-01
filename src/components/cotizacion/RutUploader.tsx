@@ -10,6 +10,7 @@ import {
 } from "@/app/(app)/comercial/cotizaciones/documentos-actions";
 import type { ResultadoExtraccionRut } from "@/lib/documentos/extraer-rut";
 import type { Confianza } from "@/lib/documentos/rut-schema";
+import { EsperaIA } from "@/components/ia/EsperaIA";
 
 interface Props {
   clienteNombre: string;
@@ -163,7 +164,9 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado, onLeidoClie
               Tocá para elegir un PDF o una foto del RUT
               <input
                 type="file"
-                accept="application/pdf,image/jpeg,image/png,image/webp"
+                // Sin filtro de tipo: en Android un PDF que llegó por WhatsApp suele venir
+                // como application/octet-stream y quedaba oculto. El servidor valida por
+                // extensión (PDF, JPG, PNG, WEBP).
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
@@ -183,7 +186,9 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado, onLeidoClie
 
         {estado.paso === "leyendo" && (
           <div className="py-10 text-center">
-            <p className="text-sm text-slate-600">Leyendo el RUT con IA…</p>
+            <p className="text-sm text-slate-600">
+              <EsperaIA texto="Leyendo el RUT con IA…" />
+            </p>
           </div>
         )}
 

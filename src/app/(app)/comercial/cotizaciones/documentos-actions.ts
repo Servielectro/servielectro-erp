@@ -5,6 +5,16 @@ import { extraerRut, type ResultadoExtraccionRut } from "@/lib/documentos/extrae
 
 const BUCKET = "documentos-clientes";
 
+/** Tipo real del RUT según la extensión (el bucket solo acepta estos). */
+function mimeRutPorNombre(nombre: string): string | null {
+  const ext = nombre.toLowerCase().split(".").pop();
+  if (ext === "pdf") return "application/pdf";
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  if (ext === "png") return "image/png";
+  if (ext === "webp") return "image/webp";
+  return null;
+}
+
 export interface SubirRutResult {
   ok: true;
   documentoId: string;
@@ -43,11 +53,13 @@ export async function subirYLeerRut(
     return { ok: false, error: "Falta el nombre del cliente." };
   }
 
-  const tiposPermitidos = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
-  if (archivo.type && !tiposPermitidos.includes(archivo.type)) {
+  // Por extensión, no por el tipo que informa el celular (un PDF de WhatsApp en Android
+  // suele llegar como application/octet-stream).
+  const mime = mimeRutPorNombre(archivo.name);
+  if (!mime) {
     return {
       ok: false,
-      error: `Tipo de archivo no soportado (${archivo.type}). Subí un PDF o una foto (JPG/PNG).`,
+      error: `"${archivo.name}" no es un PDF ni una foto. Sube el RUT en PDF o como foto (JPG, PNG o WEBP).`,
     };
   }
 
@@ -69,7 +81,7 @@ export async function subirYLeerRut(
   const { error: errorSubida } = await supabase.storage
     .from(BUCKET)
     .upload(storagePath, buffer, {
-      contentType: archivo.type || "application/octet-stream",
+      contentType: mime,
       upsert: false,
     });
   if (errorSubida) {
@@ -212,11 +224,13 @@ export async function leerRutClienteNuevo(
   if (!(archivo instanceof File) || archivo.size === 0) {
     return { ok: false, error: "No se recibió ningún archivo." };
   }
-  const tiposPermitidos = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
-  if (archivo.type && !tiposPermitidos.includes(archivo.type)) {
+  // Por extensión, no por el tipo que informa el celular (un PDF de WhatsApp en Android
+  // suele llegar como application/octet-stream).
+  const mime = mimeRutPorNombre(archivo.name);
+  if (!mime) {
     return {
       ok: false,
-      error: `Tipo de archivo no soportado (${archivo.type}). Subí un PDF o una foto (JPG/PNG).`,
+      error: `"${archivo.name}" no es un PDF ni una foto. Sube el RUT en PDF o como foto (JPG, PNG o WEBP).`,
     };
   }
 
@@ -226,7 +240,7 @@ export async function leerRutClienteNuevo(
   const { error: errorSubida } = await supabase.storage
     .from(BUCKET)
     .upload(storagePath, buffer, {
-      contentType: archivo.type || "application/octet-stream",
+      contentType: mime,
       upsert: false,
     });
   if (errorSubida) {

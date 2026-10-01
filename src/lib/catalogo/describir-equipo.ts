@@ -83,6 +83,8 @@ export async function describirEquipo(
     // Esto corre mientras Jhojan está cotizando frente al cliente: si en 15
     // segundos no hay respuesta, se corta y él escribe la descripción a mano.
     timeoutMs: 15_000,
+    // Con reintentos por saturación de Google incluidos.
+    presupuestoMs: 25_000,
   });
 
   if (!texto) {

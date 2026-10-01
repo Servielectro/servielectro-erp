@@ -29,9 +29,14 @@ export interface PlantillaUI {
 
 const etiquetaTipo = (t: string) => TIPOS_PLANTILLA.find((x) => x.id === t)?.label ?? t;
 
+// Sin `accept` en el selector, a propósito: en Android, Chrome filtra por tipo MIME y un
+// .docx que llegó por WhatsApp/Telegram/descarga suele venir como
+// application/octet-stream, así que quedaba invisible. Se valida por extensión al
+// elegirlo; el archivo se sube declarado como .docx (el bucket solo acepta ese tipo).
 function validarArchivo(f: File | null): string | null {
   if (!f) return "Elige el archivo .docx";
-  if (!f.name.toLowerCase().endsWith(".docx")) return "La plantilla tiene que ser un archivo Word (.docx)";
+  if (!f.name.toLowerCase().endsWith(".docx"))
+    return `"${f.name}" no es un archivo Word .docx. Elige la plantilla en formato .docx.`;
   if (f.size > MAX_BYTES_PLANTILLA) return "El archivo pasa de 10 MB";
   return null;
 }
@@ -199,8 +204,11 @@ function NuevaVersion({
       <div className="mt-2 space-y-2">
         <input
           type="file"
-          accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
+          onChange={(e) => {
+            const f = e.target.files?.[0] ?? null;
+            setArchivo(f);
+            setError(f ? validarArchivo(f) : null);
+          }}
           className="block w-full text-sm"
         />
         <input
@@ -261,8 +269,11 @@ function NuevaPlantilla({
       </select>
       <input
         type="file"
-        accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
+        onChange={(e) => {
+          const f = e.target.files?.[0] ?? null;
+          setArchivo(f);
+          setError(f ? validarArchivo(f) : null);
+        }}
         className="block w-full text-sm"
       />
       <input

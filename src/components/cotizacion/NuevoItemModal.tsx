@@ -9,6 +9,7 @@ import {
   type Categoria,
 } from "@/lib/pricing";
 import type { CatalogoItem } from "@/lib/supabase/catalogo";
+import { EsperaIA } from "@/components/ia/EsperaIA";
 
 interface Props {
   categoria: Categoria;
@@ -168,7 +169,7 @@ export function NuevoItemModal({
                   disabled={buscandoIa || guardando}
                   className="text-sm font-medium text-[#A82323] underline underline-offset-2 disabled:opacity-50"
                 >
-                  {buscandoIa ? "Buscando…" : "Buscar con IA"}
+                  {buscandoIa ? <EsperaIA texto="Buscando…" /> : "Buscar con IA"}
                 </button>
               )}
             </div>
