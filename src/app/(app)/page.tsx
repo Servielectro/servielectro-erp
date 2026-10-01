@@ -12,7 +12,7 @@ const MODULOS = [
   { id: "contable", nombre: "Contable", icono: "📊", activo: false },
   { id: "marketing", nombre: "Marketing", icono: "📣", activo: false },
   { id: "administrativo", nombre: "Administrativo", icono: "🗂️", activo: false },
-  { id: "rrhh", nombre: "RRHH", icono: "👥", activo: false },
+  { id: "rrhh", nombre: "RRHH", icono: "👥", href: "/rrhh", activo: true },
   { id: "tecnico", nombre: "Técnico", icono: "🔧", activo: false },
   { id: "operativo", nombre: "Operativo", icono: "⚙️", activo: false },
 ] as const;

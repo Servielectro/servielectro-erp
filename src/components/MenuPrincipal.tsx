@@ -196,6 +196,16 @@ export function MenuPrincipal({
               </Link>
             </>
           )}
+          {accesos.modulos.includes("rrhh") && (
+            <>
+              <Link href="/rrhh" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+                RRHH
+              </Link>
+              <Link href="/rrhh/plantillas" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+                Plantillas de documentos
+              </Link>
+            </>
+          )}
           {accesos.modulos.includes("licitaciones") && (
             <Link href="/licitaciones" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
               Licitaciones <span className="text-xs font-normal text-amber-700">(en construcción)</span>
