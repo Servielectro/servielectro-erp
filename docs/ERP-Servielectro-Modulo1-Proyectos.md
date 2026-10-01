@@ -157,7 +157,7 @@ Cuadro opcional en la cotización: Jhojan sube el PDF o foto del RUT del cliente
 **Dígito de verificación:** algoritmo módulo 11 de la DIAN (pesos primos 3,7,13,17,19,23,29,37,41,43,47,53,59,67,71 de derecha a izquierda; residuo 0→0, 1→1, si no 11−residuo). Verificado contra un ejemplo completo con el NIT real de la propia DIAN (800197268 → DV 4, suma 733, residuo 7). Implementado en `src/lib/nit.ts`, se corre siempre, independiente de qué tan segura diga estar la IA — es la red de seguridad barata contra un dígito mal leído.
 
 **Arquitectura:**
-- La clave de OpenAI (`OPENAI_API_KEY`) vive solo en el servidor, nunca con prefijo `NEXT_PUBLIC_`. Se usa en `src/lib/documentos/extraer-rut.ts`, llamado únicamente desde Server Actions (`src/app/cotizaciones/documentos-actions.ts`).
+- **Proveedor (2026-10-01): Google Gemini** (`gemini-2.5-flash`), reemplazando a OpenAI: Jhojan tiene licencia de Google AI Studio y así el ERP queda con un solo proveedor y una sola clave (`GEMINI_API_KEY`), que vive solo en el servidor, nunca con prefijo `NEXT_PUBLIC_`. La lectura está en `src/lib/documentos/extraer-rut.ts` (llamada desde Server Actions) sobre `src/lib/ia/gemini.ts`. El esquema (`rut-schema.ts`), la validación del DV del NIT y la confirmación dato por dato no cambiaron.
 - Modelo `gpt-4o-mini`, Responses API con `input_file` (PDF nativo) o `input_image` (foto) + Structured Outputs (esquema Zod en `src/lib/documentos/rut-schema.ts`, convertido a JSON Schema por el propio SDK de OpenAI).
 - Cada campo extraído trae su propio nivel de confianza (`alta`/`media`/`baja`/`no_legible`). Si es `no_legible`, el panel de confirmación deja el campo **vacío**, nunca precargado con una adivinanza.
 - Si el documento no es un RUT (cédula, factura, foto de otra cosa), la IA lo marca explícitamente (`es_documento_rut=false`) y no se muestra ningún dato — se avisa y se sigue a mano.
@@ -246,7 +246,7 @@ Colores y tipografía sacados de los archivos reales del paquete de marca (`OneD
 
 **Almacenamiento:** bucket privado `documentos-clientes` en Supabase Storage (nunca público), carpeta `clientes/{cliente_id}/rut/{timestamp}-{archivo}`. Tabla `documentos` registra quién subió cada archivo y cuándo (`subido_por`, `subido_en`), y quién confirmó los datos extraídos (`confirmado_por`, `confirmado_en`). RLS con el mismo criterio permisivo del resto del sistema (ver nota de RLS arriba).
 
-**Costo:** ~$0.0008 USD por RUT leído con `gpt-4o-mini` (3.000-4.000 tokens de entrada, ~400 de salida, a $0.15/$0.60 por millón de tokens — precios oficiales verificados en developers.openai.com/api/docs/pricing). Con 10-15 proyectos al año, costo anual despreciable. El costo real de cada lectura queda guardado en `documentos.costo_estimado_usd` para tener el dato, no solo la estimación.
+**Costo (histórico, con OpenAI):** ~$0.0008 USD por RUT leído con `gpt-4o-mini` (3.000-4.000 tokens de entrada, ~400 de salida, a $0.15/$0.60 por millón de tokens — precios oficiales verificados en developers.openai.com/api/docs/pricing). Con 10-15 proyectos al año, costo anual despreciable. El costo real de cada lectura queda guardado en `documentos.costo_estimado_usd` para tener el dato, no solo la estimación.
 
 **Sin verificar todavía:** el comportamiento de la IA con un RUT de persona natural (documento con estructura algo distinta al de persona jurídica) no se probó contra un ejemplo real — el esquema contempla el campo `tipo_contribuyente`, pero conviene confirmar con el primer RUT de persona natural que se cargue.
 

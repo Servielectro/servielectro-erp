@@ -29,10 +29,12 @@ Completar `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` co
 
 > **Nombres unificados:** en el código y en `.env` siempre se usa `PUBLISHABLE_KEY` (nunca `ANON_KEY`), siguiendo el renombre que hizo Supabase. Si en el dashboard de Supabase todavía aparece como "anon" / "public", es la misma clave.
 
-### OpenAI (lectura automática del RUT) — la carga Jhojan, nadie más
+### Gemini (IA: lectura del RUT y descripción de equipos) — la carga Jhojan, nadie más
 
-1. En `.env.local` (el archivo ya creado en el paso anterior), agregar la línea `OPENAI_API_KEY=sk-...` con su clave real de OpenAI (la misma cuenta que ya usa en n8n).
-2. **Ojo:** el nombre es exactamente `OPENAI_API_KEY`, **sin** `NEXT_PUBLIC_` adelante — si tuviera ese prefijo quedaría expuesta en el navegador. El código ya está escrito para que nunca se use del lado del cliente.
+El ERP usa un solo proveedor de IA, Google Gemini (licencia de Google AI Studio de Jhojan), con una sola clave.
+
+1. En `.env.local` (el archivo ya creado en el paso anterior), agregar la línea `GEMINI_API_KEY=...` con la clave de Google AI Studio.
+2. **Ojo:** el nombre es exactamente `GEMINI_API_KEY`, **sin** `NEXT_PUBLIC_` adelante — si tuviera ese prefijo quedaría expuesta en el navegador. El código ya está escrito para que nunca se use del lado del cliente.
 3. `.env.local` no se sube a git (está en `.gitignore`), así que la clave no queda en ningún commit ni la ve nadie más que abra el repo.
 
 ## 3. Crear el primer usuario
@@ -56,12 +58,12 @@ vercel
 
 (la PC ya tiene Vercel autenticado). Agregar las mismas variables de entorno (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`) en el proyecto de Vercel, en Settings → Environment Variables.
 
-### Cargar la clave de OpenAI en Vercel (pasos exactos para Jhojan)
+### Cargar la clave de Gemini en Vercel (pasos exactos para Jhojan)
 
 1. Entrar a https://vercel.com/servielectrobogota-3155/servielectro-erp/settings/environment-variables (o Settings → Environment Variables desde el proyecto).
 2. Tocar **Add New**.
-3. **Key:** `OPENAI_API_KEY` (exacto, sin espacios, sin `NEXT_PUBLIC_`).
-4. **Value:** pegar la clave de OpenAI (empieza con `sk-...`).
+3. **Key:** `GEMINI_API_KEY` (exacto, sin espacios, sin `NEXT_PUBLIC_`).
+4. **Value:** pegar la clave de Google AI Studio.
 5. **Environment:** marcar **Production** (y Preview si se va a probar antes de promover a producción).
 6. Guardar, y volver a desplegar (`vercel deploy --prod`) para que el cambio de variable de entorno tome efecto — Vercel no reinicia solo los deploys existentes cuando cambia una variable.
 

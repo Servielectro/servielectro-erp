@@ -1,21 +1,23 @@
 import "server-only";
-import OpenAI from "openai";
-import { zodTextFormat } from "openai/helpers/zod";
+import { z } from "zod";
 import {
   RutExtraidoSchema,
   INSTRUCCIONES_EXTRACCION_RUT,
   type RutExtraido,
 } from "./rut-schema";
 import { validarNit } from "@/lib/nit";
+import { generarConGemini } from "@/lib/ia/gemini";
 
-// Modelo económico por defecto — ver docs/ERP-Servielectro-Modulo1-Proyectos.md §14
-// para el estimado de costo (~$0.001 USD por RUT). gpt-4o-mini soporta PDF nativo
-// (input_file) e imágenes (input_image) con salida estructurada (Structured Outputs).
-const MODELO = "gpt-4o-mini";
-
-// Precios oficiales de OpenAI por millón de tokens (verificado en developers.openai.com/api/docs/pricing).
-const PRECIO_INPUT_POR_MILLON = 0.15;
-const PRECIO_OUTPUT_POR_MILLON = 0.6;
+// Lectura del RUT con Google Gemini (antes OpenAI): mismo proveedor y misma clave que
+// la descripción de equipos (GEMINI_API_KEY), cubierto por la licencia de Google AI
+// Studio de Jhojan. Gemini lee PDF e imagen nativamente y devuelve JSON con el esquema
+// que se le pasa; igual se valida con Zod antes de usarlo.
+//
+// Costo de referencia de gemini-2.5-flash por millón de tokens (precio de pago por uso
+// de Google; con la licencia de Jhojan se descuenta de sus créditos): entrada $0.30,
+// salida $2.50. Se guarda una estimación en documentos.costo_estimado_usd.
+const PRECIO_INPUT_POR_MILLON = 0.3;
+const PRECIO_OUTPUT_POR_MILLON = 2.5;
 
 export interface ResultadoExtraccionRut {
   extraccion: RutExtraido;
@@ -37,66 +39,72 @@ function mimeDesdeNombre(nombreArchivo: string): string {
   return "application/octet-stream";
 }
 
+// El mismo esquema Zod de siempre, convertido a JSON Schema para pedirle a Gemini la
+// respuesta con esa forma exacta ($schema sobra para la API).
+const ESQUEMA_JSON = (() => {
+  const { $schema: _omitido, ...resto } = z.toJSONSchema(RutExtraidoSchema) as Record<string, unknown>;
+  void _omitido;
+  return resto;
+})();
+
 /**
- * Extrae los datos de un RUT (PDF o foto) usando OpenAI, con salida estructurada
- * y verificada. NUNCA se llama desde el navegador — la API key vive solo acá.
+ * Extrae los datos de un RUT (PDF o foto) con Gemini, con salida estructurada y
+ * verificada. NUNCA se llama desde el navegador — la API key vive solo acá. Lo que
+ * devuelve se muestra campo por campo para confirmar antes de guardar.
  */
 export async function extraerRut(
   archivoBuffer: Buffer,
   nombreArchivo: string,
 ): Promise<ResultadoExtraccionRut> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error(
-      "OPENAI_API_KEY no está configurada en el servidor. No se puede leer el RUT automáticamente.",
-    );
-  }
-
-  const openai = new OpenAI({ apiKey });
   const mime = mimeDesdeNombre(nombreArchivo);
-  const base64 = archivoBuffer.toString("base64");
-  const esImagen = mime.startsWith("image/");
-
-  const contenidoArchivo = esImagen
-    ? {
-        type: "input_image" as const,
-        image_url: `data:${mime};base64,${base64}`,
-        detail: "high" as const,
-      }
-    : {
-        type: "input_file" as const,
-        filename: nombreArchivo,
-        file_data: `data:${mime};base64,${base64}`,
-      };
-
-  const response = await openai.responses.parse({
-    model: MODELO,
-    input: [
-      {
-        role: "system",
-        content: INSTRUCCIONES_EXTRACCION_RUT,
-      },
-      {
-        role: "user",
-        content: [
-          contenidoArchivo,
-          {
-            type: "input_text",
-            text: "Extraé los datos de este documento según el esquema.",
-          },
-        ],
-      },
-    ],
-    text: { format: zodTextFormat(RutExtraidoSchema, "rut_extraido") },
-  });
-
-  const extraccion = response.output_parsed;
-  if (!extraccion) {
-    throw new Error("OpenAI no devolvió una extracción válida para este documento.");
+  if (mime === "application/octet-stream") {
+    throw new Error("Formato no soportado: sube el RUT en PDF o como foto (JPG, PNG o WEBP).");
   }
 
-  const tokensEntrada = response.usage?.input_tokens ?? 0;
-  const tokensSalida = response.usage?.output_tokens ?? 0;
+  const archivo = { inline_data: { mime_type: mime, data: archivoBuffer.toString("base64") } };
+  const pedir = (conEsquemaEstructurado: boolean) =>
+    generarConGemini({
+      para: "leer el RUT",
+      instrucciones: conEsquemaEstructurado
+        ? INSTRUCCIONES_EXTRACCION_RUT
+        : `${INSTRUCCIONES_EXTRACCION_RUT}\n\nRespondé SOLO con un objeto JSON que cumpla exactamente este JSON Schema:\n${JSON.stringify(ESQUEMA_JSON)}`,
+      partes: [archivo, { text: "Extraé los datos de este documento según el esquema." }],
+      configuracion: {
+        temperature: 0,
+        responseMimeType: "application/json",
+        ...(conEsquemaEstructurado ? { responseJsonSchema: ESQUEMA_JSON } : {}),
+      },
+      // Un PDF escaneado tarda más que una búsqueda corta; igual tiene tope.
+      timeoutMs: 60_000,
+    });
+
+  // Plan B: si la API rechazara el esquema estructurado, se pide el JSON con el esquema
+  // en las instrucciones. En ambos casos lo valida el mismo esquema Zod de abajo.
+  let respuesta: Awaited<ReturnType<typeof pedir>>;
+  try {
+    respuesta = await pedir(true);
+  } catch (e) {
+    if (e instanceof Error && /schema|json_schema|Invalid JSON payload/i.test(e.message)) {
+      console.error("Gemini rechazó el esquema estructurado; reintento con el esquema en el prompt:", e.message);
+      respuesta = await pedir(false);
+    } else {
+      throw e;
+    }
+  }
+
+  let crudo: unknown;
+  try {
+    crudo = JSON.parse(respuesta.texto);
+  } catch {
+    throw new Error("Gemini no devolvió una extracción válida para este documento.");
+  }
+  const validado = RutExtraidoSchema.safeParse(crudo);
+  if (!validado.success) {
+    throw new Error("Gemini devolvió datos que no cumplen el formato esperado del RUT.");
+  }
+  const extraccion = validado.data;
+
+  const { tokensEntrada, tokensSalida } = respuesta;
   const costoEstimadoUsd =
     (tokensEntrada / 1_000_000) * PRECIO_INPUT_POR_MILLON +
     (tokensSalida / 1_000_000) * PRECIO_OUTPUT_POR_MILLON;
