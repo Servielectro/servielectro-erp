@@ -47,6 +47,9 @@ export const RutExtraidoSchema = z.object({
   departamento: campoTexto().describe("Departamento de domicilio"),
   correo: campoTexto().describe("Correo electrónico"),
   telefono: campoTexto().describe("Teléfono o celular de contacto"),
+  representante_legal: campoTexto().describe(
+    "Nombres y apellidos completos del representante legal principal, de la sección 'Representación' del RUT (casilla 98 = tipo de representación; los apellidos y nombres van en las casillas que siguen). null si el documento no tiene representante (ej. persona natural).",
+  ),
   responsabilidades: z.object({
     codigos: z
       .array(z.string())
@@ -82,4 +85,5 @@ Reglas estrictas:
    - "no_legible": no se puede leer con ninguna confianza razonable. En este caso el valor DEBE ser null — no adivines un valor solo para llenar el campo.
 3. El NIT (casilla 5) y el DV (casilla 6) son los campos más críticos — un solo dígito mal leído invalida todo. Si tenés cualquier duda sobre un dígito del NIT o del DV, marcá confianza "media" o "baja", nunca "alta".
 4. Para responsabilidades (casilla 53): listá TODOS los códigos de 2 dígitos que veas en esa tabla, no solo el 48/49. responsable_iva es true únicamente si ves el código 48 explícitamente, false si ves 49 y no 48, null si la casilla no es legible.
-5. Si el documento está torcido, girado o es una foto de baja calidad, hacé tu mejor esfuerzo pero reflejalo en confianza y en observaciones — no ocultes la dificultad.`;
+5. Si el documento está torcido, girado o es una foto de baja calidad, hacé tu mejor esfuerzo pero reflejalo en confianza y en observaciones — no ocultes la dificultad.
+6. Representante legal: tomalo de la sección "Representación" (el representante legal principal), con nombres y apellidos completos. Si el RUT no trae representación (es común en persona natural), valor null.`;

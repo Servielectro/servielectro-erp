@@ -11,6 +11,7 @@ import {
   nombreSeguro,
 } from "@/lib/rrhh";
 import { crearPlantilla, enlaceDescarga, publicarVersion } from "./actions";
+import { SelectorArchivo } from "@/components/SelectorArchivo";
 
 export interface PlantillaUI {
   id: string;
@@ -202,14 +203,13 @@ function NuevaVersion({
     <details className="mt-2 rounded-md bg-slate-50 p-2">
       <summary className="cursor-pointer text-xs font-medium text-slate-700">{etiqueta}</summary>
       <div className="mt-2 space-y-2">
-        <input
-          type="file"
-          onChange={(e) => {
-            const f = e.target.files?.[0] ?? null;
+        <SelectorArchivo
+          etiqueta="Elegir archivo .docx"
+          archivo={archivo}
+          onElegir={(f) => {
             setArchivo(f);
             setError(f ? validarArchivo(f) : null);
           }}
-          className="block w-full text-sm"
         />
         <input
           value={notas}
@@ -267,14 +267,13 @@ function NuevaPlantilla({
           </option>
         ))}
       </select>
-      <input
-        type="file"
-        onChange={(e) => {
-          const f = e.target.files?.[0] ?? null;
+      <SelectorArchivo
+        etiqueta="Elegir archivo .docx"
+        archivo={archivo}
+        onElegir={(f) => {
           setArchivo(f);
           setError(f ? validarArchivo(f) : null);
         }}
-        className="block w-full text-sm"
       />
       <input
         value={notas}

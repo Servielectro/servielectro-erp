@@ -39,6 +39,9 @@ export function NuevoClienteModal({
   const [email, setEmail] = useState("");
   const [telefono, setTelefono] = useState("");
   const [contacto, setContacto] = useState("");
+  // Responsable de IVA: lo dice el RUT de ESTE cliente (casilla 53, código 48). Sin RUT,
+  // se marca a mano; nunca se deduce por el tipo de cliente.
+  const [responsableIva, setResponsableIva] = useState<"" | "si" | "no">("");
   const [rut, setRut] = useState<{ campos: CamposConfirmadosRut; archivo: RutLeidoSinCliente } | null>(null);
   const [leyendoRut, setLeyendoRut] = useState(false);
   const [ubicacion, setUbicacion] = useState<UbicacionCliente | null>(null);
@@ -85,7 +88,17 @@ export function NuevoClienteModal({
     }
     setGuardando(true);
     setError(null);
-    const res = await crearCliente({ nombre, nit, direccion, email, contacto, telefono, rut, ubicacion });
+    const res = await crearCliente({
+      nombre,
+      nit,
+      direccion,
+      email,
+      contacto,
+      telefono,
+      rut,
+      ubicacion,
+      responsableIva: responsableIva === "" ? null : responsableIva === "si",
+    });
     setGuardando(false);
     if (!res.ok) {
       setError(res.error);
@@ -105,6 +118,8 @@ export function NuevoClienteModal({
           if (campos.direccion) setDireccion(campos.direccion);
           if (campos.correo) setEmail(campos.correo);
           if (campos.telefono) setTelefono(campos.telefono);
+          if (campos.representanteLegal) setContacto(campos.representanteLegal);
+          setResponsableIva(campos.responsableIva === null ? "" : campos.responsableIva ? "si" : "no");
           setRut({ campos, archivo });
           setLeyendoRut(false);
         }}
@@ -152,11 +167,31 @@ export function NuevoClienteModal({
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={campo} />
             </label>
             <label className={etiqueta}>
-              Persona de contacto (opcional)
+              Persona de contacto (opcional; con RUT, el representante legal)
               <input value={contacto} onChange={(e) => setContacto(e.target.value)} placeholder="Ej. Administradora" className={campo} />
             </label>
           </div>
         </div>
+
+        <label className={`${etiqueta} mt-2.5 md:mt-3`}>
+          ¿Responsable de IVA?
+          <select
+            value={responsableIva}
+            onChange={(e) => setResponsableIva(e.target.value as "" | "si" | "no")}
+            className={campo}
+          >
+            <option value="">No se sabe</option>
+            <option value="si">Sí (código 48 en el RUT)</option>
+            <option value="no">No</option>
+          </select>
+          {rut && (
+            <span className="mt-1 block text-xs font-normal text-slate-500">
+              Leído del RUT
+              {rut.campos.responsabilidades.length > 0 &&
+                ` — responsabilidades (casilla 53): ${rut.campos.responsabilidades.join(", ")}`}
+            </span>
+          )}
+        </label>
 
         {/* ---- Atajos opcionales: RUT y ubicación ---- */}
         <div className="mt-4 space-y-2 rounded-lg bg-slate-50 p-3">

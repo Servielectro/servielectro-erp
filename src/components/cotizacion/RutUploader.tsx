@@ -111,6 +111,8 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado, onLeidoClie
         telefono: valorSiConfianza(e.telefono),
         tipoContribuyente: e.tipo_contribuyente,
         responsableIva: e.responsabilidades.responsable_iva,
+        representanteLegal: valorSiConfianza(e.representante_legal),
+        responsabilidades: e.responsabilidades.codigos,
       },
     });
   }
@@ -292,6 +294,12 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado, onLeidoClie
                   valor={estado.campos.telefono}
                   confianza={estado.resultado.extraccion.telefono.confianza}
                   onChange={(v) => actualizarCampo("telefono", v)}
+                />
+                <CampoRevision
+                  label="Representante legal (va como persona de contacto)"
+                  valor={estado.campos.representanteLegal}
+                  confianza={estado.resultado.extraccion.representante_legal.confianza}
+                  onChange={(v) => actualizarCampo("representanteLegal", v)}
                 />
 
                 <div>

@@ -141,6 +141,8 @@ export interface CamposConfirmadosRut {
   telefono: string;
   tipoContribuyente: "NATURAL" | "JURIDICA" | null;
   responsableIva: boolean | null;
+  representanteLegal: string;
+  responsabilidades: string[]; // códigos crudos de la casilla 53
 }
 
 /**
@@ -170,6 +172,7 @@ export async function confirmarRut(
       departamento: campos.departamento || null,
       email: campos.correo || null,
       telefono: campos.telefono || null,
+      ...(campos.representanteLegal ? { contacto: campos.representanteLegal } : {}),
       tipo_contribuyente: campos.tipoContribuyente,
       responsable_iva: campos.responsableIva,
       nombre: campos.razonSocial || undefined,

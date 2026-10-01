@@ -35,6 +35,7 @@ export async function crearCliente(input: {
   telefono: string;
   rut?: { campos: CamposConfirmadosRut; archivo: RutLeidoSinCliente } | null;
   ubicacion?: { latitud: number; longitud: number; precisionM: number | null } | null;
+  responsableIva?: boolean | null;
 }): Promise<
   { ok: true; cliente: ClienteResumen; yaExistia: boolean } | { ok: false; error: string }
 > {
@@ -78,20 +79,28 @@ export async function crearCliente(input: {
             municipio: input.rut.campos.municipio || null,
             departamento: input.rut.campos.departamento || null,
             tipo_contribuyente: input.rut.campos.tipoContribuyente,
-            responsable_iva: input.rut.campos.responsableIva,
           }
         : {}),
+      // Lo que quedó en el formulario (leído del RUT o marcado a mano).
+      responsable_iva: input.responsableIva ?? null,
   };
+  // Códigos crudos de la casilla 53 (migración 39): opcionales.
+  const columnasRut =
+    input.rut && input.rut.campos.responsabilidades.length > 0
+      ? { responsabilidades_rut: input.rut.campos.responsabilidades }
+      : {};
 
   let { data, error } = await supabase
     .from("clientes")
-    .insert({ ...fila, ...columnasUbicacion })
+    .insert({ ...fila, ...columnasUbicacion, ...columnasRut })
     .select(COLUMNAS)
     .single();
   // Si la migración 32 (columnas de ubicación) no se corrió, el cliente se guarda igual
   // sin la ubicación: no se pierde el alta por eso.
-  if (error && ubicacionValida && /latitud|longitud|ubicacion/.test(error.message)) {
-    console.error("Ubicación no guardada (¿falta la migración 32?):", error.message);
+  // Si falta alguna migración de columnas opcionales (32 ubicación, 39 responsabilidades),
+  // el cliente se guarda igual sin ellas: no se pierde el alta por eso.
+  if (error && /latitud|longitud|ubicacion|responsabilidades_rut/.test(error.message)) {
+    console.error("Columnas opcionales no guardadas (¿falta la migración 32 o 39?):", error.message);
     ({ data, error } = await supabase.from("clientes").insert(fila).select(COLUMNAS).single());
   }
 
