@@ -4,7 +4,7 @@ import { ReiniciarInactividad } from "./ReiniciarInactividad";
 import { destinoSeguro } from "@/lib/inactividad";
 
 export default async function LoginPage(props: PageProps<"/login">) {
-  const { error, next, motivo } = await props.searchParams;
+  const { error, next } = await props.searchParams;
   const destino = destinoSeguro(Array.isArray(next) ? next[0] : next);
 
   return (
@@ -29,13 +29,6 @@ export default async function LoginPage(props: PageProps<"/login">) {
 
         <ReiniciarInactividad />
         <input type="hidden" name="next" value={destino} />
-
-        {motivo === "inactividad" && !error && (
-          <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            La sesión se cerró por inactividad. Al entrar vuelves a la pantalla
-            donde estabas; si era una cotización, el borrador quedó guardado.
-          </p>
-        )}
 
         {error && (
           <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">

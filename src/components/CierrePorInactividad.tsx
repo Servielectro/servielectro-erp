@@ -47,7 +47,7 @@ export function CierrePorInactividad() {
     // cookie de sesión viva), se cierra de una — abrir la app no cuenta como volver.
     const guardada = leerUltimaActividad();
     if (guardada && Date.now() - guardada >= limiteMs()) {
-      void cerrarSesion(cerrando, "inactividad");
+      void cerrarSesion(cerrando);
       return;
     }
     ultimaLocal.current = guardada ?? Date.now();
@@ -71,7 +71,7 @@ export function CierrePorInactividad() {
       const ultima = Math.max(ultimaLocal.current, leerUltimaActividad() ?? 0);
       const restante = limiteMs() - (Date.now() - ultima);
       if (restante <= 0) {
-        void cerrarSesion(cerrando, "inactividad");
+        void cerrarSesion(cerrando);
       } else if (restante <= AVISO_ANTES_MS) {
         avisoActivo.current = true;
         setRestanteMs(restante);
@@ -146,7 +146,7 @@ export function CierrePorInactividad() {
           </button>
           <button
             type="button"
-            onClick={() => void cerrarSesion(cerrando, null)}
+            onClick={() => void cerrarSesion(cerrando)}
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700"
           >
             Cerrar sesión ahora
@@ -157,10 +157,7 @@ export function CierrePorInactividad() {
   );
 }
 
-async function cerrarSesion(
-  cerrando: { current: boolean },
-  motivo: "inactividad" | null,
-) {
+async function cerrarSesion(cerrando: { current: boolean }) {
   if (cerrando.current) return;
   cerrando.current = true;
 
@@ -190,8 +187,9 @@ async function cerrarSesion(
   }
   reiniciarUltimaActividad();
 
+  // Sin mensaje ni marca de "inactividad" (pedido de Jhojan): solo la pantalla de login
+  // limpia. `next` no muestra nada; solo devuelve a donde estaba al volver a entrar.
   const params = new URLSearchParams({ next: destino });
-  if (motivo) params.set("motivo", motivo);
   // Navegación completa (no router.push): descarta de memoria todo lo que había en pantalla.
   window.location.replace(`/login?${params}`);
 }
