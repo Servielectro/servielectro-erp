@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { crearItemCatalogo } from "@/app/(app)/comercial/cotizaciones/actions";
 import { describirEquipoConIA } from "@/app/(app)/comercial/cotizaciones/ia-actions";
 import {
@@ -45,39 +45,48 @@ export function NuevoItemModal({
   const [buscandoIa, setBuscandoIa] = useState(false);
   const [avisoIa, setAvisoIa] = useState<string | null>(null);
   const [fuentesIa, setFuentesIa] = useState<string[]>([]);
-  // Falta la referencia: el aviso va junto al campo Referencia (no arriba, lejos del
-  // problema) y el foco salta a ese campo.
-  const [faltaReferencia, setFaltaReferencia] = useState(false);
-  const referenciaRef = useRef<HTMLInputElement>(null);
+  // Ventana "Buscar con IA": pide la referencia en un solo campo. Jhojan escribía el
+  // modelo en el nombre del ítem y el botón no hacía nada visible; ahora la ventana se
+  // precarga con la Referencia o, si está vacía, con el nombre que escribió.
+  const [ventanaIa, setVentanaIa] = useState(false);
+  const [referenciaIa, setReferenciaIa] = useState("");
+  const [errorIa, setErrorIa] = useState<string | null>(null);
+
+  function abrirVentanaIa() {
+    setReferenciaIa(referencia.trim() || nombreCorto.trim());
+    setErrorIa(null);
+    setVentanaIa(true);
+  }
 
   async function buscarDescripcion() {
-    if (!referencia.trim()) {
-      setFaltaReferencia(true);
-      referenciaRef.current?.focus();
-      referenciaRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    const ref = referenciaIa.trim();
+    if (!ref) {
+      setErrorIa("Escribe la referencia o el modelo del equipo.");
       return;
     }
-    setFaltaReferencia(false);
     setBuscandoIa(true);
-    setAvisoIa(null);
-    setFuentesIa([]);
+    setErrorIa(null);
 
     const res = await describirEquipoConIA({
       nombre: nombreCorto,
-      referencia,
+      referencia: ref,
       categoria,
     });
 
     setBuscandoIa(false);
 
     if (!res.ok) {
-      setAvisoIa(res.error);
+      // El error queda en la ventana, con la referencia escrita, para reintentar.
+      setErrorIa(res.error);
       return;
     }
 
     setDescripcion(res.descripcion);
     setFuentesIa(res.fuentes);
+    // La referencia buscada queda en el ítem (y en el catálogo al guardar).
+    setReferencia(ref);
     setAvisoIa("Léela antes de guardar. Puedes corregirla.");
+    setVentanaIa(false);
   }
 
   async function guardar() {
@@ -173,11 +182,11 @@ export function NuevoItemModal({
                   motivo, sí. */}
               <button
                 type="button"
-                onClick={buscarDescripcion}
+                onClick={abrirVentanaIa}
                 disabled={!esEquipo || buscandoIa || guardando}
                 className="shrink-0 text-sm font-medium text-[#A82323] underline underline-offset-2 disabled:cursor-not-allowed disabled:text-slate-400 disabled:no-underline"
               >
-                {buscandoIa ? <EsperaIA texto="Buscando…" /> : "Buscar con IA"}
+                Buscar con IA
               </button>
             </div>
             {!esEquipo && (
@@ -192,9 +201,9 @@ export function NuevoItemModal({
               onChange={(e) => setDescripcion(e.target.value)}
               className="mt-1 w-full resize-y rounded-md border border-slate-300 bg-white/90 px-3 py-2.5 text-base"
             />
-            {esEquipo && !avisoIa && !buscandoIa && (
+            {esEquipo && !avisoIa && (
               <p className="mt-1 text-xs text-slate-500">
-                Escribe la referencia abajo y toca «Buscar con IA» para traer las
+                Toca «Buscar con IA», escribe la referencia o el modelo y trae las
                 características del equipo.
               </p>
             )}
@@ -292,22 +301,10 @@ export function NuevoItemModal({
                 Referencia
               </label>
               <input
-                ref={referenciaRef}
                 value={referencia}
-                onChange={(e) => {
-                  setReferencia(e.target.value);
-                  if (e.target.value.trim()) setFaltaReferencia(false);
-                }}
-                aria-invalid={faltaReferencia}
-                className={`mt-1 w-full rounded-md border bg-white/90 px-3 py-2.5 text-base ${
-                  faltaReferencia ? "border-red-500 ring-2 ring-red-200" : "border-slate-300"
-                }`}
+                onChange={(e) => setReferencia(e.target.value)}
+                className="mt-1 w-full rounded-md border border-slate-300 bg-white/90 px-3 py-2.5 text-base"
               />
-              {faltaReferencia && (
-                <p className="mt-1 text-xs font-medium text-red-700">
-                  Escribe aquí la referencia del equipo (ej. DS-2CD2143G2-I) para buscarlo con IA.
-                </p>
-              )}
             </div>
           </div>
         </div>
@@ -331,6 +328,65 @@ export function NuevoItemModal({
           </button>
         </div>
       </div>
+      {ventanaIa && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!buscandoIa) buscarDescripcion();
+            }}
+            className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
+          >
+            <h3 className="text-base font-semibold text-slate-900">Buscar equipo con IA</h3>
+            <label htmlFor="referencia-ia" className="mt-3 block text-sm font-medium text-slate-700">
+              Referencia o modelo del equipo
+            </label>
+            <input
+              id="referencia-ia"
+              autoFocus
+              value={referenciaIa}
+              onChange={(e) => setReferenciaIa(e.target.value)}
+              onFocus={(e) => e.target.select()}
+              disabled={buscandoIa}
+              enterKeyHint="search"
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-3 text-base"
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Ej.: DS-2CD2043G2-I · TC-C34GS · DHI-NVR5208-4KS2
+            </p>
+
+            {buscandoIa && (
+              <p className="mt-3 text-sm text-slate-700">
+                <EsperaIA texto="Buscando la ficha del equipo…" />
+              </p>
+            )}
+            {errorIa && !buscandoIa && (
+              <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{errorIa}</p>
+            )}
+
+            <div className="mt-4 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setVentanaIa(false)}
+                disabled={buscandoIa}
+                className="flex-1 rounded-md border border-slate-300 px-4 py-3 text-base font-medium text-slate-700 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={buscandoIa || !referenciaIa.trim()}
+                className="flex-1 rounded-md bg-[#A82323] px-4 py-3 text-base font-medium text-white disabled:opacity-50"
+              >
+                {errorIa ? "Reintentar" : "Buscar"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
