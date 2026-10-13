@@ -1135,6 +1135,20 @@ export function CotizacionBuilder({
           {avanzadoAbierto ? "▾" : "▸"} Configuración avanzada (AIU / gastos)
         </button>
 
+        {lineas.length > 0 &&
+          !(
+            Number.isFinite(totales.factorRecargoProyecto) &&
+            totales.factorRecargoProyecto > 0 &&
+            totales.factorRecargoProyecto <= 1
+          ) && (
+            <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">
+              <span className="font-semibold">El Cálculo no se puede sacar con estos porcentajes.</span>{" "}
+              El factor de recargo dio {totales.factorRecargoProyecto.toPrecision(4)}, fuera de
+              rango. Revisá la Configuración avanzada: algún porcentaje quedó demasiado alto
+              (por ejemplo &quot;Admin de gastos&quot; debe ser 14, no 1400).
+            </div>
+          )}
+
         {avanzadoAbierto && (
           <div className="space-y-2 rounded-md bg-slate-100 p-3 text-sm">
             <div className="grid grid-cols-2 gap-2">
@@ -1424,27 +1438,40 @@ export function CotizacionBuilder({
   );
 }
 
+/**
+ * Porcentaje que se escribe como se lee: "14" es 14 %. Por dentro se guarda como
+ * fracción (0.14), que es lo que usa el motor de precios. Antes el campo mostraba y
+ * pedía la fracción con una etiqueta "%": escribir 14 daba 1400 % y el Cálculo en 0.
+ */
 function CampoPct({
   label,
   value,
   onChange,
-  step = 0.01,
 }: {
   label: string;
   value: number;
   onChange: (v: number) => void;
-  step?: number;
 }) {
+  // Texto mientras se escribe ("13," o "13.5" a medias); si el valor cambia por fuera
+  // (borrador, cotización nueva), se muestra el valor.
+  const [texto, setTexto] = useState<string | null>(null);
+  const aNumero = (t: string) => (Number(t.replace(",", ".")) || 0) / 100;
+  const mostrado =
+    texto !== null && Math.abs(aNumero(texto) - value) < 1e-9
+      ? texto
+      : String(Math.round(value * 100 * 10000) / 10000);
   return (
     <div>
       <label className="text-xs text-slate-600">{label}</label>
       <input
-        type="number"
-        step={step}
+        type="text"
         inputMode="decimal"
-        value={value}
+        value={mostrado}
         onFocus={(e) => e.target.select()}
-        onChange={(e) => onChange(Number(e.target.value) || 0)}
+        onChange={(e) => {
+          setTexto(e.target.value);
+          onChange(aNumero(e.target.value));
+        }}
         className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-2 text-sm"
       />
     </div>
