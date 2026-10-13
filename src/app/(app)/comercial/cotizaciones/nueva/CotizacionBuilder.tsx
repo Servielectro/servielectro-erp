@@ -341,7 +341,23 @@ export function CotizacionBuilder({
         setClienteTelefono(draft.clienteTelefono ?? "");
         setComercial(draft.comercial ?? "");
         setDescripcion(draft.descripcion ?? "");
-        setConfig(draft.config ?? CONFIG_PRECIO_DEFAULT);
+        // Campo por campo contra el default: borradores viejos (la primera versión del
+        // armador) no traen pctRenta/icaPorMil ni los gastos internos, y un undefined deja
+        // el factor de recargo en NaN y el Cálculo en 0. Renta e ICA son tasas fijas de la
+        // empresa: siempre del default, nunca del borrador.
+        const guardada = (draft.config ?? {}) as Partial<ConfigPrecio>;
+        const numero = (v: unknown, def: number) =>
+          typeof v === "number" && Number.isFinite(v) ? v : def;
+        setConfig({
+          pctAdmin: numero(guardada.pctAdmin, CONFIG_PRECIO_DEFAULT.pctAdmin),
+          pctImprevistos: numero(guardada.pctImprevistos, CONFIG_PRECIO_DEFAULT.pctImprevistos),
+          pctUtilidadAiu: numero(guardada.pctUtilidadAiu, CONFIG_PRECIO_DEFAULT.pctUtilidadAiu),
+          pctAdminGasto: numero(guardada.pctAdminGasto, CONFIG_PRECIO_DEFAULT.pctAdminGasto),
+          pctComision: numero(guardada.pctComision, CONFIG_PRECIO_DEFAULT.pctComision),
+          pctRenta: CONFIG_PRECIO_DEFAULT.pctRenta,
+          icaPorMil: CONFIG_PRECIO_DEFAULT.icaPorMil,
+          ivaPct: numero(guardada.ivaPct, CONFIG_PRECIO_DEFAULT.ivaPct),
+        });
         setEsquemaIva(draft.config?.esquemaIva ?? "IVA_FULL");
         setLineas(draft.lineas);
         setHitos(draft.hitos ?? []);
