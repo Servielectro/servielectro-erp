@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { crearItemCatalogo } from "@/app/(app)/comercial/cotizaciones/actions";
 import { describirEquipoConIA } from "@/app/(app)/comercial/cotizaciones/ia-actions";
 import {
@@ -45,12 +45,19 @@ export function NuevoItemModal({
   const [buscandoIa, setBuscandoIa] = useState(false);
   const [avisoIa, setAvisoIa] = useState<string | null>(null);
   const [fuentesIa, setFuentesIa] = useState<string[]>([]);
+  // Falta la referencia: el aviso va junto al campo Referencia (no arriba, lejos del
+  // problema) y el foco salta a ese campo.
+  const [faltaReferencia, setFaltaReferencia] = useState(false);
+  const referenciaRef = useRef<HTMLInputElement>(null);
 
   async function buscarDescripcion() {
     if (!referencia.trim()) {
-      setAvisoIa("Escribe la referencia del equipo para poder buscarla.");
+      setFaltaReferencia(true);
+      referenciaRef.current?.focus();
+      referenciaRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
       return;
     }
+    setFaltaReferencia(false);
     setBuscandoIa(true);
     setAvisoIa(null);
     setFuentesIa([]);
@@ -162,17 +169,22 @@ export function NuevoItemModal({
               <label className="text-sm font-medium text-slate-700">
                 Descripción para el cliente
               </label>
-              {esEquipo && (
-                <button
-                  type="button"
-                  onClick={buscarDescripcion}
-                  disabled={buscandoIa || guardando}
-                  className="text-sm font-medium text-[#A82323] underline underline-offset-2 disabled:opacity-50"
-                >
-                  {buscandoIa ? <EsperaIA texto="Buscando…" /> : "Buscar con IA"}
-                </button>
-              )}
+              {/* Siempre visible: un botón ausente no explica nada; apagado y con su
+                  motivo, sí. */}
+              <button
+                type="button"
+                onClick={buscarDescripcion}
+                disabled={!esEquipo || buscandoIa || guardando}
+                className="shrink-0 text-sm font-medium text-[#A82323] underline underline-offset-2 disabled:cursor-not-allowed disabled:text-slate-400 disabled:no-underline"
+              >
+                {buscandoIa ? <EsperaIA texto="Buscando…" /> : "Buscar con IA"}
+              </button>
             </div>
+            {!esEquipo && (
+              <p className="mt-0.5 text-right text-xs text-slate-500">
+                La búsqueda con IA solo aplica a equipos.
+              </p>
+            )}
             <textarea
               rows={3}
               value={descripcion}
@@ -280,10 +292,22 @@ export function NuevoItemModal({
                 Referencia
               </label>
               <input
+                ref={referenciaRef}
                 value={referencia}
-                onChange={(e) => setReferencia(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 bg-white/90 px-3 py-2.5 text-base"
+                onChange={(e) => {
+                  setReferencia(e.target.value);
+                  if (e.target.value.trim()) setFaltaReferencia(false);
+                }}
+                aria-invalid={faltaReferencia}
+                className={`mt-1 w-full rounded-md border bg-white/90 px-3 py-2.5 text-base ${
+                  faltaReferencia ? "border-red-500 ring-2 ring-red-200" : "border-slate-300"
+                }`}
               />
+              {faltaReferencia && (
+                <p className="mt-1 text-xs font-medium text-red-700">
+                  Escribe aquí la referencia del equipo (ej. DS-2CD2143G2-I) para buscarlo con IA.
+                </p>
+              )}
             </div>
           </div>
         </div>

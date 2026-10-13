@@ -146,8 +146,24 @@ async function llamarUnaVez(
         (disponibles.length ? ` — Modelos flash habilitados para esta clave: ${disponibles.join(", ")}` : ""),
     );
   }
-  // Clave inválida, petición mal formada, etc.: no se reintenta.
-  throw new Error(`Gemini rechazó la consulta: ${detalle}`);
+  // Clave inválida, petición mal formada, etc.: no se reintenta. Se dice en español qué
+  // falló; el detalle técnico de Google (en inglés) va al final para diagnosticar.
+  if (/API_KEY_INVALID|API key not valid/i.test(detalle) || estado === "UNAUTHENTICATED") {
+    throw new Error(
+      `La clave de IA (GEMINI_API_KEY) no es válida o venció: hay que renovarla en Vercel. Mientras tanto, hazlo a mano. (Detalle: ${detalle})`,
+    );
+  }
+  if (respuesta.status === 403 || estado === "PERMISSION_DENIED") {
+    throw new Error(
+      `La clave de IA no tiene permiso para usar Gemini (cuenta, facturación o API sin habilitar en Google). Mientras tanto, hazlo a mano. (Detalle: ${detalle})`,
+    );
+  }
+  if (respuesta.status === 400 || estado === "INVALID_ARGUMENT") {
+    throw new Error(
+      `Gemini no aceptó la consulta tal como se envió (modelo "${modelo}"). Hazlo a mano y avisa para revisarlo. (Detalle: ${detalle})`,
+    );
+  }
+  throw new Error(`Gemini rechazó la consulta (HTTP ${respuesta.status}). Hazlo a mano. (Detalle: ${detalle})`);
 }
 
 /** Hasta 4 intentos del mismo modelo (esperas ≈1 s, 3 s, 6 s) mientras esté saturado. */
