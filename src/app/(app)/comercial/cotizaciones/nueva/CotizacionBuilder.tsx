@@ -503,13 +503,36 @@ export function CotizacionBuilder({
     setNuevaPolizaNombre("");
   }
 
-  function empezarDeCero() {
-    if (
-      !window.confirm(
-        "¿Borrar el borrador actual y empezar una cotización nueva?",
+  // Hay algo que se perdería al empezar de nuevo.
+  const hayBorrador = lineas.length > 0 || Boolean(clienteNombre.trim()) || Boolean(descripcion.trim());
+
+  /**
+   * Botón "Cotización nueva": borra el borrador (el que sobrevive a un cierre inesperado)
+   * y arranca en blanco. Pide confirmación diciendo exactamente qué se pierde, para que
+   * media hora de trabajo no se vaya por un toque.
+   */
+  function pedirCotizacionNueva() {
+    if (hayBorrador) {
+      const detalle = [
+        clienteNombre.trim() ? `• Cliente: ${clienteNombre.trim()}` : null,
+        descripcion.trim() ? `• Proyecto: ${descripcion.trim()}` : null,
+        `• ${lineas.length} ${lineas.length === 1 ? "línea" : "líneas"}`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+      if (
+        !window.confirm(
+          `Se va a borrar el borrador actual (no se guardó como cotización):\n\n${detalle}\n\n¿Empezar una cotización nueva en blanco?`,
+        )
       )
-    )
-      return;
+        return;
+    }
+    empezarDeCero();
+  }
+
+  function empezarDeCero() {
+    setClienteId(null);
+    setAvisoCliente(null);
     setClienteNombre("");
     setClienteNit("");
     setClienteDireccion("");
@@ -532,6 +555,10 @@ export function CotizacionBuilder({
     try {
       window.localStorage.removeItem(DRAFT_KEY);
     } catch {}
+    // Si se había abierto con ?duplicar= u ?oportunidad=, la dirección queda limpia: al
+    // recargar no vuelve a precargar nada.
+    window.history.replaceState(null, "", "/comercial/cotizaciones/nueva");
+    window.scrollTo({ top: 0 });
   }
 
   async function onGuardar() {
@@ -746,18 +773,39 @@ export function CotizacionBuilder({
     <div className="flex min-h-screen flex-col bg-slate-50 pb-48">
       <header className="sticky top-0 z-10 border-b border-slate-200 bg-white">
         <div className="mx-auto w-full max-w-2xl p-3 sm:p-4">
-          <h1 className="text-center text-sm font-bold text-slate-900 sm:text-base">
-            Nueva cotización
-          </h1>
+          <div className="flex items-center gap-2">
+            <span className="w-28 shrink-0" />
+            <h1 className="flex-1 text-center text-sm font-bold text-slate-900 sm:text-base">
+              Nueva cotización
+            </h1>
+            <span className="flex w-28 shrink-0 justify-end">
+              {hayBorrador && (
+                <button
+                  type="button"
+                  onClick={pedirCotizacionNueva}
+                  className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 active:bg-slate-100"
+                >
+                  Cotización nueva
+                </button>
+              )}
+            </span>
+          </div>
           {restauradoDe && (
-            <p className="mt-1 text-center text-xs text-slate-500">
-              Borrador recuperado de este dispositivo (guardado a las{" "}
-              {new Date(restauradoDe).toLocaleTimeString("es-CO", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-              )
-            </p>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <span>
+                <span className="font-semibold">Retomando borrador</span> {fechaBorrador(restauradoDe)} —{" "}
+                {lineas.length} {lineas.length === 1 ? "línea" : "líneas"}
+                {clienteNombre.trim() ? ` · ${clienteNombre.trim()}` : ""}. Quedó guardado en este
+                dispositivo, no como cotización.
+              </span>
+              <button
+                type="button"
+                onClick={pedirCotizacionNueva}
+                className="shrink-0 font-semibold underline"
+              >
+                Empezar en blanco
+              </button>
+            </div>
           )}
         </div>
 
@@ -1420,4 +1468,21 @@ function FilaTotal({
       <span>{formatCOP(valor)}</span>
     </div>
   );
+}
+
+function fechaBorrador(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const hora = d.toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit" });
+  const hoy = new Date();
+  const ayer = new Date(hoy.getTime() - 86_400_000);
+  const mismoDia = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+  if (mismoDia(d, hoy)) return `de hoy a las ${hora}`;
+  if (mismoDia(d, ayer)) return `de ayer a las ${hora}`;
+  const fecha = d.toLocaleDateString("es-CO", {
+    day: "numeric",
+    month: "long",
+    ...(d.getFullYear() !== hoy.getFullYear() ? { year: "numeric" } : {}),
+  });
+  return `del ${fecha}, ${hora}`;
 }
