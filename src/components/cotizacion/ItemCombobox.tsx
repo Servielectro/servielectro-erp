@@ -12,6 +12,22 @@ function normalizar(texto: string): string {
 }
 
 const MAX_RESULTADOS = 40;
+const LARGO_DESCRIPCION = 100;
+
+/**
+ * Comienzo de la descripción larga para el tercer renglón de cada resultado: es lo que
+ * distingue ítems de nombre corto casi igual ("NVR 32CH HIK IA" / "NVR 32ch Dahua"),
+ * porque trae marca, modelo y características. Null si no hay o si repite el nombre corto.
+ */
+function inicioDescripcion(item: CatalogoItem): string | null {
+  const desc = (item.descripcion ?? "").replace(/\s+/g, " ").trim();
+  if (!desc) return null;
+  const comparable = (t: string) => normalizar(t).replace(/\s+/g, " ").trim();
+  if (comparable(desc) === comparable(item.nombreCorto)) return null;
+  return desc.length > LARGO_DESCRIPCION
+    ? `${desc.slice(0, LARGO_DESCRIPCION).trimEnd()}…`
+    : desc;
+}
 
 const CATEGORIA_CORTA: Record<Categoria, string> = {
   EQUIPO: "Equipo",
@@ -43,13 +59,19 @@ export function ItemCombobox({
   // línea se puede mover de sección después. Los de la sección actual salen primero.
   const resultados = useMemo(() => {
     const q = normalizar(query.trim());
+    // Primero los que coinciden por nombre, código o referencia; después los que solo
+    // coinciden por la descripción larga (marca, modelo), que se ve en el tercer renglón.
+    const porNombre = (i: CatalogoItem) =>
+      normalizar(i.nombreCorto).includes(q) ||
+      normalizar(i.codigo).includes(q) ||
+      Boolean(i.referencia && normalizar(i.referencia).includes(q));
     const coinciden = q
-      ? catalogo.filter(
-          (i) =>
-            normalizar(i.nombreCorto).includes(q) ||
-            normalizar(i.codigo).includes(q) ||
-            (i.referencia && normalizar(i.referencia).includes(q)),
-        )
+      ? [
+          ...catalogo.filter(porNombre),
+          ...catalogo.filter(
+            (i) => !porNombre(i) && normalizar(i.descripcion ?? "").includes(q),
+          ),
+        ]
       : catalogo;
     const ordenados = [
       ...coinciden.filter((i) => i.categoria === categoria),
@@ -67,7 +89,7 @@ export function ItemCombobox({
         ref={inputRef}
         type="text"
         value={abierto ? query : descripcionActual}
-        placeholder="Nombre o código…"
+        placeholder="Nombre, código o marca…"
         onFocus={() => {
           setAbierto(true);
           setQuery("");
@@ -100,27 +122,35 @@ export function ItemCombobox({
             </p>
           )}
 
-          {resultados.lista.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                onSeleccionar(item);
-                setAbierto(false);
-              }}
-              className="flex w-full flex-col items-start gap-0.5 border-b border-slate-100 px-3 py-3 text-left active:bg-slate-100"
-            >
-              <span className="text-base text-slate-900">
-                {item.nombreCorto}
-              </span>
-              <span className="text-xs text-slate-600">
-                {item.codigo} · {item.unidad}
-                {item.categoria !== categoria && ` · catálogo: ${CATEGORIA_CORTA[item.categoria]}`}
-                {item.valorCompraIva === null && " · sin precio"}
-              </span>
-            </button>
-          ))}
+          {resultados.lista.map((item) => {
+            const descripcion = inicioDescripcion(item);
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onSeleccionar(item);
+                  setAbierto(false);
+                }}
+                className="flex w-full min-w-0 flex-col items-start gap-0.5 border-b border-slate-100 px-3 py-3 text-left active:bg-slate-100"
+              >
+                <span className="text-base text-slate-900">
+                  {item.nombreCorto}
+                </span>
+                <span className="text-xs text-slate-600">
+                  {item.codigo} · {item.unidad}
+                  {item.categoria !== categoria && ` · catálogo: ${CATEGORIA_CORTA[item.categoria]}`}
+                  {item.valorCompraIva === null && " · sin precio"}
+                </span>
+                {descripcion && (
+                  <span className="block w-full truncate text-xs text-slate-400">
+                    {descripcion}
+                  </span>
+                )}
+              </button>
+            );
+          })}
 
           {hayMas && (
             <p className="px-3 py-2 text-xs text-slate-600">
