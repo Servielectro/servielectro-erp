@@ -24,6 +24,21 @@ export default function ConfiguracionPage() {
           </div>
         </Link>
 
+        <Link
+          href="/configuracion/consecutivo"
+          className="flex items-center gap-3 rounded-lg border border-slate-300 bg-white p-4 shadow-sm active:bg-slate-50"
+        >
+          <span className="text-2xl">🔢</span>
+          <div>
+            <p className="text-sm font-semibold text-slate-900">
+              Consecutivo de cotizaciones
+            </p>
+            <p className="text-xs text-slate-600">
+              Último número usado y próximo a emitir, por año, con historial de cambios.
+            </p>
+          </div>
+        </Link>
+
         <TiempoInactividad />
       </div>
     </div>
