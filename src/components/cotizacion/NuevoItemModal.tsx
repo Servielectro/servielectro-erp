@@ -10,6 +10,7 @@ import {
 } from "@/lib/pricing";
 import type { CatalogoItem } from "@/lib/supabase/catalogo";
 import { EsperaIA } from "@/components/ia/EsperaIA";
+import { hoyColombia } from "@/lib/crm";
 
 interface Props {
   categoria: Categoria;
@@ -18,7 +19,9 @@ interface Props {
   onCreado: (item: CatalogoItem) => void;
 }
 
-const hoyIso = () => new Date().toISOString().slice(0, 10);
+// Fecha de Bogotá: toISOString() da la de UTC, que de 7 p. m. a medianoche ya es mañana
+// y deja el precio con vigencia futura (el ítem entra en $0).
+const hoyIso = () => hoyColombia();
 
 export function NuevoItemModal({
   categoria,

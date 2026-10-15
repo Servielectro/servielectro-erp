@@ -11,6 +11,7 @@ import {
   type EsquemaIva,
   type LineaCotizacion,
 } from "@/lib/pricing";
+import { hoyColombia } from "@/lib/crm";
 import type { CatalogoItem } from "@/lib/supabase/catalogo";
 import type {
   ConfiguracionEmpresa,
@@ -690,7 +691,7 @@ export function CotizacionBuilder({
       setCatalogo((prev) =>
         prev.map((i) =>
           nuevos.has(i.id)
-            ? { ...i, valorCompraIva: nuevos.get(i.id)!, precioActualizadoEn: new Date().toISOString().slice(0, 10) }
+            ? { ...i, valorCompraIva: nuevos.get(i.id)!, precioActualizadoEn: hoyColombia() }
             : i,
         ),
       );

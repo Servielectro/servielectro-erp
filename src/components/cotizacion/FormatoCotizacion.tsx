@@ -258,7 +258,7 @@ export function FormatoCotizacion({
                     <td className="font-bold">Empresa</td>
                     <td className="text-center font-bold">{cliente.nombre || ""}</td>
                   </tr>
-                  <FilaDato l="NIT" v={cliente.nit} r="Fecha:" rv={new Date(fecha).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })} />
+                  <FilaDato l="NIT" v={cliente.nit} r="Fecha:" rv={fechaDocumento(fecha)} />
                   <FilaDato l="Dirección:" v={cliente.direccion} r="Comercial:" rv={comercial?.toUpperCase()} />
                   <FilaDato l="Celular:" v={cliente.telefono} r="Correo:" rv={EMPRESA.correo} />
                   <FilaDato l="Email:" v={cliente.email} r="Móvil:" rv={EMPRESA.movil} />
@@ -608,4 +608,20 @@ function TextoConResaltado({ texto }: { texto: string }) {
       {texto.slice(i + marca.length)}
     </>
   );
+}
+
+/**
+ * Fecha del documento en Bogotá. Una fecha sola ("2026-10-15", la de emisión guardada)
+ * se escribe tal cual: new Date() la tomaría como medianoche UTC y en Colombia saldría
+ * el día anterior. Un instante completo (vista previa del armador) se pasa a Bogotá.
+ */
+function fechaDocumento(fecha: string): string {
+  const soloFecha = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fecha);
+  if (soloFecha) return `${soloFecha[3]}/${soloFecha[2]}/${soloFecha[1]}`;
+  return new Date(fecha).toLocaleDateString("es-CO", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "America/Bogota",
+  });
 }

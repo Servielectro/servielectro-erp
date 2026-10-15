@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { formatCOP, type Categoria } from "@/lib/pricing";
+import { hoyColombia } from "@/lib/crm";
 import type { CatalogoItem } from "@/lib/supabase/catalogo";
 import { guardarPreciosLote } from "../actions";
 
@@ -99,7 +100,7 @@ export function CargaPrecios({ catalogo }: { catalogo: CatalogoItem[] }) {
         setMensaje({ tipo: "error", texto: `No se guardó nada: ${res.error}` });
         return;
       }
-      const hoy = new Date().toISOString().slice(0, 10);
+      const hoy = hoyColombia();
       const porId = new Map(listos.map((p) => [p.itemId, p.valor]));
       setItems((prev) =>
         prev.map((i) => (porId.has(i.id) ? { ...i, valorCompraIva: porId.get(i.id)!, precioActualizadoEn: hoy } : i)),
