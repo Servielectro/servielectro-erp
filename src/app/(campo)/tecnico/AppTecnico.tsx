@@ -491,6 +491,7 @@ function DetalleVisita({
           jornadas={jornadas}
           fotos={fotos}
           sugerencias={sugerencias}
+          salidaPendiente={jornadas.some((j) => !j.checkOutEn)}
           onCambio={despues}
         />
       )}
@@ -1055,6 +1056,7 @@ function Firmas({
   jornadas,
   fotos,
   sugerencias,
+  salidaPendiente,
   onCambio,
 }: {
   visita: VisitaLocal;
@@ -1063,6 +1065,8 @@ function Firmas({
   jornadas: JornadaLocal[];
   fotos: FotoLocal[];
   sugerencias: SugerenciaLocal[];
+  /** Hay una jornada sin salida: la firma del cliente cierra la visita, así que va después. */
+  salidaPendiente: boolean;
   onCambio: (mensaje?: string) => Promise<void>;
 }) {
   const firmaTecnico = firmas.find((f) => f.tipo === "tecnico");
@@ -1160,9 +1164,16 @@ function Firmas({
           Firma del técnico
         </button>
       )}
+      {paso === null && firmaTecnico && !firmaCliente && salidaPendiente && (
+        <p className="mt-3 rounded-xl bg-amber-100 px-4 py-3 text-base font-medium text-amber-900">
+          Marca la salida del día antes de la firma del cliente: al firmar, la visita se cierra y ya no se
+          puede registrar nada más.
+        </p>
+      )}
       {paso === null && firmaTecnico && !firmaCliente && (
         <button
           type="button"
+          disabled={salidaPendiente}
           onClick={() => {
             setDatos({ nombre: "", cedula: "", cargo: "" });
             setPaso("datos-cliente");
