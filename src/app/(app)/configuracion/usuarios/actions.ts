@@ -143,6 +143,29 @@ export async function cambiarNombre(usuarioId: string, nombre: string): Promise<
   return { ok: true };
 }
 
+export async function cambiarDatosPersonales(
+  usuarioId: string,
+  cedula: string,
+  telefono: string,
+): Promise<Resultado> {
+  const ctx = await contexto();
+  if (!ctx.ok) return ctx;
+  const cedulaLimpia = cedula.replace(/[^0-9]/g, "");
+  if (cedula.trim() && !cedulaLimpia) return { ok: false, error: "La cédula solo lleva números" };
+  const { error } = await ctx.supabase
+    .from("perfiles")
+    .update({ cedula: cedulaLimpia || null, telefono: telefono.trim() || null })
+    .eq("id", usuarioId);
+  if (error) {
+    return {
+      ok: false,
+      error: /cedula|telefono/.test(error.message) ? "Falta correr la migración 45 en Supabase" : error.message,
+    };
+  }
+  refrescar();
+  return { ok: true };
+}
+
 export async function crearRol(nombre: string): Promise<Resultado<{ id: string }>> {
   const ctx = await contexto();
   if (!ctx.ok) return ctx;

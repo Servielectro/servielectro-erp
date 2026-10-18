@@ -1,0 +1,56 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
+import { tienePermiso } from "@/lib/permisos";
+
+// Crear y asignar visitas: Operativo/trabajar. La RLS lo exige igual (visitas_insert).
+
+export interface NuevaVisita {
+  titulo: string;
+  clienteId: string | null;
+  clienteNombre: string;
+  direccion: string;
+  contactoSitio: string;
+  telefonoSitio: string;
+  tipo: "visita" | "obra";
+  tecnicoId: string | null;
+  fechaProgramada: string;
+  fechaFinEstimada: string;
+  descripcionTrabajo: string;
+}
+
+export async function crearVisita(v: NuevaVisita): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!(await tienePermiso("operativo", "trabajar"))) {
+    return { ok: false, error: "Crear visitas requiere permiso de Operativo." };
+  }
+  if (!v.titulo.trim()) return { ok: false, error: "Falta el título de la visita." };
+  if (!v.tecnicoId) return { ok: false, error: "Elige el técnico que la va a hacer." };
+  if (!v.fechaProgramada) return { ok: false, error: "Falta la fecha." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("visitas").insert({
+    titulo: v.titulo.trim(),
+    cliente_id: v.clienteId,
+    // Copia para el técnico, que no puede leer clientes (NIT, RUT, datos comerciales).
+    cliente_nombre: v.clienteNombre.trim() || null,
+    direccion: v.direccion.trim() || null,
+    contacto_sitio: v.contactoSitio.trim() || null,
+    telefono_sitio: v.telefonoSitio.trim() || null,
+    tipo: v.tipo,
+    tecnico_id: v.tecnicoId,
+    fecha_programada: v.fechaProgramada,
+    fecha_fin_estimada: v.tipo === "obra" && v.fechaFinEstimada ? v.fechaFinEstimada : null,
+    descripcion_trabajo: v.descripcionTrabajo.trim() || null,
+  });
+  if (error) {
+    return {
+      ok: false,
+      error: /cliente_nombre|contacto_sitio|telefono_sitio/.test(error.message)
+        ? "Falta correr la migración 46 en la base."
+        : error.message,
+    };
+  }
+  revalidatePath("/operativo");
+  return { ok: true };
+}

@@ -12,12 +12,17 @@ export default async function UsuariosPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [usuariosRes, rolesRes, modulosRes, permisosRes] = await Promise.all([
+  const [usuariosRes, rolesRes, modulosRes, permisosRes, personalesRes] = await Promise.all([
     supabase.rpc("fn_listar_usuarios"),
     supabase.from("roles").select("id, nombre").order("nombre"),
     supabase.from("modulos").select("id, nombre, orden").order("orden"),
     supabase.from("permisos_rol").select("rol_id, modulo_id, nivel, ve_datos_sensibles"),
+    // Cédula y teléfono (migración 45): la firma del técnico se precarga de acá.
+    supabase.from("perfiles").select("id, cedula, telefono"),
   ]);
+  const personales = new Map(
+    ((personalesRes.data ?? []) as { id: string; cedula: string | null; telefono: string | null }[]).map((p) => [p.id, p]),
+  );
 
   const error =
     usuariosRes.error?.message ??
@@ -39,6 +44,8 @@ export default async function UsuariosPage() {
       id: u.id,
       email: u.email,
       nombre: u.nombre ?? null,
+      cedula: personales.get(u.id)?.cedula ?? null,
+      telefono: personales.get(u.id)?.telefono ?? null,
       rolId: u.rol_id,
       ultimoIngreso: u.ultimo_ingreso,
     })),

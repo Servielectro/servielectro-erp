@@ -5,6 +5,7 @@ import type { NivelPermiso } from "@/lib/permisos";
 import {
   asignarRol,
   cambiarNombre,
+  cambiarDatosPersonales,
   crearRol,
   crearUsuario,
   eliminarRol,
@@ -20,6 +21,8 @@ export interface DatosUsuariosAdmin {
     id: string;
     email: string;
     nombre: string | null;
+    cedula: string | null;
+    telefono: string | null;
     rolId: string | null;
     ultimoIngreso: string | null;
   }[];
@@ -200,6 +203,24 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
                     </button>
                   </p>
                   {u.nombre && <p className="truncate text-xs text-slate-600">{u.email}</p>}
+                  <p className="text-xs text-slate-600">
+                    {u.cedula ? `C.C. ${u.cedula}` : "Sin cédula"}
+                    {u.telefono ? ` · ${u.telefono}` : ""}
+                    <button
+                      type="button"
+                      disabled={pendiente}
+                      onClick={() => {
+                        const cedula = window.prompt("Cédula (sale en la firma de las visitas técnicas)", u.cedula ?? "");
+                        if (cedula === null) return;
+                        const telefono = window.prompt("Teléfono", u.telefono ?? "");
+                        if (telefono === null) return;
+                        correr(() => cambiarDatosPersonales(u.id, cedula, telefono), "Cédula y teléfono actualizados");
+                      }}
+                      className="ml-2 text-xs font-normal text-slate-500 underline"
+                    >
+                      {u.cedula ? "cambiar cédula/teléfono" : "agregar cédula/teléfono"}
+                    </button>
+                  </p>
                   <p className="text-xs text-slate-500">
                     {u.ultimoIngreso
                       ? `Último ingreso: ${new Date(u.ultimoIngreso).toLocaleDateString("es-CO")}`

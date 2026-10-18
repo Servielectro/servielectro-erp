@@ -13,8 +13,8 @@ const MODULOS = [
   { id: "marketing", nombre: "Marketing", icono: "📣", activo: false },
   { id: "administrativo", nombre: "Administrativo", icono: "🗂️", activo: false },
   { id: "rrhh", nombre: "RRHH", icono: "👥", href: "/rrhh", activo: true },
-  { id: "tecnico", nombre: "Técnico", icono: "🔧", activo: false },
-  { id: "operativo", nombre: "Operativo", icono: "⚙️", activo: false },
+  { id: "tecnico", nombre: "Técnico", icono: "🔧", href: "/tecnico", activo: true },
+  { id: "operativo", nombre: "Operativo", icono: "⚙️", href: "/operativo", activo: true },
 ] as const;
 
 export default async function Home() {

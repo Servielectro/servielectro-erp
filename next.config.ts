@@ -7,6 +7,20 @@ const nextConfig: NextConfig = {
   // Redirects reales en vez de páginas puente, para no perder ningún link ni marcador
   // viejo. `permanent: false` (307) a propósito: es una reorganización interna, no
   // queremos que un navegador cachee la redirección para siempre por si vuelve a mover.
+  // El service worker de la app del técnico (public/sw.js): nunca en caché, para que
+  // cada versión nueva llegue al celular apenas tenga señal.
+  async headers() {
+    return [
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+        ],
+      },
+    ];
+  },
+
   async redirects() {
     return [
       {
