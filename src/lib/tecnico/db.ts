@@ -98,6 +98,12 @@ export interface EnvioPendiente {
   creadoEn: string;
   intentos: number;
   ultimoError: string | null;
+  /**
+   * El servidor lo rechazó por algo que reintentar no arregla (visita ya firmada, sin
+   * permiso, dato inválido). No se reintenta solo y NO se borra del celular: queda para
+   * que la oficina lo resuelva y el técnico lo reintente a mano.
+   */
+  permanente?: boolean;
 }
 
 const NOMBRE = "se-erp-tecnico";

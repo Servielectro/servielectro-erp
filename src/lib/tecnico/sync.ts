@@ -8,8 +8,11 @@
 //     firma del cliente. La del cliente va ÚLTIMA y solo cuando no queda nada más de esa
 //     visita: al llegar, la base cierra la visita y ya no acepta nada.
 //   - Sin red: se corta la vuelta y se reintenta después (al volver la señal, al abrir
-//     la app o con el botón). Error del servidor (permiso, dato inválido): se anota en
-//     esa entrada y se sigue con las demás.
+//     la app o con el botón).
+//   - Error PERMANENTE (visita ya firmada, sin permiso, dato inválido): reintentar no lo
+//     arregla. Se marca, deja de reintentarse solo, NO se borra del celular y el técnico
+//     ve en palabras qué pasó. Se reintenta a mano cuando la oficina lo resuelve.
+//   - Cualquier otro error del servidor (caído, sesión vencida): se anota y se reintenta.
 
 import {
   borrar,
@@ -36,8 +39,11 @@ export interface Servidor {
   registrarFirma(f: FirmaLocal, ruta: string): Promise<void>;
 }
 
-/** Error de red (sin señal): corta la vuelta entera. Cualquier otro error es del dato. */
+/** Error de red (sin señal): corta la vuelta entera. */
 export class SinConexionError extends Error {}
+
+/** El servidor rechazó el dato y reintentar no lo arregla. El mensaje es para el técnico. */
+export class ErrorPermanente extends Error {}
 
 export function esErrorDeRed(e: unknown): boolean {
   if (e instanceof SinConexionError) return true;
@@ -58,8 +64,12 @@ const PRIORIDAD: Record<EnvioPendiente["tipo"], number> = {
 
 export interface ResultadoSync {
   subidos: number;
+  /** Lo que falta subir y se va a reintentar solo (sin contar los rechazados). */
   pendientes: number;
+  /** Errores que se reintentan (servidor caído, sesión vencida). */
   conErrores: number;
+  /** Rechazados de forma permanente: esperan a la oficina. */
+  rechazados: number;
   sinConexion: boolean;
 }
 
@@ -91,6 +101,8 @@ async function vuelta(servidor: Servidor): Promise<ResultadoSync> {
   cola.sort((a, b) => orden(a) - orden(b) || a.creadoEn.localeCompare(b.creadoEn));
 
   for (const envio of cola) {
+    // Rechazado de forma permanente: no se reintenta solo (ver reintentarRechazados).
+    if (envio.permanente) continue;
     try {
       if (envio.tipo === "firma" && firmas.get(envio.id)?.tipo === "cliente") {
         // Solo cuando no queda nada más de esa visita en la cola.
@@ -111,6 +123,7 @@ async function vuelta(servidor: Servidor): Promise<ResultadoSync> {
         ...envio,
         intentos: envio.intentos + 1,
         ultimoError: e instanceof Error ? e.message : String(e),
+        permanente: e instanceof ErrorPermanente,
       } satisfies EnvioPendiente);
     }
   }
@@ -118,10 +131,23 @@ async function vuelta(servidor: Servidor): Promise<ResultadoSync> {
   const restantes = await todos<EnvioPendiente>("cola");
   return {
     subidos,
-    pendientes: restantes.length,
-    conErrores: restantes.filter((r) => r.ultimoError).length,
+    pendientes: restantes.filter((r) => !r.permanente).length,
+    conErrores: restantes.filter((r) => r.ultimoError && !r.permanente).length,
+    rechazados: restantes.filter((r) => r.permanente).length,
     sinConexion,
   };
+}
+
+/**
+ * Vuelve a intentar los rechazados (cuando la oficina ya resolvió lo que los frenaba,
+ * p. ej. reasignó la visita). Solo les saca la marca: los sube la próxima vuelta.
+ */
+export async function reintentarRechazados(): Promise<number> {
+  const rechazados = (await todos<EnvioPendiente>("cola")).filter((c) => c.permanente);
+  for (const c of rechazados) {
+    await guardar("cola", { ...c, permanente: false, intentos: 0, ultimoError: null } satisfies EnvioPendiente);
+  }
+  return rechazados.length;
 }
 
 async function enviarUno(servidor: Servidor, envio: EnvioPendiente) {

@@ -20,7 +20,7 @@ import {
   type VisitaLocal,
 } from "@/lib/tecnico/db";
 import { comprimirFoto, ETIQUETA_GPS, hoyBogota, obtenerUbicacion, sha256 } from "@/lib/tecnico/captura";
-import { sincronizar } from "@/lib/tecnico/sync";
+import { reintentarRechazados, sincronizar } from "@/lib/tecnico/sync";
 import {
   contarFotos,
   ETIQUETA_MOMENTO,
@@ -78,6 +78,7 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
   const [enLinea, setEnLinea] = useState(true);
   const [pendientes, setPendientes] = useState(0);
   const [conErrores, setConErrores] = useState<EnvioPendiente[]>([]);
+  const [rechazados, setRechazados] = useState<EnvioPendiente[]>([]);
   const [sincronizando, setSincronizando] = useState(false);
   const [ultimaSync, setUltimaSync] = useState<string | null>(null);
   const [fotosQueCaben, setFotosQueCaben] = useState<number | null>(null);
@@ -85,8 +86,9 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
 
   const refrescarEstado = useCallback(async () => {
     const cola = await todos<EnvioPendiente>("cola");
-    setPendientes(cola.length);
-    setConErrores(cola.filter((c) => c.ultimoError));
+    setPendientes(cola.filter((c) => !c.permanente).length);
+    setConErrores(cola.filter((c) => c.ultimoError && !c.permanente));
+    setRechazados(cola.filter((c) => c.permanente));
     setFotosQueCaben((await espacioDisponible()).fotosQueCaben);
     const vs = await todos<VisitaLocal>("visitas");
     vs.sort((a, b) => (a.fechaProgramada ?? "").localeCompare(b.fechaProgramada ?? ""));
@@ -196,9 +198,34 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
             : `Quedan pocas fotos por caber (unas ${fotosQueCaben}). Cuando tengas red, sincroniza.`}
         </p>
       )}
+      {rechazados.length > 0 && (
+        <div className="mx-4 mt-3 rounded-xl border-2 border-red-400 bg-red-100 px-4 py-3 text-base text-red-900">
+          <p className="font-semibold">
+            {rechazados.length === 1 ? "1 registro no se subió" : `${rechazados.length} registros no se subieron`}. No se
+            borró nada del celular.
+          </p>
+          <ul className="mt-1 space-y-1 text-sm">
+            {[...new Set(rechazados.map((r) => r.ultimoError))].slice(0, 3).map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            onClick={async () => {
+              await reintentarRechazados();
+              await refrescarEstado();
+              subir();
+            }}
+            disabled={!enLinea || sincronizando}
+            className="mt-2 min-h-12 rounded-xl border-2 border-red-700 px-4 text-base font-semibold disabled:opacity-40"
+          >
+            Ya lo resolvió la oficina: reintentar
+          </button>
+        </div>
+      )}
       {conErrores.length > 0 && (
-        <div className="mx-4 mt-3 rounded-xl bg-red-100 px-4 py-3 text-base text-red-900">
-          <p className="font-semibold">{conErrores.length} sin poder subir — no se borró nada del celular.</p>
+        <div className="mx-4 mt-3 rounded-xl bg-amber-100 px-4 py-3 text-base text-amber-900">
+          <p className="font-semibold">{conErrores.length} sin poder subir todavía — se reintenta solo. No se borró nada.</p>
           <p className="mt-1 text-sm">{conErrores[0].ultimoError}</p>
         </div>
       )}
@@ -288,6 +315,7 @@ function DetalleVisita({
   const [fotos, setFotos] = useState<FotoLocal[]>([]);
   const [sugerencias, setSugerencias] = useState<SugerenciaLocal[]>([]);
   const [firmas, setFirmas] = useState<FirmaLocal[]>([]);
+  const [rechazadosVisita, setRechazadosVisita] = useState(0);
   const [ocupado, setOcupado] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
@@ -297,6 +325,7 @@ function DetalleVisita({
     setFotos(await deVisita<FotoLocal>("fotos", visita.id));
     setSugerencias(await deVisita<SugerenciaLocal>("sugerencias", visita.id));
     setFirmas(await deVisita<FirmaLocal>("firmas", visita.id));
+    setRechazadosVisita((await deVisita<EnvioPendiente>("cola", visita.id)).filter((c) => c.permanente).length);
   }, [visita.id]);
 
   useEffect(() => {
@@ -492,6 +521,7 @@ function DetalleVisita({
           fotos={fotos}
           sugerencias={sugerencias}
           salidaPendiente={jornadas.some((j) => !j.checkOutEn)}
+          rechazados={rechazadosVisita}
           onCambio={despues}
         />
       )}
@@ -1057,6 +1087,7 @@ function Firmas({
   fotos,
   sugerencias,
   salidaPendiente,
+  rechazados,
   onCambio,
 }: {
   visita: VisitaLocal;
@@ -1067,6 +1098,11 @@ function Firmas({
   sugerencias: SugerenciaLocal[];
   /** Hay una jornada sin salida: la firma del cliente cierra la visita, así que va después. */
   salidaPendiente: boolean;
+  /**
+   * Registros de esta visita rechazados de forma permanente. La firma del cliente sube
+   * última y solo cuando no queda nada de la visita: con un rechazado, nunca subiría.
+   */
+  rechazados: number;
   onCambio: (mensaje?: string) => Promise<void>;
 }) {
   const firmaTecnico = firmas.find((f) => f.tipo === "tecnico");
@@ -1164,6 +1200,19 @@ function Firmas({
           Firma del técnico
         </button>
       )}
+      {rechazados > 0 && !firmaCliente && (
+        <p className="mt-3 rounded-xl border-2 border-red-400 bg-red-100 px-4 py-3 text-base font-medium text-red-900">
+          {rechazados === 1 ? "Hay 1 registro" : `Hay ${rechazados} registros`} de esta visita que el servidor no aceptó. Si
+          el cliente firma ahora, su firma quedaría solo en este celular y no subiría. Avisa a la oficina antes de pedir la
+          firma.
+        </p>
+      )}
+      {rechazados > 0 && firmaCliente && !firmaCliente.subida && (
+        <p className="mt-3 rounded-xl border-2 border-red-400 bg-red-100 px-4 py-3 text-base font-medium text-red-900">
+          La firma del cliente está guardada en este celular, pero no va a subir hasta que se resuelva{" "}
+          {rechazados === 1 ? "1 registro rechazado" : `${rechazados} registros rechazados`}. Avisa a la oficina.
+        </p>
+      )}
       {paso === null && firmaTecnico && !firmaCliente && salidaPendiente && (
         <p className="mt-3 rounded-xl bg-amber-100 px-4 py-3 text-base font-medium text-amber-900">
           Marca la salida del día antes de la firma del cliente: al firmar, la visita se cierra y ya no se
@@ -1173,7 +1222,7 @@ function Firmas({
       {paso === null && firmaTecnico && !firmaCliente && (
         <button
           type="button"
-          disabled={salidaPendiente}
+          disabled={salidaPendiente || rechazados > 0}
           onClick={() => {
             setDatos({ nombre: "", cedula: "", cargo: "" });
             setPaso("datos-cliente");

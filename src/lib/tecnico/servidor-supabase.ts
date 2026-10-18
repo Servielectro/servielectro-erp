@@ -4,12 +4,42 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { FirmaLocal, FotoLocal, JornadaLocal, SugerenciaLocal, VisitaLocal } from "./db";
 import { guardar, leer } from "./db";
-import { SinConexionError, type Servidor } from "./sync";
+import { ErrorPermanente, SinConexionError, type Servidor } from "./sync";
 
-function revisar(error: { message: string } | null) {
+// Códigos de Postgres que reintentar no arregla: excepción del candado o de una regla
+// (P0001), sin permiso por RLS (42501), y datos que la base no acepta.
+const PERMANENTES = new Set(["P0001", "42501", "23502", "23503", "23505", "23514", "22P02", "22007", "22008", "22003", "22001"]);
+
+const AVISAR = " Avisa a la oficina.";
+
+/**
+ * Traduce el error del servidor a lo que la cola necesita saber: sin señal (se corta la
+ * vuelta), permanente (no se reintenta; mensaje en palabras para el técnico) u otro
+ * (servidor caído, sesión vencida: se reintenta).
+ */
+function revisar(error: { message: string; code?: string; statusCode?: string | number } | null) {
   if (!error) return;
-  if (/failed to fetch|network|load failed/i.test(error.message)) throw new SinConexionError(error.message);
-  throw new Error(error.message);
+  const mensaje = error.message ?? "";
+  if (/failed to fetch|networkerror|network request failed|load failed|fetch failed/i.test(mensaje)) {
+    throw new SinConexionError(mensaje);
+  }
+  const estadoHttp = String(error.statusCode ?? "");
+  if (/jwt|token|PGRST301/i.test(`${mensaje} ${error.code ?? ""}`) || estadoHttp === "401") {
+    throw new Error("Sesión vencida: entra de nuevo a la app con señal para terminar de subir.");
+  }
+  const sinPermiso =
+    error.code === "42501" || estadoHttp === "403" || /row-level security|permission denied/i.test(mensaje);
+  if (sinPermiso) {
+    throw new ErrorPermanente(`No se subió: no tienes permiso sobre esta visita (¿te la reasignaron?).${AVISAR}`);
+  }
+  if (error.code === "P0001") {
+    // Mensaje del candado o de una regla, ya escrito en palabras en la base.
+    throw new ErrorPermanente(`No se subió: ${mensaje.replace(/\.$/, "")}.${AVISAR}`);
+  }
+  if ((error.code && PERMANENTES.has(error.code)) || estadoHttp === "400" || estadoHttp === "413") {
+    throw new ErrorPermanente(`No se subió: el servidor no aceptó el dato (${mensaje}).${AVISAR}`);
+  }
+  throw new Error(mensaje || "El servidor no respondió bien; se vuelve a intentar.");
 }
 
 export function servidorSupabase(supabase: SupabaseClient): Servidor {
@@ -74,7 +104,7 @@ export function servidorSupabase(supabase: SupabaseClient): Servidor {
       });
       // Reintento de algo que ya había subido: no es error.
       if (error && /already exists|duplicate|409/i.test(`${error.message} ${(error as { statusCode?: string }).statusCode ?? ""}`)) return;
-      revisar(error);
+      revisar(error as { message: string; statusCode?: string } | null);
     },
 
     async registrarFoto(f: FotoLocal, ruta) {
