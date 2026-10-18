@@ -63,6 +63,8 @@ export interface SugerenciaLocal {
   cantidad: number | null;
   unidad: string;
   motivo: string;
+  /** Para cuándo hace falta (YYYY-MM-DD). Se pide en obras; null en visitas de un día. */
+  requeridoPara?: string | null;
   sugeridaEn: string;
 }
 

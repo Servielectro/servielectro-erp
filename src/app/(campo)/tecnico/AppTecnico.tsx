@@ -40,6 +40,22 @@ const BOTON_PRIMARIO = `${BOTON} bg-[#A82323] text-white`;
 const BOTON_SECUNDARIO = `${BOTON} border-2 border-slate-400 bg-white text-slate-900`;
 const CAMPO = "w-full rounded-xl border-2 border-slate-300 bg-white px-3 py-3 text-lg";
 
+function fechaLarga(fecha: string) {
+  // Mediodía UTC: la fecha "YYYY-MM-DD" no se corre de día en Colombia.
+  return new Date(`${fecha}T12:00:00Z`).toLocaleDateString("es-CO", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "America/Bogota",
+  });
+}
+
+function sumarDias(fecha: string, dias: number) {
+  const d = new Date(`${fecha}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
 function hora(iso: string | null) {
   if (!iso) return "";
   return new Date(iso).toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit", timeZone: "America/Bogota" });
@@ -319,6 +335,11 @@ function DetalleVisita({
     await despues(`Entrada ${hora(jornada.checkInEn)} · ${ETIQUETA_GPS[ubicacion.estado]}`);
   }
 
+  async function guardarJornada(j2: JornadaLocal) {
+    await guardarYEncolar("jornadas", j2, { id: j2.id, tipo: "jornada", visitaId: visita.id });
+    await despues();
+  }
+
   async function marcarSalida(j: JornadaLocal) {
     setOcupado("Tomando la ubicación…");
     const ubicacion = await obtenerUbicacion();
@@ -364,26 +385,37 @@ function DetalleVisita({
 
       {ocupado && <p className="rounded-xl bg-slate-800 px-4 py-3 text-lg text-white">{ocupado}</p>}
 
-      {!cerrada && !jornadaHoy && (
-        <button type="button" onClick={marcarEntrada} disabled={Boolean(ocupado)} className={BOTON_PRIMARIO}>
-          Marcar entrada (con GPS)
-        </button>
-      )}
-
-      {jornadas.map((j) => (
-        <Jornada
-          key={j.id}
-          jornada={j}
-          esHoy={j.fecha === hoy}
+      {visita.tipo === "obra" ? (
+        <ReporteDeHoy
+          hoy={hoy}
+          jornadaHoy={jornadaHoy}
+          anterior={[...jornadas].reverse().find((j) => j.fecha < hoy) ?? null}
           cerrada={cerrada}
           ocupado={Boolean(ocupado)}
-          onSalida={() => marcarSalida(j)}
-          onGuardar={async (j2) => {
-            await guardarYEncolar("jornadas", j2, { id: j2.id, tipo: "jornada", visitaId: visita.id });
-            await despues();
-          }}
+          onEntrada={marcarEntrada}
+          onSalida={marcarSalida}
+          onGuardar={guardarJornada}
         />
-      ))}
+      ) : (
+        <>
+          {!cerrada && !jornadaHoy && (
+            <button type="button" onClick={marcarEntrada} disabled={Boolean(ocupado)} className={BOTON_PRIMARIO}>
+              Marcar entrada (con GPS)
+            </button>
+          )}
+          {jornadas.map((j) => (
+            <Jornada
+              key={j.id}
+              jornada={j}
+              esHoy={j.fecha === hoy}
+              cerrada={cerrada}
+              ocupado={Boolean(ocupado)}
+              onSalida={() => marcarSalida(j)}
+              onGuardar={guardarJornada}
+            />
+          ))}
+        </>
+      )}
 
       {jornadas.length > 0 && (
         <Fotos
@@ -399,10 +431,19 @@ function DetalleVisita({
       {jornadas.length > 0 && (
         <Sugerencias
           visitaId={visita.id}
+          esObra={visita.tipo === "obra"}
           jornadaId={jornadaHoy?.id ?? null}
           sugerencias={sugerencias}
           cerrada={cerrada}
           onCambio={despues}
+        />
+      )}
+
+      {visita.tipo === "obra" && (
+        <HistorialObra
+          jornadas={jornadas.filter((j) => j.fecha !== hoy)}
+          cerrada={cerrada}
+          onGuardar={guardarJornada}
         />
       )}
 
@@ -428,6 +469,7 @@ function Jornada({
   ocupado,
   onSalida,
   onGuardar,
+  esObra = false,
 }: {
   jornada: JornadaLocal;
   esHoy: boolean;
@@ -435,6 +477,7 @@ function Jornada({
   ocupado: boolean;
   onSalida: () => void;
   onGuardar: (j: JornadaLocal) => Promise<void>;
+  esObra?: boolean;
 }) {
   const [abierta, setAbierta] = useState(esHoy);
   const [texto, setTexto] = useState({
@@ -460,17 +503,17 @@ function Jornada({
   }
 
   const campos: { clave: keyof typeof texto; etiqueta: string }[] = [
-    { clave: "laborEjecutada", etiqueta: "Labor ejecutada" },
+    { clave: "laborEjecutada", etiqueta: esObra ? "Labores realizadas hoy" : "Labor ejecutada" },
     { clave: "noEjecutado", etiqueta: "Lo que no se hizo" },
-    { clave: "pendiente", etiqueta: "Queda pendiente" },
+    { clave: "pendiente", etiqueta: esObra ? "Pendiente para el siguiente día" : "Queda pendiente" },
     { clave: "observaciones", etiqueta: "Observaciones" },
   ];
 
   return (
     <section className="rounded-2xl border-2 border-slate-300 bg-white p-4">
       <button type="button" onClick={() => setAbierta((a) => !a)} className="w-full text-left">
-        <p className="text-lg font-bold">
-          {esHoy ? "Hoy" : jornada.fecha} {abierta ? "▾" : "▸"}
+        <p className="text-lg font-bold first-letter:uppercase">
+          {esHoy ? "Hoy" : fechaLarga(jornada.fecha)} {abierta ? "▾" : "▸"}
         </p>
         <p className="text-base text-slate-700">
           Entrada {hora(jornada.checkInEn)} · {jornada.checkIn ? ETIQUETA_GPS[jornada.checkIn.estado] : ""}
@@ -505,6 +548,133 @@ function Jornada({
             </button>
           )}
         </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Reporte diario de la obra: lo primero que ve el técnico. Arranca con lo que quedó
+ * pendiente el día anterior, para que la bitácora hile la obra y no se escriba en el vacío.
+ */
+function ReporteDeHoy({
+  hoy,
+  jornadaHoy,
+  anterior,
+  cerrada,
+  ocupado,
+  onEntrada,
+  onSalida,
+  onGuardar,
+}: {
+  hoy: string;
+  jornadaHoy: JornadaLocal | null;
+  anterior: JornadaLocal | null;
+  cerrada: boolean;
+  ocupado: boolean;
+  onEntrada: () => void;
+  onSalida: (j: JornadaLocal) => void;
+  onGuardar: (j: JornadaLocal) => Promise<void>;
+}) {
+  return (
+    <section className="space-y-3 rounded-2xl border-2 border-[#A82323] bg-white p-4">
+      <div>
+        <p className="text-sm font-semibold uppercase text-[#A82323]">Reporte diario</p>
+        <p className="text-xl font-bold first-letter:uppercase">{fechaLarga(hoy)}</p>
+      </div>
+
+      {anterior ? (
+        <div className="rounded-xl bg-amber-100 p-3 text-amber-950">
+          <p className="text-base font-semibold first-letter:uppercase">Pendiente del {fechaLarga(anterior.fecha)}:</p>
+          <p className="whitespace-pre-line text-lg">{anterior.pendiente.trim() || "No dejó pendientes anotados."}</p>
+          {anterior.noEjecutado.trim() && (
+            <p className="mt-2 whitespace-pre-line text-base">
+              <span className="font-semibold">No se alcanzó: </span>
+              {anterior.noEjecutado}
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="text-base text-slate-600">Primer día de la obra.</p>
+      )}
+
+      {!cerrada && !jornadaHoy && (
+        <button type="button" onClick={onEntrada} disabled={ocupado} className={BOTON_PRIMARIO}>
+          Marcar entrada de hoy (con GPS)
+        </button>
+      )}
+      {jornadaHoy && (
+        <Jornada
+          jornada={jornadaHoy}
+          esHoy
+          esObra
+          cerrada={cerrada}
+          ocupado={ocupado}
+          onSalida={() => onSalida(jornadaHoy)}
+          onGuardar={onGuardar}
+        />
+      )}
+    </section>
+  );
+}
+
+/** Días anteriores de la obra: entrada, salida y lo que se hizo. Es el avance real. */
+function HistorialObra({
+  jornadas,
+  cerrada,
+  onGuardar,
+}: {
+  jornadas: JornadaLocal[];
+  cerrada: boolean;
+  onGuardar: (j: JornadaLocal) => Promise<void>;
+}) {
+  const [abierta, setAbierta] = useState<string | null>(null);
+  const dias = [...jornadas].sort((a, b) => b.fecha.localeCompare(a.fecha));
+  return (
+    <section className="rounded-2xl border-2 border-slate-300 bg-white p-4">
+      <p className="text-lg font-bold">
+        Historial de la obra ({dias.length} {dias.length === 1 ? "día" : "días"})
+      </p>
+      {dias.length === 0 ? (
+        <p className="text-base text-slate-600">Todavía no hay días anteriores.</p>
+      ) : (
+        <ul className="mt-2 divide-y divide-slate-200">
+          {dias.map((j) =>
+            abierta === j.id ? (
+              <li key={j.id} className="py-2">
+                <Jornada
+                  jornada={j}
+                  esHoy={false}
+                  esObra
+                  cerrada={cerrada}
+                  ocupado={false}
+                  onSalida={() => {}}
+                  onGuardar={onGuardar}
+                />
+                <button
+                  type="button"
+                  onClick={() => setAbierta(null)}
+                  className="mt-2 min-h-12 text-base font-semibold text-[#A82323]"
+                >
+                  Cerrar
+                </button>
+              </li>
+            ) : (
+              <li key={j.id}>
+                <button type="button" onClick={() => setAbierta(j.id)} className="w-full py-3 text-left">
+                  <p className="text-base font-bold first-letter:uppercase">{fechaLarga(j.fecha)}</p>
+                  <p className="text-sm text-slate-600">
+                    Entrada {hora(j.checkInEn) || "—"} · Salida {hora(j.checkOutEn) || "sin marcar"}
+                  </p>
+                  {j.laborEjecutada.trim() && <p className="line-clamp-2 text-base">{j.laborEjecutada}</p>}
+                  {j.pendiente.trim() && (
+                    <p className="line-clamp-2 text-sm text-amber-800">Pendiente: {j.pendiente}</p>
+                  )}
+                </button>
+              </li>
+            ),
+          )}
+        </ul>
       )}
     </section>
   );
@@ -633,12 +803,14 @@ function Fotos({
 
 function Sugerencias({
   visitaId,
+  esObra,
   jornadaId,
   sugerencias,
   cerrada,
   onCambio,
 }: {
   visitaId: string;
+  esObra: boolean;
   jornadaId: string | null;
   sugerencias: SugerenciaLocal[];
   cerrada: boolean;
@@ -649,9 +821,12 @@ function Sugerencias({
   const [cantidad, setCantidad] = useState("");
   const [unidad, setUnidad] = useState("");
   const [motivo, setMotivo] = useState("");
+  // En obra: para cuándo hace falta (por defecto, mañana). Sin fecha no se compra a tiempo.
+  const [requeridoPara, setRequeridoPara] = useState(() => sumarDias(hoyBogota(), 1));
+  const faltaFecha = esObra && !requeridoPara;
 
   async function agregar() {
-    if (!descripcion.trim()) return;
+    if (!descripcion.trim() || faltaFecha) return;
     const cant = Number(cantidad.replace(",", "."));
     const s: SugerenciaLocal = {
       id: crypto.randomUUID(),
@@ -661,6 +836,7 @@ function Sugerencias({
       cantidad: Number.isFinite(cant) && cant > 0 ? cant : null,
       unidad: unidad.trim(),
       motivo: motivo.trim(),
+      requeridoPara: esObra ? requeridoPara : null,
       sugeridaEn: new Date().toISOString(),
     };
     await guardarYEncolar("sugerencias", s, { id: s.id, tipo: "sugerencia", visitaId });
@@ -668,6 +844,7 @@ function Sugerencias({
     setCantidad("");
     setUnidad("");
     setMotivo("");
+    setRequeridoPara(sumarDias(hoyBogota(), 1));
     setAbierto(false);
     await onCambio("Sugerencia guardada. El comercial la verá para cotizar.");
   }
@@ -683,6 +860,9 @@ function Sugerencias({
               <p className="font-semibold">
                 {s.cantidad ?? ""} {s.unidad} {s.descripcion}
               </p>
+              {s.requeridoPara && (
+                <p className="font-medium text-[#A82323] first-letter:uppercase">Para el {fechaLarga(s.requeridoPara)}</p>
+              )}
               {s.motivo && <p className="text-slate-700">{s.motivo}</p>}
             </li>
           ))}
@@ -696,12 +876,24 @@ function Sugerencias({
               <input value={cantidad} onChange={(e) => setCantidad(e.target.value)} inputMode="decimal" placeholder="Cantidad" className={CAMPO} />
               <input value={unidad} onChange={(e) => setUnidad(e.target.value)} placeholder="Unidad (m, und)" className={CAMPO} />
             </div>
+            {esObra && (
+              <label className="block">
+                <span className="text-base font-semibold">Para cuándo lo necesitas *</span>
+                <input
+                  type="date"
+                  value={requeridoPara}
+                  min={hoyBogota()}
+                  onChange={(e) => setRequeridoPara(e.target.value)}
+                  className={`${CAMPO} mt-1`}
+                />
+              </label>
+            )}
             <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} placeholder="Por qué hace falta" className={CAMPO} />
             <div className="grid grid-cols-2 gap-3">
               <button type="button" onClick={() => setAbierto(false)} className={BOTON_SECUNDARIO}>
                 Cancelar
               </button>
-              <button type="button" onClick={agregar} disabled={!descripcion.trim()} className={BOTON_PRIMARIO}>
+              <button type="button" onClick={agregar} disabled={!descripcion.trim() || faltaFecha} className={BOTON_PRIMARIO}>
                 Guardar
               </button>
             </div>

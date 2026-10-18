@@ -55,6 +55,7 @@ export function servidorSupabase(supabase: SupabaseClient): Servidor {
           cantidad: s.cantidad,
           unidad: s.unidad || null,
           motivo: s.motivo || null,
+          requerido_para: s.requeridoPara ?? null,
           sugerida_en: s.sugeridaEn,
         },
         { onConflict: "id", ignoreDuplicates: true },
