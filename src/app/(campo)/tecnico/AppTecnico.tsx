@@ -136,7 +136,7 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
           const urls = performance
             .getEntriesByType("resource")
             .map((e) => e.name)
-            .filter((u) => u.includes("/_next/static/"));
+            .filter((u) => u.includes("/_next/static/") || u.includes("/_next/image"));
           reg.active?.postMessage({ tipo: "guardar-archivos", urls: [...urls, "/tecnico"] });
         })
         .catch(() => {});
@@ -163,7 +163,8 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
 
   return (
     <div className="mx-auto w-full max-w-xl pb-24">
-      <header className="sticky top-0 z-10 border-b border-slate-300 bg-white px-4 py-3">
+      {/* Debajo del encabezado global (57 px; 65 px desde sm, medidos), que también es fijo. */}
+      <div className="sticky top-[57px] z-10 border-b border-slate-300 bg-white px-4 py-3 sm:top-[65px]">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <p className="truncate text-lg font-bold">{tecnico.nombre || "Técnico"}</p>
@@ -185,7 +186,7 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
             ? `Todo subido${ultimaSync ? ` · ${hora(ultimaSync)}` : ""}`
             : `${pendientes} ${pendientes === 1 ? "cosa pendiente" : "cosas pendientes"} de subir`}
         </p>
-      </header>
+      </div>
 
       {fotosQueCaben !== null && fotosQueCaben < POCAS_FOTOS && (
         <p

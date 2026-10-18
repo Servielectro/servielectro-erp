@@ -3,11 +3,12 @@
 //
 //   - /tecnico (navegación): primero la red, con 4 s de espera (en un sótano la red
 //     "existe" pero no contesta); si no llega, la última copia guardada.
-//   - /_next/static/* pedido desde /tecnico: archivos con nombre único por versión, se
+//   - /_next/static/* y /_next/image (el logo del encabezado) pedidos desde /tecnico: se
 //     guardan la primera vez y se sirven de la copia.
 //   - Nada de datos: los datos del técnico viven en IndexedDB, no acá.
 
-const CACHE = "se-tecnico-v1";
+const CACHE = "se-tecnico-v1"; // no cambiar a la ligera: cambiarlo borra la copia guardada de /tecnico
+const estatico = (pathname) => pathname.startsWith("/_next/static/") || pathname.startsWith("/_next/image");
 const PAGINA = "/tecnico";
 const MAX_ARCHIVOS = 200;
 const ESPERA_RED_MS = 4000;
@@ -96,7 +97,7 @@ self.addEventListener("message", (event) => {
         try {
           const url = new URL(u, self.location.origin);
           if (url.origin !== self.location.origin) continue;
-          if (!url.pathname.startsWith("/_next/static/") && url.pathname !== PAGINA) continue;
+          if (!estatico(url.pathname) && url.pathname !== PAGINA) continue;
           const clave = url.pathname === PAGINA ? PAGINA : url.href;
           if (await cache.match(clave)) continue;
           const r = await fetch(url.href, { credentials: "same-origin" });
@@ -120,7 +121,7 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(paginaTecnico(request));
     return;
   }
-  if (url.pathname.startsWith("/_next/static/")) {
+  if (estatico(url.pathname)) {
     event.respondWith(archivoEstatico(event));
   }
 });

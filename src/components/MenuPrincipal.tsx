@@ -19,6 +19,8 @@ export interface AccesosMenu {
   // rutas igual se protegen en el servidor.
   modulos: string[];
   baseDatos: boolean;
+  /** tecnico/trabajar o más: lo que exige /tecnico. */
+  campoTecnico: boolean;
 }
 
 export function MenuPrincipal({
@@ -205,6 +207,16 @@ export function MenuPrincipal({
                 Plantillas de documentos
               </Link>
             </>
+          )}
+          {accesos.modulos.includes("operativo") && (
+            <Link href="/operativo" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+              Operativo — visitas técnicas
+            </Link>
+          )}
+          {accesos.campoTecnico && (
+            <Link href="/tecnico" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+              Técnico — mis visitas
+            </Link>
           )}
           {accesos.modulos.includes("licitaciones") && (
             <Link href="/licitaciones" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">

@@ -29,7 +29,11 @@ export default async function Home() {
 
   // Solo los módulos con permiso (fn_mis_permisos). Las rutas se protegen aparte, en el servidor.
   const permisos = await getMisPermisos();
-  const visibles = MODULOS.filter((m) => permisos[m.id]);
+  // Técnico exige tecnico/trabajar (su pantalla lo pide): con solo "consultar" la tarjeta
+  // llevaría a una pantalla que lo devuelve al inicio.
+  const visibles = MODULOS.filter(
+    (m) => permisos[m.id] && (m.id !== "tecnico" || permisos.tecnico.nivel !== "consultar"),
+  );
 
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6">

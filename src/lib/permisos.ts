@@ -49,6 +49,25 @@ export async function tienePermiso(
   return !error && data === true;
 }
 
+/**
+ * Qué muestra el menú global. Cada entrada se muestra solo si el usuario puede ABRIR esa
+ * pantalla con el mismo nivel que exige su layout: /tecnico pide tecnico/trabajar, así que
+ * alguien con tecnico/consultar no ve la entrada (si la viera, lo devolvería al inicio).
+ */
+export function accesosDeMenu(permisos: MisPermisos) {
+  const alMenos = (modulo: string, nivel: NivelPermiso) => {
+    const p = permisos[modulo];
+    if (!p) return false;
+    const rango = { consultar: 1, trabajar: 2, responsable: 3 } as const;
+    return rango[p.nivel] >= rango[nivel];
+  };
+  return {
+    modulos: Object.keys(permisos),
+    baseDatos: permisos.comercial?.nivel === "responsable",
+    campoTecnico: alMenos("tecnico", "trabajar"),
+  };
+}
+
 /** Para layouts y páginas: sin el permiso, de vuelta al inicio. */
 export async function requierePermiso(modulo: string, nivelMinimo: NivelPermiso) {
   if (!(await tienePermiso(modulo, nivelMinimo))) redirect("/");
