@@ -18,6 +18,8 @@ export interface VisitaLocal {
   estado: string;
   fechaProgramada: string | null;
   fechaFinEstimada: string | null;
+  /** Mínimo de fotos por día que fijó quien asignó la visita (null = sin mínimo). */
+  fotosMinimasDia?: number | null;
   /** true si el técnico la marcó en curso y todavía no subió el cambio */
   estadoPendiente?: boolean;
 }
@@ -41,12 +43,17 @@ export interface JornadaLocal {
   noEjecutado: string;
   pendiente: string;
   observaciones: string;
+  /** Al salir: "4 de 10 · 2 antes, 2 durante, 0 después". */
+  fotosAlSalir?: string | null;
+  /** Si salió con la evidencia incompleta, por qué (null = completa). */
+  motivoFotosIncompletas?: string | null;
 }
 
 export interface FotoLocal {
   id: string;
   visitaId: string;
   jornadaId: string | null;
+  momento?: "antes" | "durante" | "despues" | null;
   /** YA comprimida (~200 KB): el original nunca se guarda. null cuando ya subió. */
   blob: Blob | null;
   subida?: boolean;

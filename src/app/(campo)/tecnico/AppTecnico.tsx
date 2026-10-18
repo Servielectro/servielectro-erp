@@ -21,6 +21,14 @@ import {
 } from "@/lib/tecnico/db";
 import { comprimirFoto, ETIQUETA_GPS, hoyBogota, obtenerUbicacion, sha256 } from "@/lib/tecnico/captura";
 import { sincronizar } from "@/lib/tecnico/sync";
+import {
+  contarFotos,
+  ETIQUETA_MOMENTO,
+  MOMENTOS,
+  revisarEvidencia,
+  type Momento,
+  type RevisionEvidencia,
+} from "@/lib/tecnico/evidencia";
 import { descargarVisitas, servidorSupabase } from "@/lib/tecnico/servidor-supabase";
 import { FirmaPantallaCompleta } from "./FirmaPantallaCompleta";
 
@@ -340,13 +348,32 @@ function DetalleVisita({
     await despues();
   }
 
-  async function marcarSalida(j: JornadaLocal) {
+  // Salida: si la evidencia del día está incompleta, avisa y pide un motivo. No bloquea.
+  const [avisoSalida, setAvisoSalida] = useState<{ jornada: JornadaLocal; revision: RevisionEvidencia } | null>(null);
+
+  function marcarSalida(j: JornadaLocal) {
+    const revision = revisarEvidencia(contarFotos(fotos, j.id), visita.fotosMinimasDia ?? null);
+    if (revision.completa) {
+      hacerSalida(j, revision.resumen, null);
+    } else {
+      setAvisoSalida({ jornada: j, revision });
+    }
+  }
+
+  async function hacerSalida(j: JornadaLocal, resumen: string, motivo: string | null) {
+    setAvisoSalida(null);
     setOcupado("Tomando la ubicación…");
     const ubicacion = await obtenerUbicacion();
-    const actualizada = { ...j, checkOutEn: new Date().toISOString(), checkOut: ubicacion };
+    const actualizada: JornadaLocal = {
+      ...j,
+      checkOutEn: new Date().toISOString(),
+      checkOut: ubicacion,
+      fotosAlSalir: resumen,
+      motivoFotosIncompletas: motivo,
+    };
     await guardarYEncolar("jornadas", actualizada, { id: j.id, tipo: "jornada", visitaId: visita.id });
     setOcupado(null);
-    await despues(`Salida ${hora(actualizada.checkOutEn)} · ${ETIQUETA_GPS[ubicacion.estado]}`);
+    await despues(`Salida ${hora(actualizada.checkOutEn)} · ${ETIQUETA_GPS[ubicacion.estado]} · ${resumen}`);
   }
 
   return (
@@ -385,6 +412,14 @@ function DetalleVisita({
 
       {ocupado && <p className="rounded-xl bg-slate-800 px-4 py-3 text-lg text-white">{ocupado}</p>}
 
+      {avisoSalida && (
+        <AvisoSalida
+          revision={avisoSalida.revision}
+          onVolver={() => setAvisoSalida(null)}
+          onConfirmar={(motivo) => hacerSalida(avisoSalida.jornada, avisoSalida.revision.resumen, motivo)}
+        />
+      )}
+
       {visita.tipo === "obra" ? (
         <ReporteDeHoy
           hoy={hoy}
@@ -422,6 +457,7 @@ function DetalleVisita({
           visitaId={visita.id}
           jornadaId={jornadaHoy?.id ?? jornadas[jornadas.length - 1]?.id ?? null}
           fotos={fotos}
+          minimo={visita.fotosMinimasDia ?? null}
           cerrada={cerrada}
           fotosQueCaben={fotosQueCaben}
           onCambio={despues}
@@ -522,6 +558,10 @@ function Jornada({
           <p className="text-base text-slate-700">
             Salida {hora(jornada.checkOutEn)} · {jornada.checkOut ? ETIQUETA_GPS[jornada.checkOut.estado] : ""}
           </p>
+        )}
+        {jornada.fotosAlSalir && <p className="text-base text-slate-700">Fotos: {jornada.fotosAlSalir}</p>}
+        {jornada.motivoFotosIncompletas && (
+          <p className="text-base text-amber-800">Salió sin completar fotos: {jornada.motivoFotosIncompletas}</p>
         )}
       </button>
 
@@ -684,6 +724,7 @@ function Fotos({
   visitaId,
   jornadaId,
   fotos,
+  minimo,
   cerrada,
   fotosQueCaben,
   onCambio,
@@ -691,6 +732,7 @@ function Fotos({
   visitaId: string;
   jornadaId: string | null;
   fotos: FotoLocal[];
+  minimo: number | null;
   cerrada: boolean;
   fotosQueCaben: number | null;
   onCambio: (mensaje?: string) => Promise<void>;
@@ -698,26 +740,45 @@ function Fotos({
   const camara = useRef<HTMLInputElement>(null);
   const galeria = useRef<HTMLInputElement>(null);
   const [progreso, setProgreso] = useState<string | null>(null);
-  const subidas = fotos.filter((f) => f.subida).length;
   const sinEspacio = fotosQueCaben !== null && fotosQueCaben < 3;
-
-  // Miniaturas solo de las últimas 6 que siguen en el celular (memoria de gama media).
-  const recientes = useMemo(() => fotos.filter((f) => f.blob).slice(-6), [fotos]);
-  const [miniaturas, setMiniaturas] = useState<{ id: string; url: string }[]>([]);
+  // Recuerda el último momento elegido en esta jornada: se toman diez seguidas del mismo.
+  const [momento, setMomento] = useState<Momento>("antes");
   useEffect(() => {
-    const urls = recientes.map((f) => ({ id: f.id, url: URL.createObjectURL(f.blob as Blob) }));
+    if (!jornadaId) return;
+    leerMeta<Momento>(`momento:${jornadaId}`).then((m) => m && setMomento(m));
+  }, [jornadaId]);
+  function elegirMomento(m: Momento) {
+    setMomento(m);
+    if (jornadaId) guardarMeta(`momento:${jornadaId}`, m);
+  }
+
+  const delDia = useMemo(() => fotos.filter((f) => f.jornadaId === jornadaId), [fotos, jornadaId]);
+  const conteo = contarFotos(fotos, jornadaId);
+  const revision = revisarEvidencia(conteo, minimo);
+  const otrosDias = fotos.length - delDia.length;
+  const subidas = delDia.filter((f) => f.subida).length;
+
+  // Miniaturas: hasta 4 por momento de las que siguen en el celular (memoria de gama media).
+  const visibles = useMemo(
+    () => MOMENTOS.flatMap((m) => delDia.filter((f) => f.blob && f.momento === m).slice(-4)),
+    [delDia],
+  );
+  const [miniaturas, setMiniaturas] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    const urls = new Map(visibles.map((f) => [f.id, URL.createObjectURL(f.blob as Blob)]));
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMiniaturas(urls);
-    return () => urls.forEach((u) => URL.revokeObjectURL(u.url));
-  }, [recientes]);
+    return () => urls.forEach((u) => URL.revokeObjectURL(u));
+  }, [visibles]);
 
   async function procesar(archivos: FileList | null) {
     if (!archivos || archivos.length === 0) return;
     const lista = Array.from(archivos);
+    const elegido = momento;
     let hechas = 0;
     let fallidas = 0;
     for (const [i, archivo] of lista.entries()) {
-      setProgreso(`Guardando foto ${i + 1} de ${lista.length}…`);
+      setProgreso(`Guardando foto ${i + 1} de ${lista.length} (${ETIQUETA_MOMENTO[elegido]})…`);
       try {
         // Una por vez: comprimir y guardar ANTES de tocar la siguiente.
         const blob = await comprimirFoto(archivo);
@@ -725,6 +786,7 @@ function Fotos({
           id: crypto.randomUUID(),
           visitaId,
           jornadaId,
+          momento: elegido,
           blob,
           tomadaEn: new Date(archivo.lastModified || Date.now()).toISOString(),
           bytes: blob.size,
@@ -742,62 +804,141 @@ function Fotos({
     await onCambio(
       fallidas
         ? `${hechas} fotos guardadas; ${fallidas} no se pudieron procesar (¿falta espacio?).`
-        : `${hechas} ${hechas === 1 ? "foto guardada" : "fotos guardadas"} en el celular.`,
+        : `${hechas} ${hechas === 1 ? "foto guardada" : "fotos guardadas"} (${ETIQUETA_MOMENTO[elegido]}).`,
     );
   }
 
   return (
     <section className="rounded-2xl border-2 border-slate-300 bg-white p-4">
-      <p className="text-lg font-bold">Fotos ({fotos.length})</p>
-      <p className="text-base text-slate-600">
-        {subidas} subidas · {fotos.length - subidas} en el celular esperando señal
+      <p className="text-lg font-bold">Fotos de hoy</p>
+      {/* Contador siempre a la vista: sabe qué le falta sin pensarlo. */}
+      <p className={`text-lg font-semibold ${revision.completa ? "text-green-800" : "text-slate-900"}`}>
+        {revision.resumen}
       </p>
-      {miniaturas.length > 0 && (
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {miniaturas.map((m) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img key={m.id} src={m.url} alt="" className="aspect-square w-full rounded-lg object-cover" />
-          ))}
-        </div>
+      {revision.faltanMomentos.length > 0 && (
+        <p className="mt-1 rounded-lg bg-red-100 px-3 py-2 text-base font-semibold text-red-900">
+          No hay ninguna foto de {revision.faltanMomentos.map((m) => ETIQUETA_MOMENTO[m]).join(", ")}.
+        </p>
+      )}
+      {revision.faltanParaMinimo > 0 && (
+        <p className="mt-1 text-base text-amber-800">
+          Faltan {revision.faltanParaMinimo} para el mínimo del día ({minimo}).
+        </p>
+      )}
+      <p className="mt-1 text-sm text-slate-600">
+        {subidas} subidas · {delDia.length - subidas} esperando señal
+        {otrosDias > 0 ? ` · ${otrosDias} de otros días` : ""}
+      </p>
+
+      {!cerrada && (
+        <>
+          <p className="mt-3 text-base font-semibold">Momento de la foto</p>
+          <div className="mt-1 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Momento de la foto">
+            {MOMENTOS.map((m) => (
+              <button
+                key={m}
+                type="button"
+                role="radio"
+                aria-checked={momento === m}
+                onClick={() => elegirMomento(m)}
+                className={`min-h-14 rounded-xl border-2 text-lg font-bold ${
+                  momento === m ? "border-[#A82323] bg-[#A82323] text-white" : "border-slate-400 bg-white text-slate-900"
+                }`}
+              >
+                {ETIQUETA_MOMENTO[m]}
+              </button>
+            ))}
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <input ref={camara} type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => procesar(e.target.files)} />
+            <input ref={galeria} type="file" accept="image/*" multiple className="sr-only" onChange={(e) => procesar(e.target.files)} />
+            <button type="button" onClick={() => camara.current?.click()} disabled={Boolean(progreso) || sinEspacio} className={BOTON_PRIMARIO}>
+              Tomar foto
+            </button>
+            <button type="button" onClick={() => galeria.current?.click()} disabled={Boolean(progreso) || sinEspacio} className={BOTON_SECUNDARIO}>
+              De la galería
+            </button>
+          </div>
+        </>
       )}
       {progreso && <p className="mt-3 text-lg font-semibold">{progreso}</p>}
-      {!cerrada && (
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          <input
-            ref={camara}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="sr-only"
-            onChange={(e) => procesar(e.target.files)}
+
+      {/* Agrupadas por momento: así el informe de corte se arma solo. */}
+      <div className="mt-4 space-y-3">
+        {MOMENTOS.map((m) => {
+          const grupo = delDia.filter((f) => f.momento === m);
+          const conImagen = grupo.filter((f) => miniaturas.has(f.id));
+          return (
+            <div key={m}>
+              <p className="text-base font-semibold">
+                {ETIQUETA_MOMENTO[m]} ({grupo.length})
+              </p>
+              {conImagen.length > 0 ? (
+                <div className="mt-1 grid grid-cols-4 gap-2">
+                  {conImagen.map((f) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={f.id} src={miniaturas.get(f.id)} alt="" className="aspect-square w-full rounded-lg object-cover" />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500">{grupo.length ? "Ya subidas." : "Ninguna todavía."}</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Aviso al marcar la salida con evidencia incompleta. NO impide cerrar: pide un motivo
+ * escrito y lo deja registrado en la jornada.
+ */
+function AvisoSalida({
+  revision,
+  onVolver,
+  onConfirmar,
+}: {
+  revision: RevisionEvidencia;
+  onVolver: () => void;
+  onConfirmar: (motivo: string) => void;
+}) {
+  const [motivo, setMotivo] = useState("");
+  return (
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-900/60 p-3 sm:items-center">
+      <div className="w-full max-w-md space-y-3 rounded-2xl bg-white p-5">
+        <p className="text-xl font-bold">Faltan fotos de hoy</p>
+        <p className="text-lg">{revision.resumen}</p>
+        {revision.faltanMomentos.length > 0 && (
+          <p className="rounded-lg bg-red-100 px-3 py-2 text-lg font-semibold text-red-900">
+            No hay ninguna foto de {revision.faltanMomentos.map((m) => ETIQUETA_MOMENTO[m]).join(", ")}.
+          </p>
+        )}
+        {revision.faltanParaMinimo > 0 && (
+          <p className="text-base text-amber-800">Faltan {revision.faltanParaMinimo} para el mínimo del día.</p>
+        )}
+        <label className="block">
+          <span className="text-base font-semibold">¿Por qué sales sin completarlas? *</span>
+          <textarea
+            rows={3}
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            placeholder="Ej. el cliente no dejó tomar fotos del cuarto técnico"
+            className={`${CAMPO} mt-1`}
           />
-          <input
-            ref={galeria}
-            type="file"
-            accept="image/*"
-            multiple
-            className="sr-only"
-            onChange={(e) => procesar(e.target.files)}
-          />
-          <button
-            type="button"
-            onClick={() => camara.current?.click()}
-            disabled={Boolean(progreso) || sinEspacio}
-            className={BOTON_PRIMARIO}
-          >
-            Tomar foto
+        </label>
+        <p className="text-sm text-slate-600">Queda registrado en el reporte del día.</p>
+        <div className="grid grid-cols-2 gap-3">
+          <button type="button" onClick={onVolver} className={BOTON_SECUNDARIO}>
+            Tomar fotos
           </button>
-          <button
-            type="button"
-            onClick={() => galeria.current?.click()}
-            disabled={Boolean(progreso) || sinEspacio}
-            className={BOTON_SECUNDARIO}
-          >
-            De la galería
+          <button type="button" onClick={() => onConfirmar(motivo.trim())} disabled={!motivo.trim()} className={BOTON_PRIMARIO}>
+            Salir igual
           </button>
         </div>
-      )}
-    </section>
+      </div>
+    </div>
   );
 }
 

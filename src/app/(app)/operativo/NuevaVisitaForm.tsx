@@ -21,6 +21,7 @@ function vacia(): NuevaVisita {
     fechaProgramada: hoyColombia(),
     fechaFinEstimada: "",
     descripcionTrabajo: "",
+    fotosMinimasDia: "",
   };
 }
 
@@ -146,6 +147,19 @@ export function NuevaVisitaForm({
             <input type="date" value={v.fechaFinEstimada} onChange={(e) => cambiar("fechaFinEstimada", e.target.value)} className={CAMPO} />
           </div>
         )}
+      </div>
+      <div>
+        <label className="text-xs text-slate-600">Mínimo de fotos por día</label>
+        <input
+          inputMode="numeric"
+          value={v.fotosMinimasDia}
+          onChange={(e) => cambiar("fotosMinimasDia", e.target.value.replace(/[^0-9]/g, ""))}
+          placeholder="Vacío = sin mínimo (ej. 6 en un mantenimiento, 20 en una canalización)"
+          className={CAMPO}
+        />
+        <p className="mt-0.5 text-xs text-slate-500">
+          No bloquea al técnico: si sale con menos, se le pide el motivo y queda registrado.
+        </p>
       </div>
       <div>
         <label className="text-xs text-slate-600">Qué hay que hacer</label>

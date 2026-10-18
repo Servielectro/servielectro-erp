@@ -39,6 +39,10 @@ export function servidorSupabase(supabase: SupabaseClient): Servidor {
           no_ejecutado: j.noEjecutado || null,
           pendiente: j.pendiente || null,
           observaciones: j.observaciones || null,
+          // Solo al salir (columnas de la migración 48).
+          ...(j.fotosAlSalir != null
+            ? { fotos_al_salir: j.fotosAlSalir, motivo_fotos_incompletas: j.motivoFotosIncompletas ?? null }
+            : {}),
         },
         { onConflict: "id" },
       );
@@ -80,6 +84,7 @@ export function servidorSupabase(supabase: SupabaseClient): Servidor {
           visita_id: f.visitaId,
           jornada_id: f.jornadaId,
           storage_path: ruta,
+          momento: f.momento ?? null,
           tomada_en: f.tomadaEn,
           bytes: f.bytes,
           sha256: f.sha256,
@@ -117,7 +122,7 @@ export async function descargarVisitas(supabase: SupabaseClient, tecnicoId: stri
   const { data, error } = await supabase
     .from("visitas")
     .select(
-      "id, titulo, descripcion_trabajo, direccion, cliente_nombre, contacto_sitio, telefono_sitio, tipo, estado, fecha_programada, fecha_fin_estimada",
+      "id, titulo, descripcion_trabajo, direccion, cliente_nombre, contacto_sitio, telefono_sitio, tipo, estado, fecha_programada, fecha_fin_estimada, fotos_minimas_dia",
     )
     .eq("tecnico_id", tecnicoId)
     .in("estado", ["programada", "en_curso", "firmada"])
@@ -138,6 +143,7 @@ export async function descargarVisitas(supabase: SupabaseClient, tecnicoId: stri
       estado: local?.estadoPendiente ? local.estado : v.estado,
       fechaProgramada: v.fecha_programada,
       fechaFinEstimada: v.fecha_fin_estimada,
+      fotosMinimasDia: v.fotos_minimas_dia,
       estadoPendiente: local?.estadoPendiente ?? false,
     });
   }

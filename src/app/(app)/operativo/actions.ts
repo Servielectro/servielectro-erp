@@ -18,6 +18,8 @@ export interface NuevaVisita {
   fechaProgramada: string;
   fechaFinEstimada: string;
   descripcionTrabajo: string;
+  /** Mínimo de fotos por día (texto del formulario; vacío = sin mínimo). */
+  fotosMinimasDia: string;
 }
 
 export async function crearVisita(v: NuevaVisita): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -27,6 +29,10 @@ export async function crearVisita(v: NuevaVisita): Promise<{ ok: true } | { ok: 
   if (!v.titulo.trim()) return { ok: false, error: "Falta el título de la visita." };
   if (!v.tecnicoId) return { ok: false, error: "Elige el técnico que la va a hacer." };
   if (!v.fechaProgramada) return { ok: false, error: "Falta la fecha." };
+  const minimo = v.fotosMinimasDia.trim() ? Number(v.fotosMinimasDia) : null;
+  if (minimo !== null && (!Number.isInteger(minimo) || minimo < 1 || minimo > 500)) {
+    return { ok: false, error: "El mínimo de fotos es un número entero entre 1 y 500, o vacío." };
+  }
 
   const supabase = await createClient();
   const { error } = await supabase.from("visitas").insert({
@@ -42,6 +48,7 @@ export async function crearVisita(v: NuevaVisita): Promise<{ ok: true } | { ok: 
     fecha_programada: v.fechaProgramada,
     fecha_fin_estimada: v.tipo === "obra" && v.fechaFinEstimada ? v.fechaFinEstimada : null,
     descripcion_trabajo: v.descripcionTrabajo.trim() || null,
+    fotos_minimas_dia: minimo,
   });
   if (error) {
     return {
