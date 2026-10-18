@@ -137,7 +137,7 @@ where p.prokind = 'f' and has_function_privilege('anon', p.oid, 'EXECUTE')
 
 union all
 -- 14) Privilegios por defecto: lo que recibirán anon/authenticated en tablas FUTURAS
-select '14 default acl', pg_get_userbyid(d.defaclrole) || ' / ' || d.defaclobjtype,
+select '14 default acl', pg_get_userbyid(d.defaclrole) || ' / ' || d.defaclobjtype::text,
        array_to_string(d.defaclacl, ' ')
 from pg_default_acl d
 join pg_namespace n on n.oid = d.defaclnamespace and n.nspname = 'public'

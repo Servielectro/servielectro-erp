@@ -53,7 +53,7 @@ where p.proname ~* 'tarea|agenda'
 
 union all
 -- 06) Privilegios por defecto vigentes (tablas nuevas sin anon desde la 42)
-select '06 default acl', pg_get_userbyid(d.defaclrole) || ' / ' || d.defaclobjtype,
+select '06 default acl', pg_get_userbyid(d.defaclrole) || ' / ' || d.defaclobjtype::text,
        array_to_string(d.defaclacl, ' ')
 from pg_default_acl d join pg_namespace n on n.oid = d.defaclnamespace and n.nspname = 'public'
 
