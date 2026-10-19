@@ -208,10 +208,22 @@ export function MenuPrincipal({
               </Link>
             </>
           )}
+          {/* La agenda personal es de cualquiera con sesión (sus tareas internas no las ve nadie más). */}
+          <Link href="/agenda" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+            📅 Mi agenda
+          </Link>
           {accesos.modulos.includes("operativo") && (
-            <Link href="/operativo" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
-              Operativo — visitas técnicas
-            </Link>
+            <>
+              <Link href="/operativo" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+                Operativo — visitas técnicas
+              </Link>
+              <Link href="/operativo/tareas" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+                Tablero de tareas
+              </Link>
+              <Link href="/operativo/sugerencias" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+                Sugerencias de los técnicos
+              </Link>
+            </>
           )}
           {accesos.campoTecnico && (
             <Link href="/tecnico" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
