@@ -65,6 +65,8 @@ export function accesosDeMenu(permisos: MisPermisos) {
     modulos: Object.keys(permisos),
     baseDatos: permisos.comercial?.nivel === "responsable",
     campoTecnico: alMenos("tecnico", "trabajar"),
+    planificacion: alMenos("planificacion", "trabajar"),
+    configResponsable: alMenos("configuracion", "responsable"),
   };
 }
 

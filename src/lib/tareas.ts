@@ -4,7 +4,13 @@
 
 export type EstadoTarea = "por_hacer" | "en_progreso" | "hecho";
 export type PrioridadTarea = "baja" | "media" | "alta" | "urgente";
-export type VisibilidadTarea = "interna" | "equipo";
+/** interna: solo yo · compartida: + participantes (Planificación) · equipo: obra (Operativo). */
+export type VisibilidadTarea = "interna" | "compartida" | "equipo";
+
+export interface Participante {
+  perfilId: string | null;
+  grupoId: string | null;
+}
 
 export const COLUMNAS: { estado: EstadoTarea; titulo: string; borde: string; texto: string }[] = [
   { estado: "por_hacer", titulo: "Por hacer", borde: "border-t-orange-500", texto: "text-orange-700" },
@@ -53,7 +59,10 @@ export interface Tarea {
   /** Si nació de una sugerencia del técnico. */
   sugerenciaId: string | null;
   asignados: string[];
-  subtareas: { id: string; titulo: string; hecha: boolean; orden: number }[];
+  /** Con quién está compartida (personas o grupos). Solo en "compartida". */
+  participantes: Participante[];
+  /** responsableId: null = "Sin asignar" (también si la migración 54 no está corrida). */
+  subtareas: { id: string; titulo: string; hecha: boolean; orden: number; responsableId: string | null }[];
   dependencias: { bloqueanteId: string; tipo: "para_empezar" | "para_cerrar" }[];
 }
 
@@ -84,12 +93,17 @@ export function tareaDeFila(f: any): Tarea {
     cerradaEn: f.cerrada_en,
     sugerenciaId: f.sugerencia_id ?? null,
     asignados: (f.tarea_asignados ?? []).map((a: { perfil_id: string }) => a.perfil_id),
+    participantes: (f.tarea_participantes ?? []).map((p: { perfil_id: string | null; grupo_id: string | null }) => ({
+      perfilId: p.perfil_id,
+      grupoId: p.grupo_id,
+    })),
     subtareas: (f.tarea_subtareas ?? [])
-      .map((s: { id: string; titulo: string; hecha: boolean; orden: number }) => ({
+      .map((s: { id: string; titulo: string; hecha: boolean; orden: number; responsable_id?: string | null }) => ({
         id: s.id,
         titulo: s.titulo,
         hecha: s.hecha,
         orden: Number(s.orden ?? 0),
+        responsableId: s.responsable_id ?? null,
       }))
       .sort((a: { orden: number }, b: { orden: number }) => a.orden - b.orden),
     dependencias: (f.dependencias ?? []).map((d: { bloqueante_id: string; tipo: "para_empezar" | "para_cerrar" }) => ({
@@ -101,7 +115,21 @@ export function tareaDeFila(f: any): Tarea {
 
 /** Lo que se pide a la base para armar una Tarea (con sus hijos). */
 export const SELECT_TAREA =
-  "id, titulo, descripcion, estado, prioridad, visibilidad, proyecto_id, visita_id, fecha_programada, hora, fecha_limite, orden, creada_por, archivada, cerrada_en, sugerencia_id, tarea_asignados(perfil_id), tarea_subtareas(id, titulo, hecha, orden), dependencias:tarea_dependencias!tarea_dependencias_tarea_id_fkey(bloqueante_id, tipo)";
+  "id, titulo, descripcion, estado, prioridad, visibilidad, proyecto_id, visita_id, fecha_programada, hora, fecha_limite, orden, creada_por, archivada, cerrada_en, sugerencia_id, tarea_asignados(perfil_id), tarea_participantes(perfil_id, grupo_id), tarea_subtareas(id, titulo, hecha, orden, responsable_id), dependencias:tarea_dependencias!tarea_dependencias_tarea_id_fkey(bloqueante_id, tipo)";
+
+/** El mismo, sin el responsable de la subtarea: mientras la migración 54 no esté corrida. */
+export const SELECT_TAREA_SIN_54 = SELECT_TAREA.replace(", responsable_id)", ")");
+
+/** ¿El error es porque falta la columna de la 54? Entonces se pide sin ella. */
+export function faltaResponsable(e: { message?: string } | null | undefined): boolean {
+  return Boolean(e?.message && /responsable_id/.test(e.message));
+}
+
+export const ETIQUETA_VISIBILIDAD: Record<VisibilidadTarea, string> = {
+  interna: "🔒 Interna",
+  compartida: "👥 Equipo",
+  equipo: "🏗️ Obra",
+};
 
 // ------------------------------------------------------------------ fechas
 export function hoyBogota(): string {
@@ -232,4 +260,19 @@ export function grupoDeDia(dia: string | null, hoy: string): GrupoAgenda {
   if (d === 1) return "manana";
   if (d <= 6) return "semana";
   return "despues";
+}
+
+/** "2026-10-18 18:44" en hora de Bogotá (las entradas del historial). */
+export function fechaHoraBogota(iso: string): string {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(iso));
+  const v = (t: string) => partes.find((p) => p.type === t)?.value ?? "";
+  return `${v("year")}-${v("month")}-${v("day")} ${v("hour")}:${v("minute")}`;
 }

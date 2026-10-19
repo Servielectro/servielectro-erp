@@ -8,6 +8,7 @@ import {
   cumpleFiltro,
   etiquetaVence,
   ETIQUETA_ESTADO,
+  ETIQUETA_VISIBILIDAD,
   FILTROS,
   hoyBogota,
   ordenEntre,
@@ -17,7 +18,8 @@ import {
   type Obra,
   type Tarea,
 } from "@/lib/tareas";
-import { borradorVacio, guardarTarea, moverTarea } from "@/lib/tareas-guardar";
+import { borradorVacio, guardarTarea, moverTarea, recuperarTarea } from "@/lib/tareas-guardar";
+import type { GrupoCompartir, ModoTareas } from "@/lib/supabase/tareas";
 import { FormTarea } from "./FormTarea";
 
 type Vista = "tablero" | "lista" | "tabla" | "tarjetas";
@@ -39,26 +41,39 @@ interface Arrastre {
 }
 
 export function TableroTareas({
+  modo = "operativo",
   yo,
   puedeAsignar,
   tareasIniciales,
+  archivadasIniciales = [],
   obras,
   personas,
+  grupos = [],
+  conResponsable = true,
 }: {
+  /** operativo: tablero de obra · planificacion: tareas administrativas (internas y compartidas). */
+  modo?: ModoTareas;
   yo: string;
   puedeAsignar: boolean;
   tareasIniciales: Tarea[];
+  archivadasIniciales?: Tarea[];
   obras: Obra[];
   personas: { id: string; nombre: string }[];
+  grupos?: GrupoCompartir[];
+  conResponsable?: boolean;
 }) {
   const supabase = useMemo(() => createClient(), []);
+  const planificacion = modo === "planificacion";
   const hoy = hoyBogota();
   const [tareas, setTareas] = useState<Tarea[]>(tareasIniciales);
+  const [archivadas, setArchivadas] = useState<Tarea[]>(archivadasIniciales);
+  const [verArchivadas, setVerArchivadas] = useState(false);
   const [filtro, setFiltro] = useState<FiltroEstado>("abiertas");
   const [busqueda, setBusqueda] = useState("");
-  const [visibilidad, setVisibilidad] = useState<"todas" | "interna" | "equipo">("todas");
-  // todas | mias | creadas | asignadas | sin_asignar | <perfil>. Quien no asigna arranca en lo suyo.
-  const [asignacion, setAsignacion] = useState<string>(puedeAsignar ? "todas" : "mias");
+  // Planificación: Tareas de grupo (compartidas) · Tareas personales (internas) · Todas.
+  const [visibilidad, setVisibilidad] = useState<"todas" | "interna" | "compartida">("todas");
+  // todas | mias | creadas | asignadas | conmigo | sin_asignar | <perfil>. Quien no asigna arranca en lo suyo.
+  const [asignacion, setAsignacion] = useState<string>(puedeAsignar || planificacion ? "todas" : "mias");
   const [expandidas, setExpandidas] = useState<Set<string>>(new Set());
   const [obra, setObra] = useState("");
   const [vista, setVista] = useState<Vista>("tablero");
@@ -75,6 +90,11 @@ export function TableroTareas({
   const porId = useMemo(() => new Map(tareas.map((t) => [t.id, t])), [tareas]);
   const nombreObra = useMemo(() => new Map(obras.map((o) => [o.clave, o.nombre])), [obras]);
   const nombrePersona = useMemo(() => new Map(personas.map((p) => [p.id, p.nombre])), [personas]);
+  const nombreGrupo = useMemo(() => new Map(grupos.map((g) => [g.id, g.nombre])), [grupos]);
+  const conQuien = (t: Tarea) =>
+    t.participantes
+      .map((p) => (p.perfilId ? nombrePersona.get(p.perfilId) ?? "—" : `👥 ${nombreGrupo.get(p.grupoId!) ?? "Grupo"}`))
+      .join(", ");
 
   useEffect(() => {
     if (!franja || franja.tipo === "error") return;
@@ -91,8 +111,9 @@ export function TableroTareas({
       if (asignacion === "mias" && !(t.asignados.includes(yo) || t.creadaPor === yo)) return false;
       if (asignacion === "creadas" && t.creadaPor !== yo) return false;
       if (asignacion === "asignadas" && !t.asignados.includes(yo)) return false;
+      if (asignacion === "conmigo" && t.creadaPor === yo) return false;
       if (asignacion === "sin_asignar" && (t.visibilidad !== "equipo" || t.asignados.length > 0)) return false;
-      if (!["todas", "mias", "creadas", "asignadas", "sin_asignar"].includes(asignacion) && !t.asignados.includes(asignacion))
+      if (!["todas", "mias", "creadas", "asignadas", "conmigo", "sin_asignar"].includes(asignacion) && !t.asignados.includes(asignacion))
         return false;
       if (q && !t.titulo.toLowerCase().includes(q) && !t.subtareas.some((s) => s.titulo.toLowerCase().includes(q))) return false;
       return true;
@@ -113,17 +134,22 @@ export function TableroTareas({
     if (!titulo) return;
     const b = borradorVacio(estado);
     b.titulo = titulo;
-    // Con una obra elegida y permiso de asignar, nace de equipo en esa obra; si no, va a
-    // la agenda de quien la crea.
-    if (obra && puedeAsignar) {
+    // Planificación: nace interna (solo yo); se comparte desde el formulario. Operativo: es
+    // de obra, así que necesita la obra elegida en el filtro.
+    if (!planificacion) {
+      if (!obra) {
+        setFranja({ tipo: "error", texto: "Elige la obra en el filtro de arriba, o usa “+ Nueva tarea”." });
+        return;
+      }
       b.visibilidad = "equipo";
-      b.obra = obra;
     }
+    b.obra = obra;
     const enColumna = tareas.filter((t) => t.estado === estado);
     const ultima = enColumna.reduce((m, t) => Math.max(m, t.orden), -Infinity);
     const res = await guardarTarea(supabase, null, b, {
       soloMover: false,
       ordenNueva: Number.isFinite(ultima) ? ultima + 1000 : 1000,
+      conResponsable,
     });
     if (!res.ok) {
       // El texto queda en el campo: no se pierde en silencio.
@@ -132,7 +158,7 @@ export function TableroTareas({
     }
     reemplazar(res.tarea);
     setRapida((r) => ({ ...r, [estado]: "" }));
-    setFranja({ tipo: "ok", texto: b.visibilidad === "equipo" ? "Tarea creada" : "Tarea creada en tu agenda (interna)" });
+    setFranja({ tipo: "ok", texto: b.visibilidad === "interna" ? "Tarea creada (interna, solo tú)" : "Tarea creada" });
   }
 
   // ------------------------------------------------------------ arrastrar manteniendo pulsado
@@ -290,7 +316,7 @@ export function TableroTareas({
               {abierta ? "▾" : "▸"}
             </button>
             <span className="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">
-              {t.visibilidad === "interna" ? "🔒 Interna" : "👥 Equipo"}
+              {ETIQUETA_VISIBILIDAD[t.visibilidad]}
             </span>
             <span className={`font-bold ${prioridad.texto}`}>{prioridad.etiqueta}</span>
             {vence && <span className={vence.clase}>{vence.texto}</span>}
@@ -319,7 +345,13 @@ export function TableroTareas({
           {/* Pie gris y chico */}
           <p className="mt-1 text-xs text-slate-500">
             {hechas}/{t.subtareas.length} subtareas
-            {mia ? " · Mía" : t.asignados.length ? ` · ${t.asignados.map((a) => nombrePersona.get(a) ?? "—").join(", ")}` : ""}
+            {t.creadaPor !== yo && t.visibilidad === "compartida"
+              ? " · Compartida contigo"
+              : mia
+                ? " · Mía"
+                : t.asignados.length
+                  ? ` · ${t.asignados.map((a) => nombrePersona.get(a) ?? "—").join(", ")}`
+                  : ""}
           </p>
         </div>
       </div>
@@ -367,23 +399,33 @@ export function TableroTareas({
           placeholder="Buscar tarea o subtarea…"
           className="min-h-11 rounded-lg border border-slate-300 px-3 text-base"
         />
-        <select value={visibilidad} onChange={(e) => setVisibilidad(e.target.value as typeof visibilidad)} className="min-h-11 rounded-lg border border-slate-300 px-2 text-base">
-          <option value="todas">Internas y de equipo</option>
-          <option value="interna">Solo internas</option>
-          <option value="equipo">Solo de equipo</option>
-        </select>
-        <select value={asignacion} onChange={(e) => setAsignacion(e.target.value)} className="min-h-11 rounded-lg border border-slate-300 px-2 text-base">
-          <option value="mias">Todas las mías</option>
-          <option value="creadas">Creadas por mí</option>
-          <option value="asignadas">Asignadas a mí</option>
-          {puedeAsignar && <option value="todas">Todo el tablero</option>}
-          {puedeAsignar && <option value="sin_asignar">Sin asignar</option>}
-          {personas.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.nombre}
-            </option>
-          ))}
-        </select>
+        {planificacion && (
+          <select value={visibilidad} onChange={(e) => setVisibilidad(e.target.value as typeof visibilidad)} className="min-h-11 rounded-lg border border-slate-300 px-2 text-base">
+            <option value="todas">Todas</option>
+            <option value="compartida">Tareas de grupo</option>
+            <option value="interna">Tareas personales</option>
+          </select>
+        )}
+        {planificacion ? (
+          <select value={asignacion} onChange={(e) => setAsignacion(e.target.value)} className="min-h-11 rounded-lg border border-slate-300 px-2 text-base">
+            <option value="todas">Mías y compartidas conmigo</option>
+            <option value="creadas">Creadas por mí</option>
+            <option value="conmigo">Compartidas conmigo</option>
+          </select>
+        ) : (
+          <select value={asignacion} onChange={(e) => setAsignacion(e.target.value)} className="min-h-11 rounded-lg border border-slate-300 px-2 text-base">
+            <option value="mias">Todas las mías</option>
+            <option value="creadas">Creadas por mí</option>
+            <option value="asignadas">Asignadas a mí</option>
+            {puedeAsignar && <option value="todas">Todo el tablero</option>}
+            {puedeAsignar && <option value="sin_asignar">Sin asignar</option>}
+            {personas.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nombre}
+              </option>
+            ))}
+          </select>
+        )}
         <select value={obra} onChange={(e) => setObra(e.target.value)} className="min-h-11 rounded-lg border border-slate-300 px-2 text-base">
           <option value="">Todas las obras</option>
           {obras.map((o) => (
@@ -425,12 +467,57 @@ export function TableroTareas({
         )}
         <button
           type="button"
-          onClick={() => setForm({ original: null, estado: "por_hacer" })}
-          className="min-h-11 rounded-lg bg-slate-900 px-4 text-base font-semibold text-white"
+          onClick={() => setVerArchivadas((v) => !v)}
+          aria-pressed={verArchivadas}
+          className={`min-h-11 rounded-lg border-2 px-3 text-sm font-medium ${verArchivadas ? "border-slate-900 bg-slate-100" : "border-slate-300"}`}
         >
-          + Nueva tarea
+          Archivadas <span className="opacity-70">{archivadas.length}</span>
         </button>
+        {puedeAsignar && (
+          <button
+            type="button"
+            onClick={() => setForm({ original: null, estado: "por_hacer" })}
+            className="min-h-11 rounded-lg bg-slate-900 px-4 text-base font-semibold text-white"
+          >
+            + Nueva tarea
+          </button>
+        )}
       </div>
+
+      {verArchivadas && (
+        <section className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+          <h3 className="text-base font-bold text-slate-800">Archivadas (eliminadas)</h3>
+          <p className="text-sm text-slate-600">No se borran: con “Recuperar” vuelven al tablero y a la agenda.</p>
+          {archivadas.length === 0 ? (
+            <p className="mt-2 text-base text-slate-500">No hay tareas archivadas.</p>
+          ) : (
+            <ul className="mt-2 divide-y divide-slate-100">
+              {archivadas.map((t) => (
+                <li key={t.id} className="flex min-h-12 items-center gap-2 py-1">
+                  <button type="button" onClick={() => setForm({ original: t, estado: t.estado })} className="min-h-11 flex-1 text-left text-base">
+                    {t.titulo}
+                  </button>
+                  {(t.creadaPor === yo || (!planificacion && puedeAsignar)) && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const res = await recuperarTarea(supabase, t.id);
+                        if (!res.ok) return setFranja({ tipo: "error", texto: res.error });
+                        setArchivadas((a) => a.filter((x) => x.id !== t.id));
+                        reemplazar(res.tarea);
+                        setFranja({ tipo: "ok", texto: "Tarea recuperada" });
+                      }}
+                      className="min-h-11 rounded-lg border-2 border-green-300 px-3 text-sm font-semibold text-green-800"
+                    >
+                      Recuperar
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       {vista === "tablero" && (
         <div ref={tablero} className="mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-4 md:snap-none">
@@ -567,7 +654,7 @@ export function TableroTareas({
                 <th className="px-3 py-2">Prioridad</th>
                 <th className="px-3 py-2">Vence</th>
                 <th className="px-3 py-2">Obra</th>
-                <th className="px-3 py-2">Asignados</th>
+                <th className="px-3 py-2">{planificacion ? "Con quién" : "Asignados"}</th>
                 <th className="px-3 py-2">Subtareas</th>
               </tr>
             </thead>
@@ -582,7 +669,11 @@ export function TableroTareas({
                     <td className="px-3 py-2">{etiquetaVence(t, hoy)?.texto ?? (t.fechaLimite ?? "—")}</td>
                     <td className="px-3 py-2">{clave ? nombreObra.get(clave) ?? "—" : "—"}</td>
                     <td className="px-3 py-2">
-                      {t.visibilidad === "interna" ? "🔒 solo yo" : t.asignados.map((a) => nombrePersona.get(a) ?? "—").join(", ") || "—"}
+                      {t.visibilidad === "interna"
+                        ? "🔒 solo yo"
+                        : t.visibilidad === "compartida"
+                          ? conQuien(t) || "—"
+                          : t.asignados.map((a) => nombrePersona.get(a) ?? "—").join(", ") || "—"}
                     </td>
                     <td className="px-3 py-2">
                       {t.subtareas.filter((s) => s.hecha).length}/{t.subtareas.length}
@@ -616,24 +707,35 @@ export function TableroTareas({
 
       {form && (
         <FormTarea
+          modo={modo}
           original={form.original}
           estadoInicial={form.estado}
           obraInicial={obra}
           yo={yo}
           puedeAsignar={puedeAsignar}
           personas={personas}
+          grupos={grupos}
+          conResponsable={conResponsable}
           obras={obras}
           tareas={tareas}
           onCerrar={() => setForm(null)}
+          onRecuperada={(t) => {
+            setArchivadas((a) => a.filter((x) => x.id !== t.id));
+            reemplazar(t);
+            setForm(null);
+            setFranja({ tipo: "ok", texto: "Tarea recuperada" });
+          }}
           onGuardada={(t, nueva) => {
             reemplazar(t);
             setForm(null);
             setFranja({ tipo: "ok", texto: nueva ? "Tarea creada" : "Tarea guardada" });
           }}
           onArchivada={(id) => {
+            const quitada = tareas.find((x) => x.id === id);
             setTareas((prev) => prev.filter((x) => x.id !== id));
+            if (quitada) setArchivadas((a) => [{ ...quitada, archivada: true }, ...a]);
             setForm(null);
-            setFranja({ tipo: "ok", texto: "Tarea archivada" });
+            setFranja({ tipo: "ok", texto: "Tarea eliminada (archivada): se recupera desde “Archivadas”" });
           }}
         />
       )}

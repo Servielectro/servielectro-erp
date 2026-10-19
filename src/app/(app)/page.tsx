@@ -15,6 +15,7 @@ const MODULOS = [
   { id: "rrhh", nombre: "RRHH", icono: "👥", href: "/rrhh", activo: true },
   { id: "tecnico", nombre: "Técnico", icono: "🔧", href: "/tecnico", activo: true },
   { id: "operativo", nombre: "Operativo", icono: "⚙️", href: "/operativo", activo: true },
+  { id: "planificacion", nombre: "Planificación", icono: "📅", href: "/planificacion", activo: true },
 ] as const;
 
 export default async function Home() {
@@ -31,8 +32,12 @@ export default async function Home() {
   const permisos = await getMisPermisos();
   // Técnico exige tecnico/trabajar (su pantalla lo pide): con solo "consultar" la tarjeta
   // llevaría a una pantalla que lo devuelve al inicio.
+  // Lo mismo Planificación: su pantalla pide planificacion/trabajar.
   const visibles = MODULOS.filter(
-    (m) => permisos[m.id] && (m.id !== "tecnico" || permisos.tecnico.nivel !== "consultar"),
+    (m) =>
+      permisos[m.id] &&
+      (m.id !== "tecnico" || permisos.tecnico.nivel !== "consultar") &&
+      (m.id !== "planificacion" || permisos.planificacion.nivel !== "consultar"),
   );
 
   return (

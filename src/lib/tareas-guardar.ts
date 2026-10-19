@@ -3,7 +3,17 @@
 // devuelve el mensaje de la base tal cual, que ya está escrito para el usuario.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { SELECT_TAREA, tareaDeFila, type EstadoTarea, type PrioridadTarea, type Tarea, type VisibilidadTarea } from "./tareas";
+import {
+  faltaResponsable,
+  SELECT_TAREA,
+  SELECT_TAREA_SIN_54,
+  tareaDeFila,
+  type EstadoTarea,
+  type Participante,
+  type PrioridadTarea,
+  type Tarea,
+  type VisibilidadTarea,
+} from "./tareas";
 
 export interface BorradorTarea {
   titulo: string;
@@ -17,7 +27,9 @@ export interface BorradorTarea {
   hora: string;
   fechaLimite: string;
   asignados: string[];
-  subtareas: { id: string | null; titulo: string; hecha: boolean }[];
+  /** Solo en "compartida": personas y grupos. */
+  participantes: Participante[];
+  subtareas: { id: string | null; titulo: string; hecha: boolean; responsableId: string | null }[];
   dependencias: { bloqueanteId: string; tipo: "para_empezar" | "para_cerrar" }[];
   nota: string;
   /** Solo al crear: la sugerencia del técnico de la que sale la tarea. */
@@ -36,6 +48,7 @@ export function borradorVacio(estado: EstadoTarea = "por_hacer"): BorradorTarea 
     hora: "",
     fechaLimite: "",
     asignados: [],
+    participantes: [],
     subtareas: [],
     dependencias: [],
     nota: "",
@@ -54,7 +67,8 @@ export function borradorDe(t: Tarea): BorradorTarea {
     hora: t.hora ?? "",
     fechaLimite: t.fechaLimite ?? "",
     asignados: [...t.asignados],
-    subtareas: t.subtareas.map((s) => ({ id: s.id, titulo: s.titulo, hecha: s.hecha })),
+    participantes: t.participantes.map((p) => ({ ...p })),
+    subtareas: t.subtareas.map((s) => ({ id: s.id, titulo: s.titulo, hecha: s.hecha, responsableId: s.responsableId })),
     dependencias: t.dependencias.map((d) => ({ ...d })),
     nota: "",
   };
@@ -80,12 +94,20 @@ export async function guardarTarea(
   supabase: SupabaseClient,
   original: Tarea | null,
   b: BorradorTarea,
-  opciones: { soloMover: boolean; ordenNueva?: number },
+  opciones: { soloMover: boolean; ordenNueva?: number; conResponsable?: boolean },
 ): Promise<Resultado> {
   if (!b.titulo.trim()) return { ok: false, error: "Falta el título." };
   if (b.hora && !b.fechaProgramada) return { ok: false, error: "Para poner hora, elige también el día." };
 
   let id = original?.id ?? null;
+  const clave = (p: Participante) => (p.perfilId ? `p:${p.perfilId}` : `g:${p.grupoId}`);
+
+  // Deja de ser compartida: primero se quita a los participantes (la base no deja cambiarla
+  // con participantes adentro; así nadie queda viendo una tarea que ya no es compartida).
+  if (!opciones.soloMover && original?.visibilidad === "compartida" && b.visibilidad !== "compartida") {
+    const { error } = await supabase.from("tarea_participantes").delete().eq("tarea_id", original.id);
+    if (error) return { ok: false, error: mensaje(error) };
+  }
 
   if (opciones.soloMover && original) {
     if (b.estado !== original.estado) {
@@ -137,19 +159,46 @@ export async function guardarTarea(
     }
   }
 
-  // Subtareas: el asignado también las marca.
+  // Participantes (compartida): personas y grupos. Solo quien la creó (la base lo exige).
+  if (!opciones.soloMover && b.visibilidad === "compartida") {
+    const antes = new Map((original?.visibilidad === "compartida" ? original.participantes : []).map((p) => [clave(p), p]));
+    const despues = new Map(b.participantes.map((p) => [clave(p), p]));
+    for (const [k, p] of despues) {
+      if (antes.has(k)) continue;
+      const { error } = await supabase
+        .from("tarea_participantes")
+        .insert({ tarea_id: tareaId, perfil_id: p.perfilId, grupo_id: p.grupoId });
+      if (error) return { ok: false, error: mensaje(error) };
+    }
+    for (const [k, p] of antes) {
+      if (despues.has(k)) continue;
+      const q = supabase.from("tarea_participantes").delete().eq("tarea_id", tareaId);
+      const { error } = await (p.perfilId ? q.eq("perfil_id", p.perfilId) : q.eq("grupo_id", p.grupoId!));
+      if (error) return { ok: false, error: mensaje(error) };
+    }
+  }
+
+  // Subtareas: el asignado o participante también las marca.
+  const conResponsable = opciones.conResponsable !== false;
   const previas = new Map((original?.subtareas ?? []).map((s) => [s.id, s]));
   let orden = 0;
   for (const s of b.subtareas) {
     orden += 1000;
     if (!s.id) {
-      const { error } = await supabase.from("tarea_subtareas").insert({ tarea_id: tareaId, titulo: s.titulo, hecha: s.hecha, orden });
+      const fila: Record<string, unknown> = { tarea_id: tareaId, titulo: s.titulo, hecha: s.hecha, orden };
+      if (conResponsable && s.responsableId) fila.responsable_id = s.responsableId;
+      const { error } = await supabase.from("tarea_subtareas").insert(fila);
       if (error) return { ok: false, error: mensaje(error) };
     } else {
       const p = previas.get(s.id);
       previas.delete(s.id);
-      if (p && (p.hecha !== s.hecha || p.titulo !== s.titulo)) {
-        const { error } = await supabase.from("tarea_subtareas").update({ hecha: s.hecha, titulo: s.titulo }).eq("id", s.id);
+      if (!p) continue;
+      const cambios: Record<string, unknown> = {};
+      if (p.hecha !== s.hecha) cambios.hecha = s.hecha;
+      if (p.titulo !== s.titulo) cambios.titulo = s.titulo;
+      if (conResponsable && p.responsableId !== s.responsableId) cambios.responsable_id = s.responsableId;
+      if (Object.keys(cambios).length) {
+        const { error } = await supabase.from("tarea_subtareas").update(cambios).eq("id", s.id);
         if (error) return { ok: false, error: mensaje(error) };
       }
     }
@@ -183,9 +232,14 @@ export async function guardarTarea(
     if (error) return { ok: false, error: mensaje(error) };
   }
 
-  const { data, error } = await supabase.from("tareas").select(SELECT_TAREA).eq("id", tareaId).single();
-  if (error || !data) return { ok: false, error: mensaje(error) };
-  return { ok: true, tarea: tareaDeFila(data) };
+  return releer(supabase, tareaId);
+}
+
+async function releer(supabase: SupabaseClient, tareaId: string): Promise<Resultado> {
+  let res = await supabase.from("tareas").select(SELECT_TAREA).eq("id", tareaId).single();
+  if (faltaResponsable(res.error)) res = await supabase.from("tareas").select(SELECT_TAREA_SIN_54).eq("id", tareaId).single();
+  if (res.error || !res.data) return { ok: false, error: mensaje(res.error) };
+  return { ok: true, tarea: tareaDeFila(res.data) };
 }
 
 /** Mover de columna (arrastrar o marcar hecha): estado y orden. */
@@ -202,6 +256,13 @@ export async function moverTarea(
 export async function archivarTarea(supabase: SupabaseClient, id: string) {
   const { error } = await supabase.from("tareas").update({ archivada: true }).eq("id", id);
   return error ? { ok: false as const, error: mensaje(error) } : { ok: true as const };
+}
+
+/** Saca del archivo: lo que promete la confirmación de "Eliminar". */
+export async function recuperarTarea(supabase: SupabaseClient, id: string): Promise<Resultado> {
+  const { error } = await supabase.from("tareas").update({ archivada: false }).eq("id", id);
+  if (error) return { ok: false, error: mensaje(error) };
+  return releer(supabase, id);
 }
 
 export interface EventoTarea {

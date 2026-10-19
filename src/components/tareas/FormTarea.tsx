@@ -2,13 +2,16 @@
 
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import type { GrupoCompartir, ModoTareas } from "@/lib/supabase/tareas";
 import {
   COLUMNAS,
   ETIQUETA_ESTADO,
+  fechaHoraBogota,
   PRIORIDADES,
   type EstadoTarea,
   type Obra,
   type Tarea,
+  type VisibilidadTarea,
 } from "@/lib/tareas";
 import {
   archivarTarea,
@@ -16,46 +19,61 @@ import {
   borradorVacio,
   guardarTarea,
   historialTarea,
+  recuperarTarea,
   type BorradorTarea,
   type EventoTarea,
 } from "@/lib/tareas-guardar";
+import { ElegirParticipantes } from "./ElegirParticipantes";
 
 const CAMPO = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base";
 const ETIQUETA = "text-sm font-semibold text-slate-700";
 
+const NOMBRE_VISIBILIDAD: Record<VisibilidadTarea, string> = {
+  interna: "Interna (solo yo)",
+  compartida: "Equipo",
+  equipo: "Obra",
+};
+
+/** El cambio, en el formato del pantallazo: "Columna: Por hacer → En progreso". */
 function describirEvento(e: EventoTarea, nombreDe: (id: string) => string): string {
   const d = e.detalle as Record<string, string | boolean | null>;
   switch (e.tipo) {
     case "creada":
       return "Creó la tarea";
     case "estado":
-      return `Movió de ${ETIQUETA_ESTADO[d.de as EstadoTarea] ?? d.de} a ${ETIQUETA_ESTADO[d.a as EstadoTarea] ?? d.a}`;
+      return `Columna: ${ETIQUETA_ESTADO[d.de as EstadoTarea] ?? d.de} → ${ETIQUETA_ESTADO[d.a as EstadoTarea] ?? d.a}`;
     case "prioridad":
       return `Prioridad: ${String(d.de).toUpperCase()} → ${String(d.a).toUpperCase()}`;
     case "fechas":
-      return "Cambió las fechas";
+      return "Fechas cambiadas";
     case "visibilidad":
-      return d.a === "equipo" ? "La pasó al equipo" : "La volvió interna";
+      return `Visibilidad: ${NOMBRE_VISIBILIDAD[d.de as VisibilidadTarea] ?? d.de} → ${NOMBRE_VISIBILIDAD[d.a as VisibilidadTarea] ?? d.a}`;
     case "obra":
-      return "Cambió la obra";
+      return "Obra cambiada";
     case "edicion":
-      return "Editó el título o la descripción";
+      return "Título o descripción editados";
     case "archivada":
-      return d.archivada ? "La archivó" : "La sacó del archivo";
+      return d.archivada ? "Eliminada (archivada)" : "Recuperada";
     case "asignacion":
       return `${d.accion === "quitado" ? "Quitó a" : "Asignó a"} ${d.nombre ?? "alguien"}`;
+    case "participante":
+      return `${d.accion === "quitado" ? "Dejó de compartir con" : "Compartió con"} ${d.nombre ?? "alguien"}`;
     case "subtarea":
+      if (d.accion === "responsable") return `Subtarea “${d.titulo}”: responsable ${d.responsable ?? "Sin asignar"}`;
       return `Subtarea ${d.accion}: ${d.titulo}`;
     case "dependencia":
       return `${d.accion === "quitada" ? "Quitó la espera a" : "Ahora espera a"} ${nombreDe(String(d.bloqueante_id))} (${d.tipo === "para_cerrar" ? "para cerrar" : "para empezar"})`;
+    case "transferida":
+      return `Transferida de ${d.de_nombre ?? "—"} a ${d.a_nombre ?? "—"}. Motivo: ${d.motivo ?? ""}`;
     case "nota":
-      return `Nota: ${e.nota ?? ""}`;
+      return e.nota ?? "";
     default:
       return e.tipo;
   }
 }
 
 export function FormTarea({
+  modo = "operativo",
   original,
   estadoInicial = "por_hacer",
   obraInicial = "",
@@ -64,12 +82,17 @@ export function FormTarea({
   yo,
   puedeAsignar,
   personas,
+  grupos = [],
+  conResponsable = true,
   obras,
   tareas,
   onCerrar,
   onGuardada,
   onArchivada,
+  onRecuperada,
 }: {
+  /** operativo: tarea de obra (equipo) · planificacion: interna o compartida. */
+  modo?: ModoTareas;
   original: Tarea | null;
   estadoInicial?: EstadoTarea;
   obraInicial?: string;
@@ -77,21 +100,27 @@ export function FormTarea({
   /** Borrador ya armado (p. ej. desde una sugerencia del técnico). */
   borradorInicial?: BorradorTarea;
   yo: string;
+  /** operativo/trabajar u planificacion/trabajar, según el modo. */
   puedeAsignar: boolean;
   personas: { id: string; nombre: string }[];
+  grupos?: GrupoCompartir[];
+  /** false si la migración 54 no está corrida: no se ofrece responsable de subtarea. */
+  conResponsable?: boolean;
   obras: Obra[];
   tareas: Tarea[];
   onCerrar: () => void;
   onGuardada: (t: Tarea, nueva: boolean) => void;
   onArchivada?: (id: string) => void;
+  onRecuperada?: (t: Tarea) => void;
 }) {
   const supabase = useMemo(() => createClient(), []);
+  const planificacion = modo === "planificacion";
   const [b, setB] = useState<BorradorTarea>(() => {
     if (original) return borradorDe(original);
     if (borradorInicial) return borradorInicial;
     const v = borradorVacio(estadoInicial);
-    // Una obra elegida en el tablero y permiso de asignar: arranca como tarea de equipo.
-    if (obraInicial && puedeAsignar) {
+    // En Operativo toda tarea es de obra; en Planificación arranca interna.
+    if (!planificacion) {
       v.visibilidad = "equipo";
       v.obra = obraInicial;
     }
@@ -106,20 +135,34 @@ export function FormTarea({
   const [historial, setHistorial] = useState<EventoTarea[] | null>(null);
   const [historialAbierto, setHistorialAbierto] = useState(false);
 
-  // El asignado que no es Operativo ni la creó: solo mueve de columna, marca subtareas y
-  // deja notas (la base lo exige igual; acá no se le ofrece lo que no puede hacer).
-  const soloMover = Boolean(original && !puedeAsignar && original.creadaPor !== yo);
+  // Quien no la creó: solo la mueve de columna, marca subtareas y deja notas. En Operativo,
+  // además quien tiene operativo/trabajar edita las de obra. La base lo exige igual; acá no
+  // se le ofrece lo que no puede hacer.
+  const soloMover = Boolean(original && original.creadaPor !== yo && (planificacion || !puedeAsignar));
+  const archivada = Boolean(original?.archivada);
   const porId = useMemo(() => new Map(tareas.map((t) => [t.id, t])), [tareas]);
   const nombreDe = (id: string) => porId.get(id)?.titulo ?? "una tarea que no puedes ver";
+  const nombrePersona = useMemo(() => new Map(personas.map((p) => [p.id, p.nombre])), [personas]);
   const cambiar = <K extends keyof BorradorTarea>(k: K, v: BorradorTarea[K]) => setB((p) => ({ ...p, [k]: v }));
+
+  function agregarSubtarea() {
+    const titulo = nuevaSubtarea.trim();
+    if (!titulo) return;
+    cambiar("subtareas", [...b.subtareas, { id: null, titulo, hecha: false, responsableId: null }]);
+    setNuevaSubtarea("");
+  }
 
   async function guardar() {
     setError(null);
+    if (!planificacion && !b.obra) return setError("Una tarea de obra necesita la obra (proyecto o visita).");
+    if (b.visibilidad === "compartida" && b.participantes.length === 0 && !soloMover)
+      return setError("Elige con quién la compartes, o déjala interna (solo yo).");
     setGuardando(true);
     try {
       const minimo = tareas.filter((t) => t.estado === b.estado).reduce((m, t) => Math.min(m, t.orden), Infinity);
       const res = await guardarTarea(supabase, original, b, {
         soloMover,
+        conResponsable,
         ordenNueva: Number.isFinite(minimo) ? minimo - 1000 : 1000,
       });
       if (!res.ok) {
@@ -139,11 +182,25 @@ export function FormTarea({
     }
   }
 
-  async function archivar() {
-    if (!original || !window.confirm("¿Archivar esta tarea? No se borra: queda en el historial.")) return;
+  // "Eliminar" archiva, y la confirmación lo dice con todas las letras.
+  async function eliminar() {
+    if (
+      !original ||
+      !window.confirm(
+        "La tarea se archiva: deja de verse en el tablero y la agenda, queda en el historial y se puede recuperar desde el filtro “Archivadas”.\n\n¿Eliminarla?",
+      )
+    )
+      return;
     const res = await archivarTarea(supabase, original.id);
     if (!res.ok) return setError(res.error);
     onArchivada?.(original.id);
+  }
+
+  async function recuperar() {
+    if (!original) return;
+    const res = await recuperarTarea(supabase, original.id);
+    if (!res.ok) return setError(res.error);
+    onRecuperada?.(res.tarea);
   }
 
   async function abrirHistorial() {
@@ -166,9 +223,16 @@ export function FormTarea({
         </div>
 
         {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-base text-red-800">{error}</p>}
-        {soloMover && (
+        {archivada && (
+          <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Esta tarea está eliminada (archivada). Con “Recuperar” vuelve al tablero y a la agenda.
+          </p>
+        )}
+        {soloMover && !archivada && (
           <p className="mb-3 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
-            Estás asignado: puedes moverla de columna, marcar subtareas y dejar notas. El resto lo cambia Operativo.
+            {planificacion
+              ? "Te la compartieron: puedes moverla de columna, marcar subtareas y dejar notas. El resto lo cambia quien la creó."
+              : "Estás asignado: puedes moverla de columna, marcar subtareas y dejar notas. El resto lo cambia Operativo."}
           </p>
         )}
 
@@ -243,15 +307,15 @@ export function FormTarea({
             </div>
           </div>
 
-          {/* Visibilidad: al que no puede asignar (el técnico) ni se le muestra "equipo". */}
-          {puedeAsignar && !soloMover && (
+          {/* Visibilidad (Planificación): "👥 Asignar al equipo" = compartida con personas y grupos. */}
+          {planificacion && !soloMover && (
             <div>
               <span className={ETIQUETA}>Visibilidad</span>
               <div className="mt-1 grid grid-cols-2 gap-2" role="radiogroup">
                 {(
                   [
                     { v: "interna", t: "🔒 Interna (solo yo)", d: "Tu agenda: nadie más la ve." },
-                    { v: "equipo", t: "👥 Asignar al equipo", d: "La ven los asignados y Operativo." },
+                    { v: "compartida", t: "👥 Asignar al equipo", d: "La ven las personas y grupos que elijas." },
                   ] as const
                 ).map((o) => (
                   <button
@@ -259,23 +323,41 @@ export function FormTarea({
                     type="button"
                     role="radio"
                     aria-checked={b.visibilidad === o.v}
-                    onClick={() => setB((p) => ({ ...p, visibilidad: o.v, asignados: o.v === "interna" ? [] : p.asignados }))}
-                    className={`rounded-lg border-2 p-3 text-left ${b.visibilidad === o.v ? "border-slate-900 bg-slate-50" : "border-slate-200"}`}
+                    onClick={() => setB((p) => ({ ...p, visibilidad: o.v, participantes: o.v === "interna" ? [] : p.participantes }))}
+                    className={`flex min-h-11 items-start gap-2 rounded-lg border-2 p-3 text-left ${b.visibilidad === o.v ? "border-slate-900 bg-slate-50" : "border-slate-200"}`}
                   >
-                    <span className="block text-sm font-semibold">{o.t}</span>
-                    <span className="block text-xs text-slate-600">{o.d}</span>
+                    <span
+                      aria-hidden
+                      className={`mt-0.5 h-5 w-5 shrink-0 rounded-full border-2 ${b.visibilidad === o.v ? "border-[6px] border-slate-900" : "border-slate-400"}`}
+                    />
+                    <span>
+                      <span className="block text-sm font-semibold">{o.t}</span>
+                      <span className="block text-xs text-slate-600">{o.d}</span>
+                    </span>
                   </button>
                 ))}
               </div>
             </div>
           )}
 
+          {planificacion && b.visibilidad === "compartida" && (
+            <div>
+              <span className={ETIQUETA}>Con quién</span>
+              <ElegirParticipantes
+                yo={yo}
+                personas={personas}
+                grupos={grupos}
+                valor={b.participantes}
+                onCambiar={(v) => cambiar("participantes", v)}
+                soloLectura={soloMover}
+              />
+            </div>
+          )}
+
           <label className="block">
-            <span className={ETIQUETA}>
-              {b.visibilidad === "equipo" ? "Obra (proyecto o visita) *" : "Obra (opcional)"}
-            </span>
+            <span className={ETIQUETA}>{planificacion ? "Obra (opcional)" : "Obra (proyecto o visita) *"}</span>
             <select value={b.obra} disabled={soloMover} onChange={(e) => cambiar("obra", e.target.value)} className={CAMPO}>
-              <option value="">{b.visibilidad === "equipo" ? "Elegir la obra…" : "Sin obra"}</option>
+              <option value="">{planificacion ? "Sin obra" : "Elegir la obra…"}</option>
               {obras.map((o) => (
                 <option key={o.clave} value={o.clave}>
                   {o.clave.startsWith("p:") ? "Proyecto · " : "Visita · "}
@@ -285,7 +367,7 @@ export function FormTarea({
             </select>
           </label>
 
-          {b.visibilidad === "equipo" && puedeAsignar && !soloMover && (
+          {!planificacion && puedeAsignar && !soloMover && (
             <div>
               <span className={ETIQUETA}>Asignar a</span>
               <div className="mt-1 flex flex-wrap gap-2">
@@ -312,7 +394,7 @@ export function FormTarea({
             <span className={ETIQUETA}>Subtareas</span>
             <ul className="mt-1 space-y-1">
               {b.subtareas.map((s, i) => (
-                <li key={s.id ?? `nueva-${i}`} className="flex min-h-11 items-center gap-2">
+                <li key={s.id ?? `nueva-${i}`} className="flex min-h-11 flex-wrap items-center gap-2">
                   <input
                     type="checkbox"
                     checked={s.hecha}
@@ -320,13 +402,37 @@ export function FormTarea({
                       cambiar("subtareas", b.subtareas.map((x, j) => (j === i ? { ...x, hecha: e.target.checked } : x)))
                     }
                     className="h-6 w-6"
+                    aria-label={`Marcar ${s.titulo}`}
                   />
-                  <span className={`flex-1 text-base ${s.hecha ? "text-slate-400 line-through" : ""}`}>{s.titulo}</span>
+                  <span className={`min-w-0 flex-1 text-base ${s.hecha ? "text-slate-400 line-through" : ""}`}>{s.titulo}</span>
+                  {conResponsable &&
+                    (soloMover ? (
+                      <span className="text-sm text-slate-500">{s.responsableId ? nombrePersona.get(s.responsableId) ?? "—" : "Sin asignar"}</span>
+                    ) : (
+                      <select
+                        value={s.responsableId ?? ""}
+                        onChange={(e) =>
+                          cambiar(
+                            "subtareas",
+                            b.subtareas.map((x, j) => (j === i ? { ...x, responsableId: e.target.value || null } : x)),
+                          )
+                        }
+                        className="min-h-11 max-w-[45%] rounded-lg border border-slate-300 bg-white px-2 text-sm"
+                        aria-label={`Responsable de ${s.titulo}`}
+                      >
+                        <option value="">Sin asignar</option>
+                        {personas.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.id === yo ? `${p.nombre} (yo)` : p.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    ))}
                   {!soloMover && (
                     <button
                       type="button"
                       onClick={() => cambiar("subtareas", b.subtareas.filter((_, j) => j !== i))}
-                      className="min-h-11 min-w-11 text-slate-400"
+                      className="min-h-11 min-w-11 text-xl text-slate-400"
                       aria-label="Quitar subtarea"
                     >
                       ×
@@ -335,20 +441,32 @@ export function FormTarea({
                 </li>
               ))}
             </ul>
-            <input
-              value={nuevaSubtarea}
-              onChange={(e) => setNuevaSubtarea(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && nuevaSubtarea.trim()) {
-                  e.preventDefault();
-                  cambiar("subtareas", [...b.subtareas, { id: null, titulo: nuevaSubtarea.trim(), hecha: false }]);
-                  setNuevaSubtarea("");
-                }
-              }}
-              enterKeyHint="enter"
-              placeholder="Escribe una subtarea y da Enter"
-              className={CAMPO}
-            />
+            {!soloMover && (
+              <div className="mt-1 flex gap-2">
+                <input
+                  value={nuevaSubtarea}
+                  onChange={(e) => setNuevaSubtarea(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      agregarSubtarea();
+                    }
+                  }}
+                  enterKeyHint="enter"
+                  placeholder="Agregar subtarea y Enter"
+                  className={`${CAMPO} mt-0 flex-1`}
+                />
+                <button
+                  type="button"
+                  onClick={agregarSubtarea}
+                  disabled={!nuevaSubtarea.trim()}
+                  className="min-h-11 min-w-11 rounded-lg border-2 border-slate-400 text-xl font-bold disabled:opacity-40"
+                  aria-label="Agregar subtarea"
+                >
+                  +
+                </button>
+              </div>
+            )}
           </div>
 
           <div>
@@ -407,25 +525,36 @@ export function FormTarea({
           </div>
 
           <label className="block">
-            <span className={ETIQUETA}>Nota de seguimiento (queda en el historial)</span>
-            <textarea rows={2} value={b.nota} onChange={(e) => cambiar("nota", e.target.value)} className={CAMPO} />
+            <span className={ETIQUETA}>Nota de seguimiento (opcional)</span>
+            <textarea
+              rows={2}
+              value={b.nota}
+              onChange={(e) => cambiar("nota", e.target.value)}
+              placeholder="Comentario al guardar"
+              className={CAMPO}
+            />
           </label>
 
           {original && (
             <div>
-              <button type="button" onClick={abrirHistorial} className="min-h-11 text-base font-semibold text-slate-700">
-                {historialAbierto ? "▾" : "▸"} Historial
+              <button
+                type="button"
+                onClick={abrirHistorial}
+                aria-expanded={historialAbierto}
+                className="min-h-11 text-base font-semibold text-slate-700"
+              >
+                {historialAbierto ? "▼" : "►"} Seguimiento / historial
               </button>
               {historialAbierto && (
-                <ul className="mt-1 space-y-1 border-l-2 border-slate-200 pl-3 text-sm">
-                  {historial === null && <li className="text-slate-500">Cargando…</li>}
+                <ul className="mt-1 space-y-2 border-l-2 border-slate-200 pl-3">
+                  {historial === null && <li className="text-sm text-slate-500">Cargando…</li>}
+                  {historial?.length === 0 && <li className="text-sm text-slate-500">Sin movimientos todavía.</li>}
                   {historial?.map((e) => (
                     <li key={e.id}>
-                      <span className="text-slate-500">
-                        {new Date(e.creadoEn).toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "short", timeStyle: "short" })} ·{" "}
-                        {e.actorNombre ?? "—"}:
-                      </span>{" "}
-                      {describirEvento(e, nombreDe)}
+                      <p className="text-xs text-slate-500">
+                        {fechaHoraBogota(e.creadoEn)} · {e.actorNombre ?? "—"}
+                      </p>
+                      <p className="text-sm text-slate-800">{describirEvento(e, nombreDe)}</p>
                     </li>
                   ))}
                 </ul>
@@ -434,24 +563,42 @@ export function FormTarea({
           )}
         </div>
 
+        {/* Eliminar · Cancelar · Guardar, en ese orden. */}
         <div className="mt-5 flex flex-wrap gap-2">
-          {original && !soloMover && (
-            <button type="button" onClick={archivar} disabled={guardando} className="min-h-12 rounded-lg px-3 text-sm font-medium text-slate-500">
-              Archivar
+          {original && !soloMover && !archivada && (
+            <button
+              type="button"
+              onClick={eliminar}
+              disabled={guardando}
+              className="min-h-12 rounded-lg border-2 border-red-200 px-4 text-base font-medium text-red-700"
+            >
+              Eliminar
+            </button>
+          )}
+          {original && !soloMover && archivada && (
+            <button
+              type="button"
+              onClick={recuperar}
+              disabled={guardando}
+              className="min-h-12 rounded-lg border-2 border-green-300 px-4 text-base font-medium text-green-800"
+            >
+              Recuperar
             </button>
           )}
           <span className="flex-1" />
           <button type="button" onClick={onCerrar} disabled={guardando} className="min-h-12 rounded-lg border-2 border-slate-300 px-5 text-base font-medium">
             Cancelar
           </button>
-          <button
-            type="button"
-            onClick={guardar}
-            disabled={guardando || !b.titulo.trim()}
-            className="min-h-12 rounded-lg bg-slate-900 px-6 text-base font-semibold text-white disabled:opacity-40"
-          >
-            {guardando ? "Guardando…" : "Guardar"}
-          </button>
+          {!archivada && (
+            <button
+              type="button"
+              onClick={guardar}
+              disabled={guardando || !b.titulo.trim()}
+              className="min-h-12 rounded-lg bg-slate-900 px-6 text-base font-semibold text-white disabled:opacity-40"
+            >
+              {guardando ? "Guardando…" : "Guardar"}
+            </button>
+          )}
         </div>
       </div>
     </div>

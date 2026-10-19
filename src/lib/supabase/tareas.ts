@@ -1,14 +1,62 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { SELECT_TAREA, tareaDeFila, type Obra, type Tarea } from "@/lib/tareas";
+import { faltaResponsable, SELECT_TAREA, SELECT_TAREA_SIN_54, tareaDeFila, type Obra, type Tarea } from "@/lib/tareas";
+
+/**
+ * Dónde se trabaja la tarea:
+ *   - operativo: el tablero de obra (solo "equipo": proyecto o visita, asignados).
+ *   - planificacion: las tareas administrativas (interna y compartida con personas o grupos).
+ * Una tarea nunca mezcla los dos.
+ */
+export type ModoTareas = "operativo" | "planificacion";
+
+export interface GrupoCompartir {
+  id: string;
+  nombre: string;
+  miembros: number | null;
+  /** Miembros sin Planificación: no la van a ver. null si la 55 no está corrida. */
+  sinPlanificacion: number | null;
+}
 
 export interface DatosTareas {
   yo: string;
-  /** operativo/trabajar: crea tareas de equipo y asigna. */
+  modo: ModoTareas;
+  /** operativo: operativo/trabajar (crea de obra y asigna) · planificacion: planificacion/trabajar. */
   puedeAsignar: boolean;
   tareas: Tarea[];
+  /** Las archivadas propias (o de obra), para "Archivadas" → Recuperar. */
+  archivadas: Tarea[];
   obras: Obra[];
   personas: { id: string; nombre: string }[];
+  grupos: GrupoCompartir[];
+  /** false mientras la migración 54 no esté corrida: no se ofrece responsable de subtarea. */
+  conResponsable: boolean;
   error: string | null;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Cliente = SupabaseClient<any>;
+
+/** Pide tareas con el responsable de subtarea; si la 54 no está corrida, sin él. */
+async function pedirTareas(supabase: Cliente, armar: (select: string) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>) {
+  const primero = await armar(SELECT_TAREA);
+  if (!faltaResponsable(primero.error)) return { ...primero, conResponsable: true };
+  const segundo = await armar(SELECT_TAREA_SIN_54);
+  return { ...segundo, conResponsable: false };
+}
+
+export async function cargarGrupos(supabase: Cliente): Promise<GrupoCompartir[]> {
+  const res = await supabase.rpc("fn_grupos_para_compartir");
+  if (!res.error) {
+    return ((res.data ?? []) as { id: string; nombre: string; miembros: number; sin_planificacion: number }[]).map((g) => ({
+      id: g.id,
+      nombre: g.nombre,
+      miembros: g.miembros,
+      sinPlanificacion: g.sin_planificacion,
+    }));
+  }
+  // Sin la 55: los grupos que la RLS deja ver (los propios), sin cantidades.
+  const directo = await supabase.from("grupos").select("id, nombre").eq("archivado", false).order("nombre");
+  return ((directo.data ?? []) as { id: string; nombre: string }[]).map((g) => ({ ...g, miembros: null, sinPlanificacion: null }));
 }
 
 /**
@@ -18,16 +66,33 @@ export interface DatosTareas {
  * de las que el usuario puede ver.
  */
 export async function cargarDatosTareas(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any>,
+  supabase: Cliente,
   yo: string,
   puedeAsignar: boolean,
+  modo: ModoTareas = "operativo",
 ): Promise<DatosTareas> {
-  const [tareasRes, proyectosRes, visitasRes, personasRes] = await Promise.all([
-    supabase.from("tareas").select(SELECT_TAREA).eq("archivada", false).order("orden"),
+  const visibilidades = modo === "operativo" ? ["equipo"] : ["interna", "compartida"];
+  const [tareasRes, archivadasRes, proyectosRes, visitasRes, personasRes, grupos] = await Promise.all([
+    pedirTareas(supabase, (select) =>
+      supabase.from("tareas").select(select).eq("archivada", false).in("visibilidad", visibilidades).order("orden"),
+    ),
+    pedirTareas(supabase, (select) =>
+      supabase
+        .from("tareas")
+        .select(select)
+        .eq("archivada", true)
+        .in("visibilidad", visibilidades)
+        .order("updated_at", { ascending: false })
+        .limit(100),
+    ),
     supabase.rpc("fn_proyectos_para_tareas"),
     supabase.from("visitas").select("id, titulo, cliente_nombre").order("fecha_programada", { ascending: false }).limit(200),
-    puedeAsignar ? supabase.rpc("fn_personas_asignables") : Promise.resolve({ data: [], error: null }),
+    !puedeAsignar
+      ? Promise.resolve({ data: [], error: null })
+      : modo === "operativo"
+        ? supabase.rpc("fn_personas_asignables")
+        : supabase.rpc("fn_personas_planificacion"),
+    modo === "planificacion" && puedeAsignar ? cargarGrupos(supabase) : Promise.resolve([] as GrupoCompartir[]),
   ]);
 
   const obras: Obra[] = [
@@ -43,14 +108,20 @@ export async function cargarDatosTareas(
 
   return {
     yo,
+    modo,
     puedeAsignar,
     tareas: (tareasRes.data ?? []).map(tareaDeFila),
+    archivadas: archivadasRes.error ? [] : (archivadasRes.data ?? []).map(tareaDeFila),
     obras,
     personas: (personasRes.data ?? []) as { id: string; nombre: string }[],
+    grupos,
+    conResponsable: tareasRes.conResponsable,
     error: tareasRes.error
-      ? /tareas|does not exist|schema cache/i.test(tareasRes.error.message)
-        ? "Falta correr la migración 50 en la base."
-        : tareasRes.error.message
+      ? /tarea_participantes|compartida/i.test(tareasRes.error.message)
+        ? "Falta correr la migración 53 en la base."
+        : /tareas|does not exist|schema cache/i.test(tareasRes.error.message)
+          ? "Falta correr la migración 50 en la base."
+          : tareasRes.error.message
       : null,
   };
 }

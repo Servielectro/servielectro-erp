@@ -5,8 +5,9 @@ import { tienePermiso } from "@/lib/permisos";
 import { cargarDatosTareas } from "@/lib/supabase/tareas";
 import { TableroTareas } from "@/components/tareas/TableroTareas";
 
-// Tablero de tareas de Operativo (el layout ya exige operativo/consultar). Crear tareas de
-// equipo y asignar: operativo/trabajar (Coordinador, Administrador).
+// Tablero de obra de Operativo (el layout ya exige operativo/consultar): solo tareas de
+// equipo (proyecto o visita). Crear y asignar: operativo/trabajar (Coordinador, Administrador).
+// Las internas y compartidas son de Planificación.
 export default async function TareasPage() {
   const supabase = await createClient();
   const {
@@ -15,7 +16,7 @@ export default async function TareasPage() {
   if (!user) redirect("/login?next=/operativo/tareas");
 
   const puedeAsignar = await tienePermiso("operativo", "trabajar");
-  const datos = await cargarDatosTareas(supabase, user.id, puedeAsignar);
+  const datos = await cargarDatosTareas(supabase, user.id, puedeAsignar, "operativo");
 
   return (
     <>
@@ -24,8 +25,8 @@ export default async function TareasPage() {
           ← Operativo
         </Link>
         <h1 className="flex-1 text-center text-sm font-bold text-slate-900">Tablero de tareas</h1>
-        <Link href="/agenda" className="text-slate-600">
-          Mi agenda →
+        <Link href="/operativo/agenda" className="text-slate-600">
+          Agenda del equipo →
         </Link>
       </div>
       {datos.error ? (
@@ -34,9 +35,12 @@ export default async function TareasPage() {
         </p>
       ) : (
         <TableroTareas
+          modo="operativo"
           yo={user.id}
           puedeAsignar={puedeAsignar}
           tareasIniciales={datos.tareas}
+          archivadasIniciales={datos.archivadas}
+          conResponsable={datos.conResponsable}
           obras={datos.obras}
           personas={datos.personas}
         />

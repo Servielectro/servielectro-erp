@@ -21,6 +21,10 @@ export interface AccesosMenu {
   baseDatos: boolean;
   /** tecnico/trabajar o más: lo que exige /tecnico. */
   campoTecnico: boolean;
+  /** planificacion/trabajar: lo que exige /planificacion (Administrador, Coordinador; no el técnico). */
+  planificacion: boolean;
+  /** configuracion/responsable: grupos y transferir tareas. */
+  configResponsable: boolean;
 }
 
 export function MenuPrincipal({
@@ -208,10 +212,17 @@ export function MenuPrincipal({
               </Link>
             </>
           )}
-          {/* La agenda personal es de cualquiera con sesión (sus tareas internas no las ve nadie más). */}
-          <Link href="/agenda" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
-            📅 Mi agenda
-          </Link>
+          {/* Planificación y la Agenda: solo con planificacion/trabajar (el técnico no la ve). */}
+          {accesos.planificacion && (
+            <>
+              <Link href="/planificacion" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+                Planificación
+              </Link>
+              <Link href="/planificacion/agenda" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+                📅 Agenda
+              </Link>
+            </>
+          )}
           {accesos.modulos.includes("operativo") && (
             <>
               <Link href="/operativo" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
@@ -222,6 +233,9 @@ export function MenuPrincipal({
               </Link>
               <Link href="/operativo/sugerencias" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
                 Sugerencias de los técnicos
+              </Link>
+              <Link href="/operativo/agenda" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+                Agenda del equipo
               </Link>
             </>
           )}
@@ -243,6 +257,16 @@ export function MenuPrincipal({
               <Link href="/configuracion/usuarios" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
                 🔐 Usuarios y permisos
               </Link>
+              {accesos.configResponsable && (
+                <>
+                  <Link href="/configuracion/grupos" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+                    👥 Grupos
+                  </Link>
+                  <Link href="/configuracion/transferir" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+                    🔁 Transferir tareas
+                  </Link>
+                </>
+              )}
             </>
           )}
         </nav>
