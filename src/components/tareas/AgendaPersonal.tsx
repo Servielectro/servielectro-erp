@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -8,6 +9,7 @@ import {
   fechaCorta,
   GRUPOS_AGENDA,
   grupoAgenda,
+  grupoDeDia,
   hoyBogota,
   PRIORIDADES,
   proximoLunes,
@@ -18,6 +20,7 @@ import {
 } from "@/lib/tareas";
 import { borradorVacio, guardarTarea, moverTarea } from "@/lib/tareas-guardar";
 import { FormTarea } from "./FormTarea";
+import type { VisitaAgenda } from "./AgendaEquipo";
 
 type Atajo = "hoy" | "manana" | "lunes" | "elegir" | "sin";
 const RANGO_PRIORIDAD = { urgente: 0, alta: 1, media: 2, baja: 3 } as const;
@@ -33,12 +36,15 @@ export function AgendaPersonal({
   tareasIniciales,
   obras,
   personas,
+  visitas = [],
 }: {
   yo: string;
   puedeAsignar: boolean;
   tareasIniciales: Tarea[];
   obras: Obra[];
   personas: { id: string; nombre: string }[];
+  /** Las visitas que le asignaron (técnico): también van en su agenda, por día. */
+  visitas?: VisitaAgenda[];
 }) {
   const supabase = useMemo(() => createClient(), []);
   const hoy = hoyBogota();
@@ -144,6 +150,13 @@ export function AgendaPersonal({
         RANGO_PRIORIDAD[a.prioridad] - RANGO_PRIORIDAD[b.prioridad],
     );
   }
+  // Visitas del técnico, por día (se trabajan en la app de campo).
+  const visitasPorGrupo = new Map<GrupoAgenda, VisitaAgenda[]>();
+  for (const v of visitas.filter((x) => ["programada", "en_curso"].includes(x.estado))) {
+    const g = grupoDeDia(v.fecha, hoy);
+    visitasPorGrupo.set(g, [...(visitasPorGrupo.get(g) ?? []), v]);
+  }
+
   const hechasRecientes = mias
     .filter((t) => t.estado === "hecho" && t.cerradaEn && diasEntre(t.cerradaEn.slice(0, 10), hoy) <= 7)
     .sort((a, b) => (b.cerradaEn ?? "").localeCompare(a.cerradaEn ?? ""));
@@ -269,17 +282,39 @@ export function AgendaPersonal({
       <div className="mt-2 space-y-4">
         {GRUPOS_AGENDA.map((g) => {
           const lista = grupos.get(g.valor) ?? [];
-          if (lista.length === 0) return null;
+          const susVisitas = visitasPorGrupo.get(g.valor) ?? [];
+          if (lista.length === 0 && susVisitas.length === 0) return null;
           return (
             <section key={g.valor}>
               <h2 className={`mb-1 text-sm font-bold uppercase md:text-base ${g.valor === "atrasadas" ? "text-red-700" : "text-slate-600"}`}>
-                {g.titulo} <span className="font-normal text-slate-400">{lista.length}</span>
+                {g.titulo} <span className="font-normal text-slate-400">{lista.length + susVisitas.length}</span>
               </h2>
-              <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">{lista.map(renglon)}</ul>
+              <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
+                {susVisitas.map((v) => (
+                  <li key={`v-${v.id}`}>
+                    <Link href="/tecnico" className="flex min-h-14 items-center gap-3 px-3 py-2 md:min-h-16 md:px-4">
+                      <span className="text-xl" aria-hidden>
+                        🔧
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-base leading-snug md:text-lg">
+                          Visita: {v.titulo}
+                          {v.cliente ? ` · ${v.cliente}` : ""}
+                        </span>
+                        <span className="block text-xs text-slate-500 md:text-sm">
+                          {v.fecha && g.valor !== "hoy" ? `${fechaCorta(v.fecha)} · ` : ""}
+                          {v.estado === "en_curso" ? "En curso" : "Programada"} · abrir en la app de campo
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+                {lista.map(renglon)}
+              </ul>
             </section>
           );
         })}
-        {abiertas.length === 0 && <p className="py-6 text-center text-base text-slate-500">Nada pendiente. Anota lo que tengas que hacer arriba.</p>}
+        {abiertas.length === 0 && visitas.length === 0 && <p className="py-6 text-center text-base text-slate-500">Nada pendiente. Anota lo que tengas que hacer arriba.</p>}
 
         {hechasRecientes.length > 0 && (
           <section>

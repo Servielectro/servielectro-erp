@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso } from "@/lib/permisos";
+import { cargarDatosTareas } from "@/lib/supabase/tareas";
 import { BandejaSugerencias, type SugerenciaBandeja } from "./BandejaSugerencias";
 
 // Bandeja de sugerencias de los técnicos (el layout exige operativo/consultar). El
@@ -19,7 +20,7 @@ export default async function SugerenciasPage() {
     supabase
       .from("visita_sugerencias")
       .select(
-        "id, descripcion, cantidad, unidad, motivo, requerido_para, sugerida_en, estado, motivo_descarte, cotizacion_id, visitas(titulo, cliente_nombre), sugerencia_eventos(estado_anterior, estado_nuevo, comentario, actor_nombre, creado_en)",
+        "id, visita_id, descripcion, cantidad, unidad, motivo, requerido_para, sugerida_en, estado, motivo_descarte, cotizacion_id, visitas(titulo, cliente_nombre), sugerencia_eventos(estado_anterior, estado_nuevo, comentario, actor_nombre, creado_en)",
       )
       .order("requerido_para", { ascending: true, nullsFirst: false })
       .order("sugerida_en", { ascending: false })
@@ -45,6 +46,7 @@ export default async function SugerenciasPage() {
       motivoDescarte: s.motivo_descarte,
       cotizacionId: s.cotizacion_id,
       visita: visita?.titulo ?? "",
+      visitaId: s.visita_id,
       cliente: visita?.cliente_nombre ?? null,
       sugeridaPor: eventos[0]?.actor_nombre ?? null,
       eventos: eventos.map((e) => ({
@@ -56,6 +58,11 @@ export default async function SugerenciasPage() {
       })),
     };
   });
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const datosTareas = await cargarDatosTareas(supabase, user?.id ?? "", operativo);
 
   const codigoDe = new Map(((cotRes.data ?? []) as { id: string; codigo: string }[]).map((c) => [c.id, c.codigo]));
 
@@ -80,6 +87,10 @@ export default async function SugerenciasPage() {
             etiqueta: c.descripcion ? `${c.codigo} · ${c.descripcion}` : c.codigo,
           }))}
           codigos={Object.fromEntries(codigoDe)}
+          yo={user?.id ?? ""}
+          tareasIniciales={datosTareas.tareas}
+          obras={datosTareas.obras}
+          personas={datosTareas.personas}
         />
       )}
     </div>

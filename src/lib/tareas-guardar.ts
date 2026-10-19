@@ -20,6 +20,8 @@ export interface BorradorTarea {
   subtareas: { id: string | null; titulo: string; hecha: boolean }[];
   dependencias: { bloqueanteId: string; tipo: "para_empezar" | "para_cerrar" }[];
   nota: string;
+  /** Solo al crear: la sugerencia del técnico de la que sale la tarea. */
+  sugerenciaId?: string | null;
 }
 
 export function borradorVacio(estado: EstadoTarea = "por_hacer"): BorradorTarea {
@@ -110,7 +112,7 @@ export async function guardarTarea(
     } else {
       const { data, error } = await supabase
         .from("tareas")
-        .insert({ ...campos, orden: opciones.ordenNueva ?? 1000 })
+        .insert({ ...campos, orden: opciones.ordenNueva ?? 1000, sugerencia_id: b.sugerenciaId ?? null })
         .select("id")
         .single();
       if (error || !data) return { ok: false, error: mensaje(error) };

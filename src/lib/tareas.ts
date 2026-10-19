@@ -41,6 +41,8 @@ export interface Tarea {
   creadaPor: string;
   archivada: boolean;
   cerradaEn: string | null;
+  /** Si nació de una sugerencia del técnico. */
+  sugerenciaId: string | null;
   asignados: string[];
   subtareas: { id: string; titulo: string; hecha: boolean; orden: number }[];
   dependencias: { bloqueanteId: string; tipo: "para_empezar" | "para_cerrar" }[];
@@ -71,6 +73,7 @@ export function tareaDeFila(f: any): Tarea {
     creadaPor: f.creada_por,
     archivada: Boolean(f.archivada),
     cerradaEn: f.cerrada_en,
+    sugerenciaId: f.sugerencia_id ?? null,
     asignados: (f.tarea_asignados ?? []).map((a: { perfil_id: string }) => a.perfil_id),
     subtareas: (f.tarea_subtareas ?? [])
       .map((s: { id: string; titulo: string; hecha: boolean; orden: number }) => ({
@@ -89,7 +92,7 @@ export function tareaDeFila(f: any): Tarea {
 
 /** Lo que se pide a la base para armar una Tarea (con sus hijos). */
 export const SELECT_TAREA =
-  "id, titulo, descripcion, estado, prioridad, visibilidad, proyecto_id, visita_id, fecha_programada, hora, fecha_limite, orden, creada_por, archivada, cerrada_en, tarea_asignados(perfil_id), tarea_subtareas(id, titulo, hecha, orden), dependencias:tarea_dependencias!tarea_dependencias_tarea_id_fkey(bloqueante_id, tipo)";
+  "id, titulo, descripcion, estado, prioridad, visibilidad, proyecto_id, visita_id, fecha_programada, hora, fecha_limite, orden, creada_por, archivada, cerrada_en, sugerencia_id, tarea_asignados(perfil_id), tarea_subtareas(id, titulo, hecha, orden), dependencias:tarea_dependencias!tarea_dependencias_tarea_id_fkey(bloqueante_id, tipo)";
 
 // ------------------------------------------------------------------ fechas
 export function hoyBogota(): string {
@@ -207,7 +210,11 @@ export function diaAgenda(t: Tarea): string | null {
 }
 
 export function grupoAgenda(t: Tarea, hoy: string): GrupoAgenda {
-  const dia = diaAgenda(t);
+  return grupoDeDia(diaAgenda(t), hoy);
+}
+
+/** Grupo de la agenda para un día cualquiera (tareas y visitas). */
+export function grupoDeDia(dia: string | null, hoy: string): GrupoAgenda {
   if (!dia) return "sin_fecha";
   const d = diasEntre(hoy, dia);
   if (d < 0) return "atrasadas";

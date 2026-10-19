@@ -9,7 +9,7 @@ import {
   type ConfiguracionEmpresa,
   type PolizaCatalogo,
 } from "@/lib/supabase/condicionesComerciales";
-import { CONFIG_PRECIO_DEFAULT } from "@/lib/pricing";
+import { CONFIG_PRECIO_DEFAULT, FACTORES_RENTABILIDAD_DEFAULT } from "@/lib/pricing";
 import { getClientesActivos, type ClienteResumen } from "@/lib/supabase/clientes";
 import {
   CotizacionBuilder,
@@ -51,6 +51,7 @@ export default async function NuevaCotizacionPage(
   const searchParams = await props.searchParams;
   const duplicarId = searchParams.duplicar;
   const oportunidadId = searchParams.oportunidad;
+  const sugerenciasParam = searchParams.sugerencias;
 
   let catalogo: CatalogoItem[] = [];
   try {
@@ -154,6 +155,100 @@ export default async function NuevaCotizacionPage(
     }
   }
 
+  // "Cotizar en el armador" desde la bandeja de sugerencias de los técnicos: cliente de la
+  // visita y una línea por sugerencia (con el ítem del catálogo si el técnico lo eligió;
+  // si no, en $0 para que el comercial le ponga precio). Al guardar, el armador las marca
+  // cotizadas con el código nuevo (fn_cambiar_estado_sugerencia, con historial).
+  let sugerencias: string[] | undefined;
+  if (typeof sugerenciasParam === "string" && !datosIniciales && !oportunidad) {
+    const ids = sugerenciasParam.split(",").filter((x) => /^[0-9a-f-]{36}$/i.test(x)).slice(0, 50);
+    if (ids.length > 0) {
+      const { data: sugs } = await supabase
+        .from("visita_sugerencias")
+        .select(
+          "id, descripcion, cantidad, unidad, item_catalogo_id, estado, visitas(titulo, cliente_id, cliente_nombre, direccion, contacto_sitio, telefono_sitio)",
+        )
+        .in("id", ids);
+      // Solo las que siguen abiertas: una ya cotizada o descartada no se vuelve a cotizar.
+      const vivas = (sugs ?? []).filter((s) => s.estado === "pendiente" || s.estado === "en_revision");
+      if (vivas.length > 0) {
+        const v0 = vivas[0].visitas;
+        const visita = (Array.isArray(v0) ? v0[0] : v0) as {
+          titulo: string;
+          cliente_id: string | null;
+          cliente_nombre: string | null;
+          direccion: string | null;
+          contacto_sitio: string | null;
+          telefono_sitio: string | null;
+        } | null;
+        let cliente: ClienteResumen | null = null;
+        if (visita?.cliente_id) {
+          const { data } = await supabase
+            .from("clientes")
+            .select("id, nombre, nit, direccion, email, contacto, telefono")
+            .eq("id", visita.cliente_id)
+            .maybeSingle();
+          cliente = (data as ClienteResumen | null) ?? null;
+        }
+        const porId = new Map(catalogo.map((i) => [i.id, i]));
+        datosIniciales = {
+          clienteId: cliente?.id ?? null,
+          clienteNombre: cliente?.nombre ?? visita?.cliente_nombre ?? "",
+          clienteNit: cliente?.nit ?? "",
+          clienteDireccion: cliente?.direccion ?? visita?.direccion ?? "",
+          clienteEmail: cliente?.email ?? "",
+          clienteContacto: cliente?.contacto ?? visita?.contacto_sitio ?? "",
+          clienteTelefono: cliente?.telefono ?? visita?.telefono_sitio ?? "",
+          descripcion: visita?.titulo ?? "",
+          comercial: "",
+          esquemaIva: CONFIG_PRECIO_DEFAULT.esquemaIva,
+          config: {
+            pctAdmin: CONFIG_PRECIO_DEFAULT.pctAdmin,
+            pctImprevistos: CONFIG_PRECIO_DEFAULT.pctImprevistos,
+            pctUtilidadAiu: CONFIG_PRECIO_DEFAULT.pctUtilidadAiu,
+            pctAdminGasto: CONFIG_PRECIO_DEFAULT.pctAdminGasto,
+            pctComision: CONFIG_PRECIO_DEFAULT.pctComision,
+            pctRenta: CONFIG_PRECIO_DEFAULT.pctRenta,
+            icaPorMil: CONFIG_PRECIO_DEFAULT.icaPorMil,
+            ivaPct: CONFIG_PRECIO_DEFAULT.ivaPct,
+          },
+          lineas: vivas.map((s) => {
+            const item = s.item_catalogo_id ? porId.get(s.item_catalogo_id) : undefined;
+            const cantidad = s.cantidad !== null && Number(s.cantidad) > 0 ? Number(s.cantidad) : 1;
+            if (item) {
+              return {
+                categoria: item.categoria,
+                itemCatalogoId: item.id,
+                descripcion: item.nombreCorto,
+                descripcionLarga: item.descripcion && item.descripcion !== item.nombreCorto ? item.descripcion : null,
+                unidad: item.unidad,
+                cantidad,
+                valorCompraUnitario: item.valorCompraIva ?? 0,
+                factorRentabilidadLinea: item.factorRentabilidadLinea,
+              };
+            }
+            // Sin ítem del catálogo: el técnico lo escribió libre. Entra como material en
+            // $0 (el armador avisa y no deja imprimir así); el comercial elige el ítem.
+            return {
+              categoria: "MATERIAL" as const,
+              itemCatalogoId: null,
+              descripcion: s.descripcion,
+              descripcionLarga: null,
+              unidad: s.unidad || "UNI",
+              cantidad,
+              valorCompraUnitario: 0,
+              factorRentabilidadLinea: FACTORES_RENTABILIDAD_DEFAULT.MATERIAL,
+            };
+          }),
+          hitos: [],
+          polizas: [],
+          diasEjecucion: null,
+        };
+        sugerencias = vivas.map((s) => s.id);
+      }
+    }
+  }
+
   return (
     <CotizacionBuilder
       catalogoInicial={catalogo}
@@ -164,6 +259,7 @@ export default async function NuevaCotizacionPage(
       datosIniciales={datosIniciales}
       duplicarId={typeof duplicarId === "string" ? duplicarId : undefined}
       oportunidad={oportunidad}
+      sugerencias={sugerencias}
     />
   );
 }

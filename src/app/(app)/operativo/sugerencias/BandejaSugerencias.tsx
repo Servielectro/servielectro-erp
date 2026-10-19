@@ -1,8 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { diasEntre, fechaCorta, hoyBogota } from "@/lib/tareas";
+import { diasEntre, ETIQUETA_ESTADO, fechaCorta, hoyBogota, type Obra, type Tarea } from "@/lib/tareas";
+import { borradorVacio } from "@/lib/tareas-guardar";
+import { FormTarea } from "@/components/tareas/FormTarea";
 
 export interface SugerenciaBandeja {
   id: string;
@@ -16,6 +19,7 @@ export interface SugerenciaBandeja {
   motivoDescarte: string | null;
   cotizacionId: string | null;
   visita: string;
+  visitaId: string;
   cliente: string | null;
   sugeridaPor: string | null;
   eventos: { de: string | null; a: string; comentario: string | null; quien: string | null; cuando: string }[];
@@ -49,12 +53,20 @@ export function BandejaSugerencias({
   puedeOperativo,
   cotizaciones,
   codigos,
+  yo,
+  tareasIniciales,
+  obras,
+  personas,
 }: {
   sugerenciasIniciales: SugerenciaBandeja[];
   puedeComercial: boolean;
   puedeOperativo: boolean;
   cotizaciones: { id: string; etiqueta: string }[];
   codigos: Record<string, string>;
+  yo: string;
+  tareasIniciales: Tarea[];
+  obras: Obra[];
+  personas: { id: string; nombre: string }[];
 }) {
   const supabase = useMemo(() => createClient(), []);
   const hoy = hoyBogota();
@@ -66,6 +78,26 @@ export function BandejaSugerencias({
   const [cotizacion, setCotizacion] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const [tareas, setTareas] = useState(tareasIniciales);
+  const [tareaDesde, setTareaDesde] = useState<SugerenciaBandeja | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const tareasDe = (id: string) => tareas.filter((t) => t.sugerenciaId === id);
+  // Varias sugerencias de la MISMA visita se cotizan juntas en una cotización.
+  const [seleccion, setSeleccion] = useState<string[]>([]);
+  const visitaSeleccion = sugerencias.find((x) => x.id === seleccion[0])?.visitaId ?? null;
+
+  // Borrador de tarea a partir de la sugerencia: qué conseguir, en qué obra, para cuándo.
+  function borradorDesde(s: SugerenciaBandeja) {
+    const b = borradorVacio("por_hacer");
+    b.titulo = `Conseguir ${[s.cantidad ?? "", s.unidad ?? "", s.descripcion].join(" ").replace(/\s+/g, " ").trim()}`;
+    b.descripcion = [s.motivo, `Sugerido por ${s.sugeridaPor ?? "el técnico"} en la visita "${s.visita}".`].filter(Boolean).join("\n");
+    b.visibilidad = "equipo";
+    b.obra = `v:${s.visitaId}`;
+    b.fechaLimite = s.requeridoPara ?? "";
+    b.prioridad = s.requeridoPara && diasEntre(hoy, s.requeridoPara) <= 1 ? "alta" : "media";
+    b.sugerenciaId = s.id;
+    return b;
+  }
 
   async function cambiar(s: SugerenciaBandeja, estado: SugerenciaBandeja["estado"], extra: { comentario?: string; cotizacionId?: string } = {}) {
     setError(null);
@@ -119,6 +151,24 @@ export function BandejaSugerencias({
       </div>
 
       {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
+      {aviso && <p role="status" className="mb-3 rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white">{aviso}</p>}
+
+      {puedeComercial && seleccion.length > 0 && (
+        <div className="sticky top-[57px] z-10 mb-3 flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-white sm:top-[65px]">
+          <span className="flex-1 text-sm">
+            {seleccion.length} {seleccion.length === 1 ? "sugerencia elegida" : "sugerencias elegidas"} (misma visita)
+          </span>
+          <button type="button" onClick={() => setSeleccion([])} className="min-h-10 px-2 text-sm underline">
+            Limpiar
+          </button>
+          <Link
+            href={`/comercial/cotizaciones/nueva?sugerencias=${seleccion.join(",")}`}
+            className="min-h-10 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-900"
+          >
+            Cotizar en el armador
+          </Link>
+        </div>
+      )}
 
       {lista.length === 0 ? (
         <p className="py-6 text-center text-sm text-slate-500">No hay sugerencias en este estado.</p>
@@ -129,6 +179,20 @@ export function BandejaSugerencias({
             return (
               <li key={s.id} className="rounded-xl border border-slate-300 bg-white p-4 shadow-sm">
                 <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+                  {puedeComercial && (s.estado === "pendiente" || s.estado === "en_revision") && (
+                    <label className="flex min-h-10 items-center gap-1.5 pr-1 text-sm font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={seleccion.includes(s.id)}
+                        disabled={Boolean(visitaSeleccion && visitaSeleccion !== s.visitaId)}
+                        onChange={(e) =>
+                          setSeleccion((p) => (e.target.checked ? [...p, s.id] : p.filter((x) => x !== s.id)))
+                        }
+                        className="h-5 w-5"
+                      />
+                      Cotizar
+                    </label>
+                  )}
                   {para && <span className={`rounded px-1.5 py-0.5 ${para.clase}`}>{para.texto}</span>}
                   <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-600">{ETIQUETA[s.estado]}</span>
                 </div>
@@ -147,6 +211,11 @@ export function BandejaSugerencias({
                 {s.estado === "cotizada" && s.cotizacionId && (
                   <p className="mt-1 text-sm text-green-800">Cotizada en {codigos[s.cotizacionId] ?? "una cotización"}</p>
                 )}
+                {tareasDe(s.id).map((t) => (
+                  <p key={t.id} className="mt-1 text-sm text-slate-700">
+                    🗂️ Tarea: {t.titulo} · {ETIQUETA_ESTADO[t.estado]}
+                  </p>
+                ))}
 
                 {/* Acciones según permiso: tomar y cotizar, Comercial; descartar, Comercial u Operativo. */}
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -168,6 +237,11 @@ export function BandejaSugerencias({
                   {(puedeComercial || puedeOperativo) && (s.estado === "descartada" || s.estado === "en_revision") && (
                     <button type="button" disabled={ocupado} onClick={() => cambiar(s, "pendiente")} className="min-h-11 rounded-lg px-3 text-sm font-medium text-slate-600 underline">
                       Volver a pendiente
+                    </button>
+                  )}
+                  {puedeOperativo && s.estado !== "descartada" && tareasDe(s.id).length === 0 && (
+                    <button type="button" onClick={() => setTareaDesde(s)} className="min-h-11 rounded-lg border-2 border-slate-400 px-4 text-sm font-semibold">
+                      Crear tarea
                     </button>
                   )}
                   <span className="flex-1" />
@@ -245,6 +319,25 @@ export function BandejaSugerencias({
             );
           })}
         </ul>
+      )}
+
+      {tareaDesde && (
+        <FormTarea
+          original={null}
+          borradorInicial={borradorDesde(tareaDesde)}
+          yo={yo}
+          puedeAsignar={puedeOperativo}
+          personas={personas}
+          obras={obras}
+          tareas={tareas}
+          onCerrar={() => setTareaDesde(null)}
+          onGuardada={(t) => {
+            setTareas((p) => [...p, t]);
+            setTareaDesde(null);
+            setAviso("Tarea creada y enlazada a la sugerencia");
+            window.setTimeout(() => setAviso(null), 3000);
+          }}
+        />
       )}
     </div>
   );

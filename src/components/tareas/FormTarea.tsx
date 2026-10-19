@@ -60,6 +60,7 @@ export function FormTarea({
   estadoInicial = "por_hacer",
   obraInicial = "",
   fechaInicial = "",
+  borradorInicial,
   yo,
   puedeAsignar,
   personas,
@@ -73,6 +74,8 @@ export function FormTarea({
   estadoInicial?: EstadoTarea;
   obraInicial?: string;
   fechaInicial?: string;
+  /** Borrador ya armado (p. ej. desde una sugerencia del técnico). */
+  borradorInicial?: BorradorTarea;
   yo: string;
   puedeAsignar: boolean;
   personas: { id: string; nombre: string }[];
@@ -85,6 +88,7 @@ export function FormTarea({
   const supabase = useMemo(() => createClient(), []);
   const [b, setB] = useState<BorradorTarea>(() => {
     if (original) return borradorDe(original);
+    if (borradorInicial) return borradorInicial;
     const v = borradorVacio(estadoInicial);
     // Una obra elegida en el tablero y permiso de asignar: arranca como tarea de equipo.
     if (obraInicial && puedeAsignar) {

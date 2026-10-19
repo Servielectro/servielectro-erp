@@ -30,6 +30,7 @@ import {
   type ValorAgregadoUI,
 } from "@/components/cotizacion/ValoresAgregadosSelector";
 import { guardarCotizacion, crearPoliza } from "@/app/(app)/comercial/cotizaciones/actions";
+import { createClient as crearClienteNavegador } from "@/lib/supabase/client";
 
 const CATEGORIAS: { key: Categoria; label: string }[] = [
   { key: "EQUIPO", label: "Equipos" },
@@ -150,6 +151,7 @@ export function CotizacionBuilder({
   datosIniciales,
   duplicarId,
   oportunidad,
+  sugerencias,
 }: {
   catalogoInicial: CatalogoItem[];
   polizasCatalogoInicial: PolizaCatalogo[];
@@ -161,10 +163,15 @@ export function CotizacionBuilder({
   // "Cotizar" desde un negocio del CRM: cliente y nombre precargados, y al guardar la
   // cotización queda asociada al negocio.
   oportunidad?: OrigenOportunidad;
+  // "Cotizar en el armador" desde la bandeja de sugerencias: al guardar, se marcan
+  // cotizadas con el código nuevo.
+  sugerencias?: string[];
 }) {
   const clienteOp = oportunidad?.cliente;
   // Clave del borrador: un borrador solo se recupera sobre la misma cotización de origen.
-  const origenInicial = duplicarId ?? (oportunidad ? `op:${oportunidad.id}` : null);
+  const origenInicial =
+    duplicarId ??
+    (oportunidad ? `op:${oportunidad.id}` : sugerencias?.length ? `sug:${sugerencias.join(",")}` : null);
   const [catalogo, setCatalogo] = useState(catalogoInicial);
   const [catalogoPolizas, setCatalogoPolizas] = useState(polizasCatalogoInicial);
   const [catalogoValores, setCatalogoValores] = useState(valoresAgregadosCatalogo);
@@ -282,6 +289,7 @@ export function CotizacionBuilder({
   // (p. ej. al volver después de un cierre de sesión por inactividad).
   const [restauradoDe, setRestauradoDe] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [avisoSugerencias, setAvisoSugerencias] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [guardadoOk, setGuardadoOk] = useState<{
     codigo: string;
@@ -685,6 +693,29 @@ export function CotizacionBuilder({
       avisoPrecios: res.avisoPrecios,
       lineasEnCero: lineasEnCero.map((l) => l.descripcion || "(sin ítem)"),
     });
+    // Si salió de sugerencias de los técnicos: quedan cotizadas con este código (y el
+    // historial de cada una lo registra). Si alguna no se puede marcar, se avisa.
+    if (origen?.startsWith("sug:")) {
+      const ids = origen.slice(4).split(",").filter(Boolean);
+      const supabaseNavegador = crearClienteNavegador();
+      let marcadas = 0;
+      const fallidas: string[] = [];
+      for (const id of ids) {
+        const { error: errSug } = await supabaseNavegador.rpc("fn_cambiar_estado_sugerencia", {
+          p_sugerencia_id: id,
+          p_estado: "cotizada",
+          p_comentario: `Cotizada en ${res.codigo}`,
+          p_cotizacion_id: res.cotizacionId,
+        });
+        if (errSug) fallidas.push(errSug.message);
+        else marcadas++;
+      }
+      setAvisoSugerencias(
+        fallidas.length
+          ? `${marcadas} de ${ids.length} sugerencias quedaron cotizadas; las demás no (${fallidas[0]}). Márcalas desde la bandeja.`
+          : `${marcadas === 1 ? "La sugerencia del técnico quedó" : `Las ${marcadas} sugerencias del técnico quedaron`} cotizada${marcadas === 1 ? "" : "s"} con ${res.codigo}.`,
+      );
+    }
     // El catálogo en pantalla también queda al día: la próxima cotización ya trae el precio.
     if (res.preciosGuardados.length > 0) {
       const nuevos = new Map(preciosCatalogo.map((p) => [p.itemId, p.valor]));
@@ -716,6 +747,7 @@ export function CotizacionBuilder({
               Quedó asociada al negocio del CRM.
             </p>
           )}
+          {avisoSugerencias && <p className="mt-1 text-sm text-green-700">{avisoSugerencias}</p>}
         </div>
         {guardadoOk.preciosGuardados.length > 0 && (
           <div className="max-w-md rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-left text-sm text-blue-900">
