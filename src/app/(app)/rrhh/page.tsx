@@ -3,7 +3,7 @@ import Link from "next/link";
 export default function RrhhPage() {
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6">
-      <h1 className="mb-4 text-center text-sm font-bold text-slate-900 sm:text-base">RRHH</h1>
+      <h1 className="mb-4 text-center text-sm font-bold text-slate-900">RRHH</h1>
       <div className="grid gap-3 sm:grid-cols-2">
         <Link
           href="/rrhh/plantillas"

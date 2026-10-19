@@ -47,7 +47,7 @@ export default async function CrmPage(props: PageProps<"/comercial/crm">) {
         <Link href="/comercial" className="text-sm text-slate-600">
           ← Comercial
         </Link>
-        <h1 className="flex-1 text-center text-sm font-bold text-slate-900 sm:text-base">
+        <h1 className="flex-1 text-center text-sm font-bold text-slate-900">
           CRM — Pipeline
         </h1>
         <Link href="/comercial/crm/clientes" className="text-sm text-slate-600 underline">
@@ -129,14 +129,14 @@ export default async function CrmPage(props: PageProps<"/comercial/crm">) {
                     <p className="text-xs font-semibold text-slate-800">
                       {e.nombre} <span className="font-normal text-slate-500">({deEtapa.length})</span>
                     </p>
-                    {cotizado > 0 && <p className="text-[11px] text-slate-700">{formatCOP(cotizado)} cotizado</p>}
-                    {estimado > 0 && <p className="text-[11px] text-slate-400">~{formatCOP(estimado)} estimado</p>}
+                    {cotizado > 0 && <p className="text-xs text-slate-700">{formatCOP(cotizado)} cotizado</p>}
+                    {estimado > 0 && <p className="text-xs text-slate-400">~{formatCOP(estimado)} estimado</p>}
                   </div>
                   <div className="space-y-2">
                     {deEtapa.map((t) => (
                       <Tarjeta key={t.id} t={t} />
                     ))}
-                    {deEtapa.length === 0 && <p className="px-1 py-2 text-[11px] text-slate-400">—</p>}
+                    {deEtapa.length === 0 && <p className="px-1 py-2 text-xs text-slate-400">—</p>}
                   </div>
                 </div>
               );
@@ -170,7 +170,7 @@ export default async function CrmPage(props: PageProps<"/comercial/crm">) {
                 <li key={t.id}>
                   <Link href={`/comercial/crm/${t.id}`} className="flex items-center gap-3 px-3 py-2 active:bg-slate-50">
                     <span
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
                         ganada ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
                       }`}
                     >
@@ -225,7 +225,7 @@ function Tarjeta({ t, etapa }: { t: TarjetaOportunidad; etapa?: string }) {
         ) : (
           <p className="mt-1 text-xs text-slate-400">~{formatCOP(t.valor)} estimado</p>
         ))}
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
         {t.estado === "aplazada" ? (
           <span className={`rounded-full px-2 py-0.5 ${t.reactivacionVencida ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"}`}>
             {etapa ? `${etapa} · ` : ""}retomar el {fecha(t.fechaReactivacion)}

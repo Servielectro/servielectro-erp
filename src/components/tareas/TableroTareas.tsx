@@ -57,7 +57,9 @@ export function TableroTareas({
   const [filtro, setFiltro] = useState<FiltroEstado>("abiertas");
   const [busqueda, setBusqueda] = useState("");
   const [visibilidad, setVisibilidad] = useState<"todas" | "interna" | "equipo">("todas");
-  const [asignacion, setAsignacion] = useState<string>("todas"); // todas | mias | sin_asignar | <perfil>
+  // todas | mias | creadas | asignadas | sin_asignar | <perfil>. Quien no asigna arranca en lo suyo.
+  const [asignacion, setAsignacion] = useState<string>(puedeAsignar ? "todas" : "mias");
+  const [expandidas, setExpandidas] = useState<Set<string>>(new Set());
   const [obra, setObra] = useState("");
   const [vista, setVista] = useState<Vista>("tablero");
   const [plegadas, setPlegadas] = useState<Set<EstadoTarea>>(new Set());
@@ -87,8 +89,11 @@ export function TableroTareas({
       if (visibilidad !== "todas" && t.visibilidad !== visibilidad) return false;
       if (obra && (t.proyectoId ? `p:${t.proyectoId}` : t.visitaId ? `v:${t.visitaId}` : "") !== obra) return false;
       if (asignacion === "mias" && !(t.asignados.includes(yo) || t.creadaPor === yo)) return false;
+      if (asignacion === "creadas" && t.creadaPor !== yo) return false;
+      if (asignacion === "asignadas" && !t.asignados.includes(yo)) return false;
       if (asignacion === "sin_asignar" && (t.visibilidad !== "equipo" || t.asignados.length > 0)) return false;
-      if (!["todas", "mias", "sin_asignar"].includes(asignacion) && !t.asignados.includes(asignacion)) return false;
+      if (!["todas", "mias", "creadas", "asignadas", "sin_asignar"].includes(asignacion) && !t.asignados.includes(asignacion))
+        return false;
       if (q && !t.titulo.toLowerCase().includes(q) && !t.subtareas.some((s) => s.titulo.toLowerCase().includes(q))) return false;
       return true;
     });
@@ -236,6 +241,7 @@ export function TableroTareas({
     const bloq = t.estado !== "hecho" ? bloqueos(t, t.estado === "por_hacer" ? "en_progreso" : "hecho", porId) : null;
     const obraClave = t.proyectoId ? `p:${t.proyectoId}` : t.visitaId ? `v:${t.visitaId}` : "";
     const siendoArrastrada = arrastre?.id === t.id;
+    const abierta = expandidas.has(t.id);
     return (
       <div
         data-tarjeta={t.id}
@@ -249,7 +255,7 @@ export function TableroTareas({
           setForm({ original: t, estado: t.estado });
         }}
         key={t.id}
-        className={`flex cursor-pointer gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm select-none ${
+        className={`flex cursor-pointer gap-2 rounded-xl border p-3 shadow-sm select-none ${prioridad.tinte} ${
           siendoArrastrada ? "opacity-30" : ""
         }`}
       >
@@ -263,21 +269,55 @@ export function TableroTareas({
           </span>
         )}
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold md:text-xs">
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-600">
+          {/* Fila de arriba, chica: desplegar · visibilidad · prioridad · vence */}
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpandidas((s) => {
+                  const n = new Set(s);
+                  if (n.has(t.id)) n.delete(t.id);
+                  else n.add(t.id);
+                  return n;
+                });
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="-my-2 -ml-1 flex min-h-10 min-w-8 items-center justify-center text-slate-500"
+              aria-label={abierta ? "Plegar" : "Desplegar"}
+              aria-expanded={abierta}
+            >
+              {abierta ? "▾" : "▸"}
+            </button>
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">
               {t.visibilidad === "interna" ? "🔒 Interna" : "👥 Equipo"}
             </span>
-            <span className={`rounded px-1.5 py-0.5 ${prioridad.clase}`}>{prioridad.etiqueta}</span>
-            {vence && <span className={`rounded px-1.5 py-0.5 ${vence.clase}`}>{vence.texto}</span>}
+            <span className={`font-bold ${prioridad.texto}`}>{prioridad.etiqueta}</span>
+            {vence && <span className={vence.clase}>{vence.texto}</span>}
           </div>
-          <p className="mt-1 text-base font-semibold leading-snug text-slate-900 md:text-lg">{t.titulo}</p>
-          {obraClave && <p className="truncate text-xs text-slate-500 md:text-sm">{nombreObra.get(obraClave) ?? "Obra"}</p>}
+          <p className="mt-0.5 text-base font-bold leading-snug text-slate-900">{t.titulo}</p>
           {bloq && (bloq.visibles.length > 0 || bloq.ocultas > 0) && (
-            <p className="mt-1 text-xs font-medium text-red-700 md:text-sm">
+            <p className="mt-1 text-xs font-medium text-red-700">
               ⛔ Espera a {[...bloq.visibles.map((b) => `“${b.titulo}”`), ...(bloq.ocultas ? [`${bloq.ocultas} que no puedes ver`] : [])].join(", ")}
             </p>
           )}
-          <p className="mt-1 text-xs text-slate-500 md:text-sm">
+          {abierta && (
+            <div className="mt-1.5 space-y-1 text-sm text-slate-700">
+              {obraClave && <p className="text-slate-500">{nombreObra.get(obraClave) ?? "Obra"}</p>}
+              {t.descripcion && <p className="whitespace-pre-line">{t.descripcion}</p>}
+              {t.subtareas.length > 0 && (
+                <ul>
+                  {t.subtareas.map((s) => (
+                    <li key={s.id} className={s.hecha ? "text-slate-400 line-through" : ""}>
+                      {s.hecha ? "☑" : "☐"} {s.titulo}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          {/* Pie gris y chico */}
+          <p className="mt-1 text-xs text-slate-500">
             {hechas}/{t.subtareas.length} subtareas
             {mia ? " · Mía" : t.asignados.length ? ` · ${t.asignados.map((a) => nombrePersona.get(a) ?? "—").join(", ")}` : ""}
           </p>
@@ -289,7 +329,7 @@ export function TableroTareas({
   const arrastrada = arrastre ? porId.get(arrastre.id) : null;
 
   return (
-    <div className="mx-auto w-full max-w-6xl flex-1 p-3 sm:p-4 md:text-lg">
+    <div className="mx-auto w-full max-w-6xl flex-1 p-3 sm:p-4">
       {franja && (
         <div
           role="status"
@@ -311,7 +351,7 @@ export function TableroTareas({
             key={f.valor}
             type="button"
             onClick={() => setFiltro(f.valor)}
-            className={`min-h-11 shrink-0 rounded-full border-2 px-4 text-sm font-semibold md:text-base ${
+            className={`min-h-11 shrink-0 rounded-full border-2 px-4 text-sm font-semibold ${
               filtro === f.valor ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white"
             }`}
           >
@@ -328,14 +368,16 @@ export function TableroTareas({
           className="min-h-11 rounded-lg border border-slate-300 px-3 text-base"
         />
         <select value={visibilidad} onChange={(e) => setVisibilidad(e.target.value as typeof visibilidad)} className="min-h-11 rounded-lg border border-slate-300 px-2 text-base">
-          <option value="todas">Visibilidad: todas</option>
-          <option value="interna">🔒 Internas (mías)</option>
-          <option value="equipo">👥 De equipo</option>
+          <option value="todas">Internas y de equipo</option>
+          <option value="interna">Solo internas</option>
+          <option value="equipo">Solo de equipo</option>
         </select>
         <select value={asignacion} onChange={(e) => setAsignacion(e.target.value)} className="min-h-11 rounded-lg border border-slate-300 px-2 text-base">
-          <option value="todas">Asignación: todas</option>
-          <option value="mias">Mías</option>
-          <option value="sin_asignar">Sin asignar</option>
+          <option value="mias">Todas las mías</option>
+          <option value="creadas">Creadas por mí</option>
+          <option value="asignadas">Asignadas a mí</option>
+          {puedeAsignar && <option value="todas">Todo el tablero</option>}
+          {puedeAsignar && <option value="sin_asignar">Sin asignar</option>}
           {personas.map((p) => (
             <option key={p.id} value={p.id}>
               {p.nombre}
@@ -359,7 +401,7 @@ export function TableroTareas({
               key={v.valor}
               type="button"
               onClick={() => setVista(v.valor)}
-              className={`min-h-10 rounded-md px-3 text-sm font-medium md:text-base ${vista === v.valor ? "bg-slate-900 text-white" : "text-slate-700"}`}
+              className={`min-h-10 rounded-md px-3 text-sm font-medium ${vista === v.valor ? "bg-slate-900 text-white" : "text-slate-700"}`}
             >
               {v.etiqueta}
             </button>
@@ -400,13 +442,13 @@ export function TableroTareas({
               <section
                 key={c.estado}
                 data-columna={c.estado}
-                className={`flex shrink-0 snap-start flex-col rounded-xl border border-t-4 bg-slate-50 ${c.borde} ${
+                className={`flex shrink-0 snap-start flex-col rounded-xl border border-t-4 border-slate-200 bg-slate-50 ${c.borde} ${
                   plegada ? "w-16" : "w-[85vw] max-w-sm md:w-80"
                 } ${marcada ? "ring-2 ring-slate-400" : ""}`}
               >
                 <header className="flex items-center gap-1 px-3 py-2">
                   {!plegada && (
-                    <h3 className={`flex-1 text-base font-bold md:text-lg ${c.texto}`}>
+                    <h3 className={`flex-1 text-base font-bold ${c.texto}`}>
                       {c.titulo} <span className="text-slate-500">{lista.length}</span>
                     </h3>
                   )}
@@ -517,7 +559,7 @@ export function TableroTareas({
 
       {vista === "tabla" && (
         <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200 bg-white">
-          <table className="w-full min-w-[720px] text-left text-sm md:text-base">
+          <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
                 <th className="px-3 py-2">Tarea</th>

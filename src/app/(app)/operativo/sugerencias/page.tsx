@@ -71,7 +71,7 @@ export default async function SugerenciasPage() {
       <Link href="/operativo" className="text-sm text-slate-600">
         ← Operativo
       </Link>
-      <h1 className="mb-1 mt-2 text-center text-sm font-bold text-slate-900 sm:text-base">Sugerencias de los técnicos</h1>
+      <h1 className="mb-1 mt-2 text-center text-sm font-bold text-slate-900">Sugerencias de los técnicos</h1>
       <p className="mb-4 text-center text-xs text-slate-600">
         Lo que el técnico vio que falta, ordenado por para cuándo lo necesita. Cotizar o descartar queda en el historial.
       </p>

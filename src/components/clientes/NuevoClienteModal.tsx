@@ -127,20 +127,20 @@ export function NuevoClienteModal({
     );
   }
 
-  const etiqueta = "block text-xs font-medium text-slate-700 md:text-sm";
+  const etiqueta = "block text-xs font-medium text-slate-700";
   const campo =
-    "mt-1 w-full min-w-0 rounded-md border border-slate-300 bg-white/90 px-2.5 py-2 text-sm md:px-3 md:py-2.5 md:text-base";
+    "mt-1 w-full min-w-0 rounded-md border border-slate-300 bg-white/90 px-2.5 py-2 text-sm md:px-3 md:py-2.5";
   const mapa = ubicacion ? `https://www.google.com/maps?q=${ubicacion.latitud},${ubicacion.longitud}` : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-3 backdrop-blur-sm md:p-6">
       <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border border-white/40 bg-white/80 p-4 shadow-2xl backdrop-blur-xl md:max-w-xl md:p-6">
-        <h2 className="text-base font-semibold text-slate-900 md:text-lg">Nuevo cliente</h2>
-        <p className="mb-3 text-xs text-slate-600 md:text-sm">
+        <h2 className="text-base font-semibold text-slate-900">Nuevo cliente</h2>
+        <p className="mb-3 text-xs text-slate-600">
           Llena los datos a mano. Si tienes el RUT, puedes subirlo para que los llene solo.
         </p>
 
-        {error && <p className="mb-3 rounded-md bg-red-50/90 px-3 py-2 text-xs text-red-700 md:text-sm">{error}</p>}
+        {error && <p className="mb-3 rounded-md bg-red-50/90 px-3 py-2 text-xs text-red-700">{error}</p>}
 
         <div className="space-y-2.5 md:space-y-3">
           <label className={etiqueta}>
@@ -195,12 +195,12 @@ export function NuevoClienteModal({
 
         {/* ---- Atajos opcionales: RUT y ubicación ---- */}
         <div className="mt-4 space-y-2 rounded-lg bg-slate-50 p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Opcional</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Opcional</p>
 
           <button
             type="button"
             onClick={() => setLeyendoRut(true)}
-            className="w-full rounded-md border border-dashed border-slate-400 bg-white px-3 py-2 text-left text-xs font-medium text-slate-700 md:text-sm"
+            className="w-full rounded-md border border-dashed border-slate-400 bg-white px-3 py-2 text-left text-xs font-medium text-slate-700"
           >
             📄 {rut ? "Volver a leer el RUT" : "¿Tienes el RUT? Súbelo y llena los campos solo"}
           </button>
@@ -210,7 +210,7 @@ export function NuevoClienteModal({
             type="button"
             onClick={tomarUbicacion}
             disabled={tomandoUbicacion}
-            className="w-full rounded-md border border-dashed border-slate-400 bg-white px-3 py-2 text-left text-xs font-medium text-slate-700 disabled:opacity-60 md:text-sm"
+            className="w-full rounded-md border border-dashed border-slate-400 bg-white px-3 py-2 text-left text-xs font-medium text-slate-700 disabled:opacity-60"
           >
             📍 {tomandoUbicacion ? "Tomando ubicación…" : ubicacion ? "Volver a tomar la ubicación" : "Tomar la ubicación de la obra (GPS)"}
           </button>
@@ -235,7 +235,7 @@ export function NuevoClienteModal({
             type="button"
             onClick={onCerrar}
             disabled={guardando}
-            className="flex-1 rounded-md border border-slate-300 bg-white/70 px-3 py-2.5 text-sm font-medium text-slate-700 md:py-3 md:text-base"
+            className="flex-1 rounded-md border border-slate-300 bg-white/70 px-3 py-2.5 text-sm font-medium text-slate-700 md:py-3"
           >
             Cancelar
           </button>
@@ -243,7 +243,7 @@ export function NuevoClienteModal({
             type="button"
             onClick={guardar}
             disabled={guardando}
-            className="flex-1 rounded-md bg-slate-900 px-3 py-2.5 text-sm font-medium text-white disabled:opacity-60 md:py-3 md:text-base"
+            className="flex-1 rounded-md bg-slate-900 px-3 py-2.5 text-sm font-medium text-white disabled:opacity-60 md:py-3"
           >
             {guardando ? "Guardando…" : "Guardar cliente"}
           </button>

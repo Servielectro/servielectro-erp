@@ -4,7 +4,7 @@ import { TiempoInactividad } from "./TiempoInactividad";
 export default function ConfiguracionPage() {
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6">
-      <h1 className="mb-4 text-center text-sm font-bold text-slate-900 sm:text-base">
+      <h1 className="mb-4 text-center text-sm font-bold text-slate-900">
         Configuración
       </h1>
 

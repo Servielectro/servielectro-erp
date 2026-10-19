@@ -18,11 +18,20 @@ export const ETIQUETA_ESTADO: Record<EstadoTarea, string> = {
   hecho: "Hecho",
 };
 
-export const PRIORIDADES: { valor: PrioridadTarea; etiqueta: string; clase: string }[] = [
-  { valor: "baja", etiqueta: "BAJA", clase: "bg-slate-100 text-slate-700" },
-  { valor: "media", etiqueta: "MEDIA", clase: "bg-sky-100 text-sky-800" },
-  { valor: "alta", etiqueta: "ALTA", clase: "bg-amber-100 text-amber-900" },
-  { valor: "urgente", etiqueta: "URGENTE", clase: "bg-red-100 text-red-800" },
+export const PRIORIDADES: {
+  valor: PrioridadTarea;
+  etiqueta: string;
+  /** chip (formulario, agenda) */
+  clase: string;
+  /** fondo y borde suaves de la tarjeta */
+  tinte: string;
+  /** color del texto "ALTA" en la tarjeta */
+  texto: string;
+}[] = [
+  { valor: "baja", etiqueta: "BAJA", clase: "bg-slate-100 text-slate-700", tinte: "bg-white border-slate-200", texto: "text-slate-500" },
+  { valor: "media", etiqueta: "MEDIA", clase: "bg-sky-100 text-sky-800", tinte: "bg-white border-slate-200", texto: "text-sky-700" },
+  { valor: "alta", etiqueta: "ALTA", clase: "bg-orange-100 text-orange-800", tinte: "bg-orange-50 border-orange-200", texto: "text-orange-700" },
+  { valor: "urgente", etiqueta: "URGENTE", clase: "bg-red-100 text-red-800", tinte: "bg-red-50 border-red-200", texto: "text-red-700" },
 ];
 
 export interface Tarea {
@@ -129,10 +138,11 @@ export function fechaCorta(fecha: string): string {
 export function etiquetaVence(t: Pick<Tarea, "fechaLimite" | "estado">, hoy: string): { texto: string; clase: string } | null {
   if (!t.fechaLimite || t.estado === "hecho") return null;
   const d = diasEntre(hoy, t.fechaLimite);
-  if (d < 0) return { texto: `Venció hace ${-d}d`, clase: "bg-red-100 text-red-800" };
-  if (d === 0) return { texto: "Vence hoy", clase: "bg-amber-100 text-amber-900" };
-  if (d <= 2) return { texto: `Vence en ${d}d`, clase: "bg-amber-50 text-amber-800" };
-  return { texto: `Vence en ${d}d`, clase: "bg-slate-100 text-slate-700" };
+  // En rojo lo que vence pronto o ya venció (como en NEXGO); en gris lo que tiene tiempo.
+  if (d < 0) return { texto: `Venció hace ${-d}d`, clase: "font-bold text-red-700" };
+  if (d === 0) return { texto: "Vence hoy", clase: "font-semibold text-red-600" };
+  if (d <= 2) return { texto: `Vence en ${d}d`, clase: "font-semibold text-red-600" };
+  return { texto: `Vence en ${d}d`, clase: "text-slate-500" };
 }
 
 // ------------------------------------------------------------------ filtros

@@ -69,7 +69,7 @@ export default async function UsuariosPage() {
       <Link href="/configuracion" className="mb-2 inline-block text-sm text-slate-600">
         ← Configuración
       </Link>
-      <h1 className="mb-4 text-center text-sm font-bold text-slate-900 sm:text-base">
+      <h1 className="mb-4 text-center text-sm font-bold text-slate-900">
         Usuarios y permisos
       </h1>
 

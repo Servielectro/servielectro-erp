@@ -824,7 +824,7 @@ export function CotizacionBuilder({
         <div className="mx-auto w-full max-w-2xl p-3 sm:p-4">
           <div className="flex items-center gap-2">
             <span className="w-28 shrink-0" />
-            <h1 className="flex-1 text-center text-sm font-bold text-slate-900 sm:text-base">
+            <h1 className="flex-1 text-center text-sm font-bold text-slate-900">
               Nueva cotización
             </h1>
             <span className="flex w-28 shrink-0 justify-end">
@@ -863,7 +863,7 @@ export function CotizacionBuilder({
             <button
               type="button"
               onClick={() => setEsquemaIva("IVA_FULL")}
-              className={`rounded-md border px-2 py-1.5 text-center text-xs font-semibold sm:text-sm ${
+              className={`rounded-md border px-2 py-1.5 text-center text-xs font-semibold ${
                 esquemaIva === "IVA_FULL"
                   ? "border-slate-900 bg-slate-900 text-white"
                   : "border-slate-300 bg-white text-slate-700"
@@ -874,7 +874,7 @@ export function CotizacionBuilder({
             <button
               type="button"
               onClick={() => setEsquemaIva("IVA_AIU")}
-              className={`rounded-md border px-2 py-1.5 text-center text-xs font-semibold sm:text-sm ${
+              className={`rounded-md border px-2 py-1.5 text-center text-xs font-semibold ${
                 esquemaIva === "IVA_AIU"
                   ? "border-slate-900 bg-slate-900 text-white"
                   : "border-slate-300 bg-white text-slate-700"
@@ -902,7 +902,7 @@ export function CotizacionBuilder({
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}
                 placeholder="Ej: Mantenimiento redes eléctricas"
-                className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm sm:text-base"
+                className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               />
             </div>
           </div>
@@ -1248,7 +1248,7 @@ export function CotizacionBuilder({
         <button
           type="button"
           onClick={() => setArmadoAbierto(true)}
-          className="w-full rounded-lg bg-brand-red px-4 py-4 text-center text-base font-semibold text-white shadow-sm sm:py-5 sm:text-lg"
+          className="w-full rounded-lg bg-brand-red px-4 py-4 text-center text-base font-semibold text-white shadow-sm sm:py-5"
         >
           {lineas.length > 0
             ? `Editar cotización (${lineas.length} línea${lineas.length === 1 ? "" : "s"})`

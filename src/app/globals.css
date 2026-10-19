@@ -61,9 +61,60 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/*
+ * ESCALA TIPOGRÁFICA DE TODA LA APP — el único lugar donde se definen los tamaños de letra.
+ * Las pantallas usan las clases de siempre (text-xs … text-3xl); acá se fija cuánto mide
+ * cada una. Referencia: los pantallazos de NEXGO que aprobó Jhojan (2026-10-21), en
+ * celular. En tablet (≥768 px) la misma escala sube un escalón proporcional, también acá:
+ * ninguna pantalla agrega "md:text-…" por su cuenta.
+ *
+ * Lo que NO depende de esta escala, a propósito: las zonas de toque (min-h-11 = 44 px,
+ * min-h-12, min-h-14…). Letra más chica no es botón más chico: el técnico con guantes
+ * tiene que seguir pegándole.
+ *
+ * El documento impreso de la cotización (FormatoCotizacion) usa tamaños propios en px y
+ * no cambia con esto.
+ */
+@theme {
+  --text-xs: 0.6875rem; /* 11 px — chips, etiquetas */
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.8125rem; /* 13 px — datos secundarios, pie de tarjeta */
+  --text-sm--line-height: 1.25rem;
+  --text-base: 0.875rem; /* 14 px — texto normal, campos */
+  --text-base--line-height: 1.375rem;
+  --text-lg: 1rem; /* 16 px — títulos de tarjeta, botones de campo */
+  --text-lg--line-height: 1.5rem;
+  --text-xl: 1.125rem; /* 18 px — títulos de pantalla */
+  --text-xl--line-height: 1.625rem;
+  --text-2xl: 1.375rem; /* 22 px */
+  --text-2xl--line-height: 1.875rem;
+  --text-3xl: 1.75rem; /* 28 px */
+  --text-3xl--line-height: 2.25rem;
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --text-xs: 0.75rem; /* 12 */
+    --text-sm: 0.875rem; /* 14 */
+    --text-base: 0.9375rem; /* 15 */
+    --text-lg: 1.0625rem; /* 17 */
+    --text-xl: 1.25rem; /* 20 */
+    --text-2xl: 1.5rem; /* 24 */
+    --text-3xl: 1.875rem; /* 30 */
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+/* El texto sin clase también sigue la escala (en pantalla; la impresión no se toca). */
+@media screen {
+  body {
+    font-size: var(--text-base);
+    line-height: var(--text-base--line-height);
+  }
 }
 
 /* Contraste de placeholder en toda la app (ver nota en --placeholder arriba). */

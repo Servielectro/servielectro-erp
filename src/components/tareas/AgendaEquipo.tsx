@@ -70,7 +70,7 @@ export function AgendaEquipo({
 
   return (
     <div>
-      <label className="flex min-h-11 items-center gap-2 text-sm md:text-base">
+      <label className="flex min-h-11 items-center gap-2 text-sm">
         <span className="font-semibold">Persona</span>
         <select value={persona} onChange={(e) => setPersona(e.target.value)} className="min-h-11 flex-1 rounded-lg border border-slate-300 px-2 text-base">
           <option value="">Todo el equipo</option>
@@ -88,7 +88,7 @@ export function AgendaEquipo({
           if (lista.length === 0) return null;
           return (
             <section key={g.valor}>
-              <h2 className={`mb-1 text-sm font-bold uppercase md:text-base ${g.valor === "atrasadas" ? "text-red-700" : "text-slate-600"}`}>
+              <h2 className={`mb-1 text-sm font-bold uppercase ${g.valor === "atrasadas" ? "text-red-700" : "text-slate-600"}`}>
                 {g.titulo} <span className="font-normal text-slate-400">{lista.length}</span>
               </h2>
               <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
@@ -99,11 +99,11 @@ export function AgendaEquipo({
                         🔧
                       </span>
                       <Link href="/operativo" className="min-w-0 flex-1">
-                        <p className="text-base leading-snug md:text-lg">
+                        <p className="text-base leading-snug">
                           Visita: {it.visita.titulo}
                           {it.visita.cliente ? ` · ${it.visita.cliente}` : ""}
                         </p>
-                        <p className="text-xs text-slate-500 md:text-sm">
+                        <p className="text-xs text-slate-500">
                           {it.dia && g.valor !== "hoy" ? `${fechaCorta(it.dia)} · ` : ""}
                           {it.visita.tecnicoId ? nombre.get(it.visita.tecnicoId) ?? "técnico" : "sin técnico"}
                           {it.visita.estado === "en_curso" ? " · en curso" : ""}
@@ -116,11 +116,11 @@ export function AgendaEquipo({
                         🗂️
                       </span>
                       <Link href="/operativo/tareas" className="min-w-0 flex-1">
-                        <p className="text-base leading-snug md:text-lg">
+                        <p className="text-base leading-snug">
                           {it.hora && <span className="mr-1 font-semibold">{it.hora}</span>}
                           {it.tarea.titulo}
                         </p>
-                        <p className="flex flex-wrap gap-x-2 text-xs text-slate-500 md:text-sm">
+                        <p className="flex flex-wrap gap-x-2 text-xs text-slate-500">
                           {it.dia && g.valor !== "hoy" && <span>{fechaCorta(it.dia)}</span>}
                           {it.tarea.prioridad !== "media" && (
                             <span className={`rounded px-1 ${PRIORIDADES.find((p) => p.valor === it.tarea.prioridad)!.clase}`}>

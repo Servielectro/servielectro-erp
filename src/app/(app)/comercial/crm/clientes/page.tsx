@@ -34,7 +34,7 @@ export default async function CrmClientesPage(props: PageProps<"/comercial/crm/c
       <Link href="/comercial/crm" className="mb-2 inline-block text-sm text-slate-600">
         ← CRM
       </Link>
-      <h1 className="mb-4 text-center text-sm font-bold text-slate-900 sm:text-base">
+      <h1 className="mb-4 text-center text-sm font-bold text-slate-900">
         CRM — Clientes
       </h1>
 

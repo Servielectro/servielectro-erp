@@ -23,7 +23,7 @@ export default async function TareasPage() {
         <Link href="/operativo" className="text-slate-600">
           ← Operativo
         </Link>
-        <h1 className="flex-1 text-center text-sm font-bold text-slate-900 sm:text-base">Tablero de tareas</h1>
+        <h1 className="flex-1 text-center text-sm font-bold text-slate-900">Tablero de tareas</h1>
         <Link href="/agenda" className="text-slate-600">
           Mi agenda →
         </Link>

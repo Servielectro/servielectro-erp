@@ -75,7 +75,7 @@ export function OportunidadVista({
     <div className="space-y-5">
       {/* ---------------- Encabezado ---------------- */}
       <div>
-        <h1 className="text-base font-bold text-slate-900 sm:text-lg">{o.nombre}</h1>
+        <h1 className="text-base font-bold text-slate-900">{o.nombre}</h1>
         <p className="text-sm text-slate-600">{o.cliente.nombre}</p>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
           <span
@@ -119,7 +119,7 @@ export function OportunidadVista({
             return (
               <li
                 key={e.id}
-                className={`rounded px-2 py-1 text-[11px] ${
+                className={`rounded px-2 py-1 text-xs ${
                   esActual
                     ? "bg-slate-900 font-semibold text-white"
                     : pasada

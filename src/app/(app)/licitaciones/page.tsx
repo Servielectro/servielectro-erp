@@ -4,7 +4,7 @@
 export default function LicitacionesPage() {
   return (
     <div className="mx-auto w-full max-w-2xl flex-1 p-4 sm:p-6">
-      <h1 className="mb-4 text-center text-sm font-bold text-slate-900 sm:text-base">
+      <h1 className="mb-4 text-center text-sm font-bold text-slate-900">
         Licitaciones
       </h1>
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-center">

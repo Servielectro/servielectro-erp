@@ -20,8 +20,8 @@ import {
   type EventoTarea,
 } from "@/lib/tareas-guardar";
 
-const CAMPO = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base md:text-lg";
-const ETIQUETA = "text-sm font-semibold text-slate-700 md:text-base";
+const CAMPO = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base";
+const ETIQUETA = "text-sm font-semibold text-slate-700";
 
 function describirEvento(e: EventoTarea, nombreDe: (id: string) => string): string {
   const d = e.detalle as Record<string, string | boolean | null>;
@@ -159,7 +159,7 @@ export function FormTarea({
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 sm:items-center sm:p-4">
       <div className="max-h-[94vh] w-full max-w-xl overflow-y-auto rounded-t-2xl bg-white p-4 shadow-2xl sm:rounded-2xl md:p-6">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-bold md:text-xl">{original ? "Tarea" : "Nueva tarea"}</h2>
+          <h2 className="text-lg font-bold">{original ? "Tarea" : "Nueva tarea"}</h2>
           <button type="button" onClick={onCerrar} className="min-h-11 min-w-11 rounded-lg text-2xl text-slate-500" aria-label="Cerrar">
             ×
           </button>
@@ -215,7 +215,7 @@ export function FormTarea({
                   type="button"
                   disabled={soloMover}
                   onClick={() => cambiar("prioridad", p.valor)}
-                  className={`min-h-11 rounded-lg border-2 text-xs font-bold md:text-sm ${
+                  className={`min-h-11 rounded-lg border-2 text-xs font-bold ${
                     b.prioridad === p.valor ? `border-slate-900 ${p.clase}` : "border-slate-200 bg-white text-slate-600"
                   }`}
                 >
@@ -262,7 +262,7 @@ export function FormTarea({
                     onClick={() => setB((p) => ({ ...p, visibilidad: o.v, asignados: o.v === "interna" ? [] : p.asignados }))}
                     className={`rounded-lg border-2 p-3 text-left ${b.visibilidad === o.v ? "border-slate-900 bg-slate-50" : "border-slate-200"}`}
                   >
-                    <span className="block text-sm font-semibold md:text-base">{o.t}</span>
+                    <span className="block text-sm font-semibold">{o.t}</span>
                     <span className="block text-xs text-slate-600">{o.d}</span>
                   </button>
                 ))}

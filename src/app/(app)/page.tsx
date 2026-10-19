@@ -82,7 +82,7 @@ export default async function Home() {
               <span className="text-sm font-medium text-slate-500">
                 {m.nombre}
               </span>
-              <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+              <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-500">
                 Próximamente
               </span>
             </div>

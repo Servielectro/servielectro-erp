@@ -70,7 +70,7 @@ export default async function AgendaPage(props: PageProps<"/agenda">) {
         <p className="m-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">No se pudo cargar la agenda: {datos.error}</p>
       ) : equipo ? (
         <div className="p-3 sm:p-4">
-          <h1 className="mb-3 text-center text-base font-bold md:text-xl">Agenda del equipo</h1>
+          <h1 className="mb-3 text-center text-base font-bold">Agenda del equipo</h1>
           <AgendaEquipo tareas={datos.tareas} visitas={visitas} obras={datos.obras} personas={datos.personas} />
         </div>
       ) : (

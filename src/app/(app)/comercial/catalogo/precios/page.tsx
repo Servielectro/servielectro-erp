@@ -12,7 +12,7 @@ export default async function CargaPreciosPage() {
       <Link href="/comercial/catalogo" className="mb-2 inline-block text-sm text-slate-600">
         ← Catálogo
       </Link>
-      <h1 className="mb-1 text-center text-sm font-bold text-slate-900 sm:text-base">
+      <h1 className="mb-1 text-center text-sm font-bold text-slate-900">
         Cargar precios de compra
       </h1>
       <p className="mb-4 text-center text-xs text-slate-500">

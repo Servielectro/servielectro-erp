@@ -33,7 +33,7 @@ export default async function NuevaOportunidadPage(props: PageProps<"/comercial/
       >
         ← Pipeline
       </Link>
-      <h1 className="mb-1 text-center text-sm font-bold text-slate-900 sm:text-base">Nuevo negocio</h1>
+      <h1 className="mb-1 text-center text-sm font-bold text-slate-900">Nuevo negocio</h1>
       <p className="mb-4 text-center text-xs text-slate-500">
         {PIPELINE_LABEL[tipo]} · entra en {tipo === "renovacion" ? "Renovación próxima" : "Solicitud"}
       </p>

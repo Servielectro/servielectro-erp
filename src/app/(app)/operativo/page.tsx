@@ -36,7 +36,7 @@ export default async function OperativoPage() {
 
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6">
-      <h1 className="mb-4 text-center text-sm font-bold text-slate-900 sm:text-base">Operativo — visitas técnicas</h1>
+      <h1 className="mb-4 text-center text-sm font-bold text-slate-900">Operativo — visitas técnicas</h1>
 
       <div className="mb-4 grid grid-cols-2 gap-3">
         <Link href="/operativo/tareas" className="rounded-lg border border-slate-300 bg-white p-4 text-center shadow-sm active:bg-slate-50">

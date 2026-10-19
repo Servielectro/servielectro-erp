@@ -51,7 +51,7 @@ export default async function PlantillasPage() {
       <Link href="/rrhh" className="mb-2 inline-block text-sm text-slate-600">
         ← RRHH
       </Link>
-      <h1 className="mb-1 text-center text-sm font-bold text-slate-900 sm:text-base">
+      <h1 className="mb-1 text-center text-sm font-bold text-slate-900">
         Plantillas de documentos
       </h1>
       <p className="mb-4 text-center text-xs text-slate-500">

@@ -181,11 +181,11 @@ export function AgendaPersonal({
           {t.estado === "hecho" ? "✓" : ""}
         </button>
         <button type="button" onClick={() => setForm({ original: t })} className="min-w-0 flex-1 text-left">
-          <p className={`text-base leading-snug md:text-lg ${t.estado === "hecho" ? "text-slate-400 line-through" : "text-slate-900"}`}>
+          <p className={`text-base leading-snug ${t.estado === "hecho" ? "text-slate-400 line-through" : "text-slate-900"}`}>
             {t.hora && <span className="mr-1 font-semibold">{t.hora}</span>}
             {t.titulo}
           </p>
-          <p className="flex flex-wrap gap-x-2 text-xs text-slate-500 md:text-sm">
+          <p className="flex flex-wrap gap-x-2 text-xs text-slate-500">
             {dia && grupoAgenda(t, hoy) !== "hoy" && <span>{fechaCorta(dia)}</span>}
             {t.prioridad !== "media" && <span className={`rounded px-1 ${prioridad.clase}`}>{prioridad.etiqueta}</span>}
             {t.subtareas.length > 0 && (
@@ -202,7 +202,7 @@ export function AgendaPersonal({
 
   return (
     <div className="mx-auto w-full max-w-2xl flex-1 p-3 sm:p-4">
-      <h1 className="mb-3 text-center text-base font-bold md:text-xl">Mi agenda</h1>
+      <h1 className="mb-3 text-center text-base font-bold">Mi agenda</h1>
 
       {/* Anotar en un segundo */}
       <div className="rounded-2xl border-2 border-slate-300 bg-white p-3 md:p-4">
@@ -217,7 +217,7 @@ export function AgendaPersonal({
           }}
           enterKeyHint="done"
           placeholder="¿Qué tienes que hacer?"
-          className="min-h-12 w-full rounded-lg border border-slate-300 px-3 text-lg md:min-h-14 md:text-xl"
+          className="min-h-12 w-full rounded-lg border border-slate-300 px-3 text-lg md:min-h-14"
         />
         <div className="mt-2 flex flex-wrap items-center gap-2">
           {(
@@ -233,7 +233,7 @@ export function AgendaPersonal({
               key={a}
               type="button"
               onClick={() => setAtajo(a)}
-              className={`min-h-11 rounded-full border-2 px-4 text-sm font-semibold md:text-base ${
+              className={`min-h-11 rounded-full border-2 px-4 text-sm font-semibold ${
                 atajo === a ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300"
               }`}
             >
@@ -274,7 +274,7 @@ export function AgendaPersonal({
       )}
       {aviso && <p role="status" className="mt-3 rounded-xl bg-green-600 px-4 py-2 text-base font-semibold text-white">{aviso}</p>}
 
-      <label className="mt-3 flex min-h-11 items-center gap-2 text-sm text-slate-700 md:text-base">
+      <label className="mt-3 flex min-h-11 items-center gap-2 text-sm text-slate-700">
         <input type="checkbox" checked={soloPersonales} onChange={(e) => setSoloPersonales(e.target.checked)} className="h-5 w-5" />
         Solo personales (esconder las de equipo)
       </label>
@@ -286,7 +286,7 @@ export function AgendaPersonal({
           if (lista.length === 0 && susVisitas.length === 0) return null;
           return (
             <section key={g.valor}>
-              <h2 className={`mb-1 text-sm font-bold uppercase md:text-base ${g.valor === "atrasadas" ? "text-red-700" : "text-slate-600"}`}>
+              <h2 className={`mb-1 text-sm font-bold uppercase ${g.valor === "atrasadas" ? "text-red-700" : "text-slate-600"}`}>
                 {g.titulo} <span className="font-normal text-slate-400">{lista.length + susVisitas.length}</span>
               </h2>
               <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
@@ -297,11 +297,11 @@ export function AgendaPersonal({
                         🔧
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-base leading-snug md:text-lg">
+                        <span className="block text-base leading-snug">
                           Visita: {v.titulo}
                           {v.cliente ? ` · ${v.cliente}` : ""}
                         </span>
-                        <span className="block text-xs text-slate-500 md:text-sm">
+                        <span className="block text-xs text-slate-500">
                           {v.fecha && g.valor !== "hoy" ? `${fechaCorta(v.fecha)} · ` : ""}
                           {v.estado === "en_curso" ? "En curso" : "Programada"} · abrir en la app de campo
                         </span>
@@ -318,7 +318,7 @@ export function AgendaPersonal({
 
         {hechasRecientes.length > 0 && (
           <section>
-            <button type="button" onClick={() => setHechasAbiertas((a) => !a)} className="min-h-11 text-sm font-semibold text-slate-600 md:text-base">
+            <button type="button" onClick={() => setHechasAbiertas((a) => !a)} className="min-h-11 text-sm font-semibold text-slate-600">
               {hechasAbiertas ? "▾" : "▸"} Hechas en los últimos 7 días ({hechasRecientes.length})
             </button>
             {hechasAbiertas && <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">{hechasRecientes.map(renglon)}</ul>}

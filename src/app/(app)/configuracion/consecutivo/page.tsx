@@ -65,7 +65,7 @@ export default async function ConsecutivoPage() {
       <Link href="/configuracion" className="text-sm text-slate-600">
         ← Configuración
       </Link>
-      <h1 className="mb-1 mt-2 text-center text-sm font-bold text-slate-900 sm:text-base">
+      <h1 className="mb-1 mt-2 text-center text-sm font-bold text-slate-900">
         Consecutivo de cotizaciones
       </h1>
       <p className="mb-4 text-center text-xs text-slate-600">
