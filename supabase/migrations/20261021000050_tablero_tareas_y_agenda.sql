@@ -588,3 +588,31 @@ revoke all on function public.fn_personas_asignables() from public, anon;
 grant execute on function public.fn_nota_tarea(uuid, text) to authenticated;
 grant execute on function public.fn_proyectos_para_tareas() to authenticated;
 grant execute on function public.fn_personas_asignables() to authenticated;
+
+-- ============================================================ privilegios de las funciones
+-- AGREGADO DESPUÉS de correr esta migración, para que el archivo diga lo mismo que la base
+-- (ver la 54, que lo aplica a todas): Postgres le da EXECUTE a PUBLIC a toda función nueva,
+-- y revocar solo de anon NO alcanza. Se revoca de public y anon y se concede a quien la
+-- necesita: authenticated (políticas, triggers que corren como el usuario, la app) y
+-- service_role (traslado de fotos). Las de trigger no se conceden a nadie: Postgres revisa
+-- EXECUTE al crear el trigger, no cuando se dispara.
+revoke all on function public.fn_es_asignado_tarea(uuid) from public, anon;
+revoke all on function public.fn_puede_ver_tarea(uuid) from public, anon;
+revoke all on function public.fn_puede_editar_tarea(uuid) from public, anon;
+revoke all on function public.fn_tarea_tiene_asignados(uuid) from public, anon;
+revoke all on function public.fn_nombre_actor() from public, anon;
+revoke all on function public.fn_etiqueta_estado_tarea(text) from public, anon;
+revoke all on function public.fn_bloqueo_tarea(uuid, text) from public, anon;
+grant execute on function public.fn_es_asignado_tarea(uuid) to authenticated, service_role;
+grant execute on function public.fn_puede_ver_tarea(uuid) to authenticated, service_role;
+grant execute on function public.fn_puede_editar_tarea(uuid) to authenticated, service_role;
+grant execute on function public.fn_tarea_tiene_asignados(uuid) to authenticated, service_role;
+grant execute on function public.fn_nombre_actor() to authenticated, service_role;
+grant execute on function public.fn_etiqueta_estado_tarea(text) to authenticated, service_role;
+grant execute on function public.fn_bloqueo_tarea(uuid, text) to authenticated, service_role;
+-- de trigger: nadie
+revoke all on function public.fn_tareas_reglas() from public, anon, authenticated;
+revoke all on function public.fn_tareas_historial() from public, anon, authenticated;
+revoke all on function public.fn_tarea_hijos_historial() from public, anon, authenticated;
+revoke all on function public.fn_tarea_asignados_reglas() from public, anon, authenticated;
+revoke all on function public.fn_tarea_dependencias_sin_ciclos() from public, anon, authenticated;

@@ -516,3 +516,32 @@ as $$
 $$;
 revoke all on function public.fn_personas_planificacion() from public, anon;
 grant execute on function public.fn_personas_planificacion() to authenticated;
+
+-- ============================================================ privilegios de las funciones
+-- AGREGADO DESPUÉS de correr esta migración, para que el archivo diga lo mismo que la base
+-- (ver la 54, que lo aplica a todas): Postgres le da EXECUTE a PUBLIC a toda función nueva,
+-- y revocar solo de anon NO alcanza. Se revoca de public y anon y se concede a quien la
+-- necesita: authenticated (políticas, triggers que corren como el usuario, la app) y
+-- service_role (traslado de fotos). Las de trigger no se conceden a nadie: Postgres revisa
+-- EXECUTE al crear el trigger, no cuando se dispara.
+revoke all on function public.fn_es_miembro_grupo(uuid) from public, anon;
+revoke all on function public.fn_es_participante_tarea(uuid) from public, anon;
+revoke all on function public.fn_puede_ver_tarea(uuid) from public, anon;
+revoke all on function public.fn_puede_editar_tarea(uuid) from public, anon;
+revoke all on function public.fn_tarea_tiene_participantes(uuid) from public, anon;
+grant execute on function public.fn_es_miembro_grupo(uuid) to authenticated, service_role;
+grant execute on function public.fn_es_participante_tarea(uuid) to authenticated, service_role;
+grant execute on function public.fn_puede_ver_tarea(uuid) to authenticated, service_role;
+grant execute on function public.fn_puede_editar_tarea(uuid) to authenticated, service_role;
+grant execute on function public.fn_tarea_tiene_participantes(uuid) to authenticated, service_role;
+-- fn_persona_tiene_permiso recibe un perfil cualquiera y contesta sin mirar quién pregunta:
+-- un anónimo con un uuid averiguaba los permisos de esa persona. La llaman solo otras
+-- funciones definer (que corren como postgres): no la ejecuta nadie más, ni authenticated.
+revoke all on function public.fn_persona_tiene_permiso(uuid, text, nivel_permiso) from public, anon, authenticated;
+-- de trigger: nadie
+revoke all on function public.fn_tareas_reglas() from public, anon, authenticated;
+revoke all on function public.fn_tarea_participantes_reglas() from public, anon, authenticated;
+revoke all on function public.fn_tarea_participantes_historial() from public, anon, authenticated;
+revoke all on function public.fn_grupo_miembros_reglas() from public, anon, authenticated;
+revoke all on function public.fn_grupos_historial() from public, anon, authenticated;
+revoke all on function public.fn_grupos_archivo() from public, anon, authenticated;
