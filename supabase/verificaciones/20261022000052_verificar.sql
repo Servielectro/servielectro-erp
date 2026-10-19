@@ -1,10 +1,13 @@
--- Verificación de la migración 52 (módulo Planificación). Correr DESPUÉS de la migración,
--- todo junto. Crea un USUARIO SIN NINGÚN ROL de prueba (perfil con rol_id nulo) y tareas
--- de Jhojan; BORRA todo antes de mostrar el resultado. No deja cambios.
+-- Verificación de la migración 52 (módulo Planificación, con permiso). Correr DESPUÉS de
+-- la migración, todo junto. Crea un USUARIO SIN NINGÚN ROL, un TÉCNICO y un COORDINADOR de
+-- prueba, y tareas; BORRA todo antes de mostrar el resultado. No deja cambios.
 --
--- Lo que importa (pedido explícito): abrir Planificación a todos NO abre datos. El usuario
--- sin rol entra, anota en su agenda y ve CERO tareas ajenas. Si alguien cambia algún día
--- la política de tareas para que dependa del permiso de módulo, esta prueba se cae.
+-- Lo que importa:
+--   - Administrador y Coordinador tienen Planificación; Técnicos no (y por eso no la ven en
+--     el menú, que sale de fn_mis_permisos).
+--   - Sin rol: no ve nada y no puede anotar. Técnico: no puede crear tareas de agenda
+--     aunque llame a la API.
+--   - Las agendas siguen siendo privadas: nadie ve la de otro, ni el administrador.
 --
 -- Resultado esperado: todas las filas en "OK".
 
@@ -42,86 +45,94 @@ $$;
 
 -- ============================================================ estructura
 insert into resultado (prueba, esperado, resultado)
-select '1a Planificación existe y es para todos', 'true',
-  pg_temp.valor($q$select para_todos::text from modulos where id = 'planificacion'$q$);
+select '1a quién tiene Planificación', 'Administrador:responsable, Coordinador:trabajar', pg_temp.valor($q$
+  select string_agg(r.nombre || ':' || pr.nivel, ', ' order by r.nombre)
+  from permisos_rol pr join roles r on r.id = pr.rol_id where pr.modulo_id = 'planificacion'$q$);
 insert into resultado (prueba, esperado, resultado)
-select '1b no tiene permisos por rol', '0',
-  pg_temp.valor($q$select count(*) from permisos_rol where modulo_id = 'planificacion'$q$);
-insert into resultado (prueba, esperado, resultado)
-select '1c los demás módulos NO quedaron para todos', '0',
-  pg_temp.valor($q$select count(*) from modulos where para_todos and id <> 'planificacion'$q$);
-insert into resultado (prueba, esperado, resultado)
-select '1d la base no deja cargarle permisos por rol', 'contiene: es para todos los usuarios', pg_temp.intentar($q$
-  insert into permisos_rol (rol_id, modulo_id, nivel, ve_datos_sensibles)
-  select id, 'planificacion', 'consultar', false from roles where nombre = 'Administrador'$q$);
+select '1b no quedó ningún mecanismo "para todos"', '0', pg_temp.valor($q$
+  select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'modulos' and column_name = 'para_todos'$q$);
 
 -- ============================================================ datos de prueba (admin)
--- Usuario SIN NINGÚN ROL: perfil con rol_id nulo.
-insert into auth.users (id, aud, role, email)
-values ('00000000-0000-0000-0000-0000000000f2', 'authenticated', 'authenticated', 'sin.rol.prueba.52@invalid.local')
+insert into auth.users (id, aud, role, email) values
+  ('00000000-0000-0000-0000-0000000000f2', 'authenticated', 'authenticated', 'sin.rol.prueba.52@invalid.local'),
+  ('00000000-0000-0000-0000-0000000000f3', 'authenticated', 'authenticated', 'tecnico.prueba.52@invalid.local'),
+  ('00000000-0000-0000-0000-0000000000f4', 'authenticated', 'authenticated', 'coordinador.prueba.52@invalid.local')
 on conflict (id) do nothing;
-insert into perfiles (id, rol_id, nombre)
-values ('00000000-0000-0000-0000-0000000000f2', null, '__Sin rol prueba 52__')
+insert into perfiles (id, rol_id, nombre) values ('00000000-0000-0000-0000-0000000000f2', null, '__Sin rol 52__')
 on conflict (id) do update set rol_id = null;
+insert into perfiles (id, rol_id, nombre)
+select '00000000-0000-0000-0000-0000000000f3', id, '__Técnico 52__' from roles where nombre = 'Técnicos'
+on conflict (id) do update set rol_id = excluded.rol_id;
+insert into perfiles (id, rol_id, nombre)
+select '00000000-0000-0000-0000-0000000000f4', id, '__Coordinador 52__' from roles where nombre = 'Coordinador'
+on conflict (id) do update set rol_id = excluded.rol_id;
 insert into visitas (id, titulo, tipo, fecha_programada)
 values ('00000000-0000-0000-0000-00000000a521', '__obra prueba 52__', 'obra', current_date);
 
 set local role authenticated;
 
--- Jhojan: una interna (su agenda) y una de equipo.
+-- ============================================================ 2) Jhojan y el coordinador anotan
 select pg_temp.como('696d9431-5c4d-4043-aee4-3e4597094f26');
 insert into resultado (prueba, esperado, resultado)
-select '2a Jhojan anota en su agenda y crea una de equipo', 'aceptado (2 filas)', pg_temp.intentar($q$
+select '2a Jhojan anota en su agenda y crea una de obra', 'aceptado (2 filas)', pg_temp.intentar($q$
   insert into tareas (id, titulo, visibilidad, visita_id) values
-    ('00000000-0000-0000-0000-0000000005c1', 'Agenda de Jhojan', 'interna', null),
+    ('00000000-0000-0000-0000-0000000005c1', 'Revisar factura 123', 'interna', null),
     ('00000000-0000-0000-0000-0000000005c2', 'Obra de Jhojan', 'equipo', '00000000-0000-0000-0000-00000000a521')$q$);
 
--- ============================================================ el usuario sin rol
+select pg_temp.como('00000000-0000-0000-0000-0000000000f4');
+insert into resultado (prueba, esperado, resultado)
+select '2b el coordinador tiene Planificación', 'true', fn_tiene_permiso('planificacion', 'trabajar')::text;
+insert into resultado (prueba, esperado, resultado)
+select '2c el coordinador anota en su agenda (orden de compra)', 'aceptado (1 filas)', pg_temp.intentar($q$
+  insert into tareas (id, titulo, visibilidad) values ('00000000-0000-0000-0000-0000000005c4', 'Orden de compra de material', 'interna')$q$);
+insert into resultado (prueba, esperado, resultado)
+select '2d el coordinador NO ve la agenda de Jhojan', '0',
+  pg_temp.valor($q$select count(*) from tareas where id = '00000000-0000-0000-0000-0000000005c1'$q$);
+
+-- ============================================================ 3) el técnico: sin agenda
+select pg_temp.como('00000000-0000-0000-0000-0000000000f3');
+insert into resultado (prueba, esperado, resultado)
+select '3a el técnico NO tiene Planificación (no la ve en el menú)', 'false',
+  pg_temp.valor($q$select exists (select 1 from fn_mis_permisos() where modulo_id = 'planificacion')::text$q$);
+insert into resultado (prueba, esperado, resultado)
+select '3b el técnico NO puede crear tareas de agenda (ni por la API)', 'RECHAZADO', pg_temp.intentar($q$
+  insert into tareas (titulo, visibilidad) values ('Agenda del técnico', 'interna')$q$);
+insert into resultado (prueba, esperado, resultado)
+select '3c el técnico no ve ninguna agenda ajena', '0',
+  pg_temp.valor($q$select count(*) from tareas where visibilidad = 'interna'$q$);
+
+-- ============================================================ 4) sin ningún rol: nada
 select pg_temp.como('00000000-0000-0000-0000-0000000000f2');
 insert into resultado (prueba, esperado, resultado)
-select '3a el usuario sin rol no tiene ningún permiso de módulo', '0',
-  pg_temp.valor($q$select count(*) from fn_mis_permisos()$q$);
+select '4a sin rol no tiene ningún permiso de módulo', '0', pg_temp.valor($q$select count(*) from fn_mis_permisos()$q$);
 insert into resultado (prueba, esperado, resultado)
-select '3b ve el módulo Planificación (para todos)', '1',
-  pg_temp.valor($q$select count(*) from modulos where para_todos$q$);
+select '4b sin rol NO puede anotar', 'RECHAZADO', pg_temp.intentar($q$
+  insert into tareas (titulo, visibilidad) values ('x', 'interna')$q$);
 insert into resultado (prueba, esperado, resultado)
-select '3c anota en SU agenda', 'aceptado (1 filas)', pg_temp.intentar($q$
-  insert into tareas (id, titulo, visibilidad) values ('00000000-0000-0000-0000-0000000005c3', 'Mi recordatorio', 'interna')$q$);
+select '4c sin rol ve CERO tareas', '0', pg_temp.valor($q$select count(*) from tareas$q$);
 insert into resultado (prueba, esperado, resultado)
-select '3d ve SOLO su tarea (cero ajenas)', '1', pg_temp.valor($q$select count(*) from tareas$q$);
+select '4d sin rol ve CERO historial', '0', pg_temp.valor($q$select count(*) from tarea_eventos$q$);
 insert into resultado (prueba, esperado, resultado)
-select '3e no ve la agenda de Jhojan', '0',
-  pg_temp.valor($q$select count(*) from tareas where id = '00000000-0000-0000-0000-0000000005c1'$q$);
-insert into resultado (prueba, esperado, resultado)
-select '3f no ve la tarea de obra de Jhojan', '0',
-  pg_temp.valor($q$select count(*) from tareas where id = '00000000-0000-0000-0000-0000000005c2'$q$);
-insert into resultado (prueba, esperado, resultado)
-select '3g no ve el historial de tareas ajenas', '0',
-  pg_temp.valor($q$select count(*) from tarea_eventos where tarea_id <> '00000000-0000-0000-0000-0000000005c3'$q$);
-insert into resultado (prueba, esperado, resultado)
-select '3h no puede crear tareas de equipo (sin Operativo)', 'RECHAZADO', pg_temp.intentar($q$
-  insert into tareas (titulo, visibilidad, visita_id) values ('x', 'equipo', '00000000-0000-0000-0000-00000000a521')$q$);
-insert into resultado (prueba, esperado, resultado)
-select '3i no puede tocar la agenda de Jhojan (filas)', 'aceptado (0 filas)', pg_temp.intentar($q$
+select '4e sin rol no puede tocar la agenda de Jhojan (filas)', 'aceptado (0 filas)', pg_temp.intentar($q$
   update tareas set titulo = 'cambiada' where id = '00000000-0000-0000-0000-0000000005c1'$q$);
 
+-- ============================================================ 5) el admin tampoco ve agendas ajenas
 select pg_temp.como('696d9431-5c4d-4043-aee4-3e4597094f26');
 insert into resultado (prueba, esperado, resultado)
-select '3j y Jhojan (admin) tampoco ve la agenda del usuario sin rol', '0',
-  pg_temp.valor($q$select count(*) from tareas where id = '00000000-0000-0000-0000-0000000005c3'$q$);
+select '5a Jhojan (admin) NO ve la agenda del coordinador', '0',
+  pg_temp.valor($q$select count(*) from tareas where id = '00000000-0000-0000-0000-0000000005c4'$q$);
 
 -- ============================================================ limpieza (admin)
 reset role;
 delete from tarea_eventos where tarea_id::text like '00000000-0000-0000-0000-0000000005c%';
 delete from tareas where id::text like '00000000-0000-0000-0000-0000000005c%';
 delete from visitas where id = '00000000-0000-0000-0000-00000000a521';
-delete from perfiles where id = '00000000-0000-0000-0000-0000000000f2';
-delete from auth.users where id = '00000000-0000-0000-0000-0000000000f2';
+delete from perfiles where id in ('00000000-0000-0000-0000-0000000000f2', '00000000-0000-0000-0000-0000000000f3', '00000000-0000-0000-0000-0000000000f4');
+delete from auth.users where id in ('00000000-0000-0000-0000-0000000000f2', '00000000-0000-0000-0000-0000000000f3', '00000000-0000-0000-0000-0000000000f4');
 
 select prueba, esperado, resultado,
   case
     when esperado = 'RECHAZADO' and resultado like 'RECHAZADO%' then 'OK'
-    when esperado like 'contiene: %' and position(substring(esperado from 11) in resultado) > 0 then 'OK'
     when esperado = resultado then 'OK'
     else 'REVISAR'
   end as estado

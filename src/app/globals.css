@@ -63,9 +63,10 @@
 
 /*
  * ESCALA TIPOGRÁFICA DE TODA LA APP — el único lugar donde se definen los tamaños de letra.
+ * Tres escalones: celular (por defecto), tablet (≥768 px) y computador (≥1024 px).
  * Las pantallas usan las clases de siempre (text-xs … text-3xl); acá se fija cuánto mide
  * cada una. Referencia: los pantallazos de NEXGO que aprobó Jhojan (2026-10-21), en
- * celular. En tablet (≥768 px) la misma escala sube un escalón proporcional, también acá:
+ * celular. Tablet y computador tienen su escalón, también acá:
  * ninguna pantalla agrega "md:text-…" por su cuenta.
  *
  * Lo que NO depende de esta escala, a propósito: las zonas de toque (min-h-11 = 44 px,
@@ -92,12 +93,27 @@
   --text-3xl--line-height: 2.25rem;
 }
 
+/* Tablet (≥768 px): un escalón arriba, se usa en campo, a un brazo de distancia. */
 @media (min-width: 48rem) {
   :root {
     --text-xs: 0.75rem; /* 12 */
     --text-sm: 0.875rem; /* 14 */
     --text-base: 0.9375rem; /* 15 */
     --text-lg: 1.0625rem; /* 17 */
+    --text-xl: 1.25rem; /* 20 */
+    --text-2xl: 1.5rem; /* 24 */
+    --text-3xl: 1.875rem; /* 30 */
+  }
+}
+
+/* Computador (≥1024 px): se lee de cerca y con mouse; el texto vuelve a ser compacto
+   (como en celular) y solo los títulos quedan más grandes. */
+@media (min-width: 64rem) {
+  :root {
+    --text-xs: 0.75rem; /* 12 */
+    --text-sm: 0.8125rem; /* 13 */
+    --text-base: 0.875rem; /* 14 */
+    --text-lg: 1rem; /* 16 */
     --text-xl: 1.25rem; /* 20 */
     --text-2xl: 1.5rem; /* 24 */
     --text-3xl: 1.875rem; /* 30 */

@@ -1,5 +1,9 @@
--- Deshace 20261022000052. Las tareas no se tocan (la agenda vive en tareas, migración 50).
-drop trigger if exists trg_permisos_rol_no_para_todos on public.permisos_rol;
-drop function if exists public.fn_permisos_rol_no_para_todos();
+-- Deshace 20261022000052: la creación de tareas vuelve a la regla de la migración 50
+-- (internas: cualquiera con sesión) y se quita el módulo con sus permisos. Las tareas no
+-- se tocan.
+drop policy if exists tareas_insert on public.tareas;
+create policy tareas_insert on public.tareas for insert to authenticated
+  with check (creada_por = auth.uid() and (visibilidad = 'interna' or fn_tiene_permiso('operativo', 'trabajar')));
+
+delete from public.permisos_rol where modulo_id = 'planificacion';
 delete from public.modulos where id = 'planificacion';
-alter table public.modulos drop column if exists para_todos;
