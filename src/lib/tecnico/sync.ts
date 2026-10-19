@@ -25,12 +25,15 @@ import {
   type FotoLocal,
   type JornadaLocal,
   type SugerenciaLocal,
+  type TareaLocal,
   type VisitaLocal,
 } from "./db";
 
 /** Lo que la cola necesita del servidor. En producción es Supabase; en la prueba sin red, un falso. */
 export interface Servidor {
   actualizarEstadoVisita(id: string, estado: string): Promise<void>;
+  /** Mis tareas: el técnico solo cambia el estado (la base exige dependencias y permisos). */
+  actualizarEstadoTarea(id: string, estado: string): Promise<void>;
   guardarJornada(j: JornadaLocal): Promise<void>;
   guardarSugerencia(s: SugerenciaLocal): Promise<void>;
   /** Sube el archivo; si ya estaba (reintento), no es error. */
@@ -56,6 +59,7 @@ export const rutaFirma = (f: { visitaId: string; tipo: string }) => `${f.visitaI
 
 const PRIORIDAD: Record<EnvioPendiente["tipo"], number> = {
   estado_visita: 0,
+  estado_tarea: 0,
   jornada: 1,
   sugerencia: 2,
   foto: 3,
@@ -157,6 +161,13 @@ async function enviarUno(servidor: Servidor, envio: EnvioPendiente) {
       if (!v) return;
       await servidor.actualizarEstadoVisita(v.id, v.estado);
       await guardar("visitas", { ...v, estadoPendiente: false });
+      return;
+    }
+    case "estado_tarea": {
+      const t = await leer<TareaLocal>("tareas", envio.id);
+      if (!t) return;
+      await servidor.actualizarEstadoTarea(t.id, t.estado);
+      await guardar("tareas", { ...t, estadoPendiente: false });
       return;
     }
     case "jornada": {

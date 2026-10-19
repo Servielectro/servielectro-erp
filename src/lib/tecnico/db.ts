@@ -90,10 +90,27 @@ export interface FirmaLocal {
   hashContenido: string;
 }
 
+/**
+ * Tarea de obra asignada al técnico (la crea Operativo; el técnico NO tiene agenda propia:
+ * su agendamiento es esto y sus visitas). En campo solo la mueve de estado.
+ */
+export interface TareaLocal {
+  id: string;
+  titulo: string;
+  descripcion: string | null;
+  estado: "por_hacer" | "en_progreso" | "hecho";
+  prioridad: "baja" | "media" | "alta" | "urgente";
+  fechaLimite: string | null;
+  fechaProgramada: string | null;
+  visitaId: string | null;
+  /** true si el técnico la movió sin señal y todavía no subió el cambio */
+  estadoPendiente?: boolean;
+}
+
 /** Una entrada de la cola: qué falta subir. El dato en sí vive en su almacén. */
 export interface EnvioPendiente {
   id: string; // = id del registro (jornada, foto, …): un registro, una entrada
-  tipo: "estado_visita" | "jornada" | "foto" | "sugerencia" | "firma";
+  tipo: "estado_visita" | "estado_tarea" | "jornada" | "foto" | "sugerencia" | "firma";
   visitaId: string;
   creadoEn: string;
   intentos: number;
@@ -107,8 +124,10 @@ export interface EnvioPendiente {
 }
 
 const NOMBRE = "se-erp-tecnico";
-const VERSION = 1;
-export const ALMACENES = ["visitas", "jornadas", "fotos", "sugerencias", "firmas", "cola", "meta"] as const;
+// v2 (2026-10-22): almacén "tareas" (Mis tareas). Subir la versión crea solo lo que falta:
+// lo que ya estaba guardado en el celular no se toca.
+const VERSION = 2;
+export const ALMACENES = ["visitas", "jornadas", "fotos", "sugerencias", "firmas", "cola", "meta", "tareas"] as const;
 export type Almacen = (typeof ALMACENES)[number];
 
 let abierta: Promise<IDBDatabase> | null = null;
@@ -122,7 +141,7 @@ function abrir(): Promise<IDBDatabase> {
       for (const nombre of ALMACENES) {
         if (db.objectStoreNames.contains(nombre)) continue;
         const almacen = db.createObjectStore(nombre, { keyPath: nombre === "meta" ? "clave" : "id" });
-        if (nombre !== "visitas" && nombre !== "meta") {
+        if (nombre !== "visitas" && nombre !== "meta" && nombre !== "tareas") {
           almacen.createIndex("visitaId", "visitaId", { unique: false });
         }
       }
@@ -170,7 +189,7 @@ export function todos<T>(almacen: Almacen): Promise<T[]> {
   return enTransaccion<T[]>(almacen, "readonly", (s) => s.getAll() as IDBRequest<T[]>);
 }
 
-export function deVisita<T>(almacen: Exclude<Almacen, "visitas" | "meta">, visitaId: string): Promise<T[]> {
+export function deVisita<T>(almacen: Exclude<Almacen, "visitas" | "meta" | "tareas">, visitaId: string): Promise<T[]> {
   return enTransaccion<T[]>(almacen, "readonly", (s) => s.index("visitaId").getAll(visitaId) as IDBRequest<T[]>);
 }
 

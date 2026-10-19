@@ -2,7 +2,7 @@
 // RLS decide (solo sus visitas; nada después de la firma del cliente).
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { FirmaLocal, FotoLocal, JornadaLocal, SugerenciaLocal, VisitaLocal } from "./db";
+import type { FirmaLocal, FotoLocal, JornadaLocal, SugerenciaLocal, TareaLocal, VisitaLocal } from "./db";
 import { guardar, leer } from "./db";
 import { ErrorPermanente, SinConexionError, type Servidor } from "./sync";
 
@@ -46,6 +46,11 @@ export function servidorSupabase(supabase: SupabaseClient): Servidor {
   return {
     async actualizarEstadoVisita(id, estado) {
       const { error } = await supabase.from("visitas").update({ estado }).eq("id", id);
+      revisar(error);
+    },
+
+    async actualizarEstadoTarea(id, estado) {
+      const { error } = await supabase.from("tareas").update({ estado }).eq("id", id);
       revisar(error);
     },
 
@@ -174,6 +179,41 @@ export async function descargarVisitas(supabase: SupabaseClient, tecnicoId: stri
       fechaProgramada: v.fecha_programada,
       fechaFinEstimada: v.fecha_fin_estimada,
       fotosMinimasDia: v.fotos_minimas_dia,
+      estadoPendiente: local?.estadoPendiente ?? false,
+    });
+  }
+  return data?.length ?? 0;
+}
+
+/**
+ * Baja las tareas de obra asignadas al técnico (no archivadas). Lo que el técnico movió
+ * sin señal y no subió todavía, se respeta. Las que ya no le tocan (desasignadas,
+ * archivadas) se sacan del celular, salvo que tengan un cambio pendiente de subir.
+ */
+export async function descargarTareas(supabase: SupabaseClient, tecnicoId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from("tareas")
+    .select("id, titulo, descripcion, estado, prioridad, fecha_limite, fecha_programada, visita_id, tarea_asignados!inner(perfil_id)")
+    .eq("tarea_asignados.perfil_id", tecnicoId)
+    .eq("visibilidad", "equipo")
+    .eq("archivada", false);
+  revisar(error);
+  const { todos, borrar } = await import("./db");
+  const vigentes = new Set((data ?? []).map((t) => t.id as string));
+  for (const local of await todos<TareaLocal>("tareas")) {
+    if (!vigentes.has(local.id) && !local.estadoPendiente) await borrar("tareas", local.id);
+  }
+  for (const t of data ?? []) {
+    const local = await leer<TareaLocal>("tareas", t.id);
+    await guardar<TareaLocal>("tareas", {
+      id: t.id,
+      titulo: t.titulo,
+      descripcion: t.descripcion,
+      estado: local?.estadoPendiente ? local.estado : t.estado,
+      prioridad: t.prioridad,
+      fechaLimite: t.fecha_limite,
+      fechaProgramada: t.fecha_programada,
+      visitaId: t.visita_id,
       estadoPendiente: local?.estadoPendiente ?? false,
     });
   }

@@ -16,6 +16,7 @@ import {
   type FotoLocal,
   type JornadaLocal,
   type SugerenciaLocal,
+  type TareaLocal,
   type Ubicacion,
   type VisitaLocal,
 } from "@/lib/tecnico/db";
@@ -29,7 +30,8 @@ import {
   type Momento,
   type RevisionEvidencia,
 } from "@/lib/tecnico/evidencia";
-import { descargarVisitas, servidorSupabase } from "@/lib/tecnico/servidor-supabase";
+import { descargarTareas, descargarVisitas, servidorSupabase } from "@/lib/tecnico/servidor-supabase";
+import { etiquetaVence, PRIORIDADES } from "@/lib/tareas";
 import { FirmaPantallaCompleta } from "./FirmaPantallaCompleta";
 
 interface Tecnico {
@@ -74,6 +76,7 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
   const servidor = useMemo(() => servidorSupabase(supabase), [supabase]);
 
   const [visitas, setVisitas] = useState<VisitaLocal[]>([]);
+  const [tareas, setTareas] = useState<TareaLocal[]>([]);
   const [abierta, setAbierta] = useState<string | null>(null);
   const [enLinea, setEnLinea] = useState(true);
   const [pendientes, setPendientes] = useState(0);
@@ -93,6 +96,7 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
     const vs = await todos<VisitaLocal>("visitas");
     vs.sort((a, b) => (a.fechaProgramada ?? "").localeCompare(b.fechaProgramada ?? ""));
     setVisitas(vs);
+    setTareas(await todos<TareaLocal>("tareas"));
   }, []);
 
   const subir = useCallback(async () => {
@@ -106,6 +110,7 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
         setUltimaSync(ahora);
         try {
           await descargarVisitas(supabase, tecnico.id);
+          await descargarTareas(supabase, tecnico.id);
         } catch {
           // sin red o sesión vencida: se queda con lo que ya tenía
         }
@@ -250,9 +255,104 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
           }}
         />
       ) : (
-        <ListaVisitas visitas={visitas} enLinea={enLinea} onAbrir={setAbierta} />
+        <>
+          <MisTareas
+            tareas={tareas}
+            onMover={async (t, estado) => {
+              // Se guarda en el celular al instante y sube con la cola (sin señal también).
+              await guardarYEncolar("tareas", { ...t, estado, estadoPendiente: true }, {
+                id: t.id,
+                tipo: "estado_tarea",
+                visitaId: t.visitaId ?? "tareas",
+              });
+              setAviso(estado === "hecho" ? "Tarea terminada" : estado === "en_progreso" ? "Tarea empezada" : "Tarea devuelta a por hacer");
+              await refrescarEstado();
+              subir();
+            }}
+          />
+          <ListaVisitas visitas={visitas} enLinea={enLinea} onAbrir={setAbierta} />
+        </>
       )}
     </div>
+  );
+}
+
+/**
+ * Mis tareas: lo que le asignaron el coordinador o Jhojan (tareas de obra). El técnico no
+ * tiene agenda propia; acá ve qué tiene que hacer y lo mueve de estado. Si una tarea está
+ * bloqueada por otra, la base lo rechaza al subir y el aviso dice por cuál.
+ */
+function MisTareas({
+  tareas,
+  onMover,
+}: {
+  tareas: TareaLocal[];
+  onMover: (t: TareaLocal, estado: TareaLocal["estado"]) => Promise<void>;
+}) {
+  const hoy = hoyBogota();
+  const [verHechas, setVerHechas] = useState(false);
+  const abiertas = tareas
+    .filter((t) => t.estado !== "hecho")
+    .sort((a, b) => (a.fechaLimite ?? a.fechaProgramada ?? "9999").localeCompare(b.fechaLimite ?? b.fechaProgramada ?? "9999"));
+  const hechas = tareas.filter((t) => t.estado === "hecho");
+  if (tareas.length === 0) return null;
+  return (
+    <section className="px-4 pt-4">
+      <h2 className="mb-2 text-sm font-bold uppercase text-slate-600">
+        Mis tareas <span className="font-normal text-slate-400">{abiertas.length}</span>
+      </h2>
+      <ul className="space-y-2">
+        {abiertas.map((t) => {
+          const p = PRIORIDADES.find((x) => x.valor === t.prioridad)!;
+          const vence = etiquetaVence({ fechaLimite: t.fechaLimite, estado: t.estado }, hoy);
+          return (
+            <li key={t.id} className={`rounded-2xl border-2 p-3 ${p.tinte}`}>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className={`font-bold ${p.texto}`}>{p.etiqueta}</span>
+                {vence && <span className={vence.clase}>{vence.texto}</span>}
+                <span className="text-slate-500">{t.estado === "en_progreso" ? "En progreso" : "Por hacer"}</span>
+                {t.estadoPendiente && <span className="text-amber-700">· pendiente de subir</span>}
+              </div>
+              <p className="mt-0.5 text-lg font-bold leading-snug">{t.titulo}</p>
+              {t.descripcion && <p className="mt-1 whitespace-pre-line text-base text-slate-700">{t.descripcion}</p>}
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {t.estado === "por_hacer" ? (
+                  <button type="button" onClick={() => onMover(t, "en_progreso")} className={BOTON_SECUNDARIO}>
+                    Empezar
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => onMover(t, "por_hacer")} className={BOTON_SECUNDARIO}>
+                    Volver a por hacer
+                  </button>
+                )}
+                <button type="button" onClick={() => onMover(t, "hecho")} className={BOTON_PRIMARIO}>
+                  Terminada
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      {hechas.length > 0 && (
+        <div className="mt-2">
+          <button type="button" onClick={() => setVerHechas((v) => !v)} className="min-h-12 text-base font-semibold text-slate-600">
+            {verHechas ? "▾" : "▸"} Terminadas ({hechas.length})
+          </button>
+          {verHechas && (
+            <ul className="space-y-1">
+              {hechas.map((t) => (
+                <li key={t.id} className="flex min-h-12 items-center justify-between gap-2 rounded-xl bg-white px-3 text-base text-slate-500">
+                  <span className="line-through">{t.titulo}</span>
+                  <button type="button" onClick={() => onMover(t, "en_progreso")} className="min-h-11 shrink-0 px-2 text-sm font-semibold text-[#A82323]">
+                    Reabrir
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 
