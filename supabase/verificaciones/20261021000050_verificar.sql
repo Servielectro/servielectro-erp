@@ -8,7 +8,8 @@
 -- y estado (y sin título si no la puede ver), sin ciclos, historial intocable, obras sin
 -- datos comerciales, hora sin fecha, sin borrar tareas.
 --
--- Resultado esperado: todas las filas en "OK".
+-- Resultado esperado: todas las filas en "OK" (con la migración 52 aplicada: ver los casos
+-- 4b y 4e, que cambiaron con ella).
 
 begin;
 
@@ -141,7 +142,10 @@ insert into resultado (prueba, esperado, resultado)
 select '4a técnico crea tarea de EQUIPO', 'RECHAZADO', pg_temp.intentar($q$
   insert into tareas (titulo, visibilidad, visita_id) values ('x', 'equipo', '00000000-0000-0000-0000-00000000a501')$q$);
 insert into resultado (prueba, esperado, resultado)
-select '4b técnico crea su tarea interna', 'aceptado (1 filas)', pg_temp.intentar($q$
+-- REGLA CAMBIADA EN LA MIGRACIÓN 52: la agenda (tareas internas) es del módulo
+-- Planificación y los técnicos no lo tienen. Antes de la 52 esto se aceptaba; desde la
+-- 52 lo correcto es RECHAZADO (la base lo exige, no solo el menú).
+select '4b técnico crea una tarea interna (desde la 52: sin Planificación)', 'RECHAZADO', pg_temp.intentar($q$
   insert into tareas (id, titulo, visibilidad) values ('00000000-0000-0000-0000-0000000000c9', 'Comprar guantes', 'interna')$q$);
 insert into resultado (prueba, esperado, resultado)
 select '4c técnico cambia el título de una asignada', 'contiene: solo puedes mover la tarea de columna', pg_temp.intentar($q$
@@ -150,9 +154,11 @@ insert into resultado (prueba, esperado, resultado)
 select '4d técnico archiva una asignada', 'RECHAZADO', pg_temp.intentar($q$
   update tareas set archivada = true where id = '00000000-0000-0000-0000-0000000000c5'$q$);
 insert into resultado (prueba, esperado, resultado)
-select '4e técnico pasa su interna a equipo', 'RECHAZADO', pg_temp.intentar($q$
-  update tareas set visibilidad = 'equipo', visita_id = '00000000-0000-0000-0000-00000000a501'
-  where id = '00000000-0000-0000-0000-0000000000c9'$q$);
+-- Antes de la 52 se probaba con la interna del 4b, que ahora ya no se crea (actualizaría
+-- 0 filas y la prueba no probaría nada). Se prueba lo mismo con una tarea que sí existe:
+-- el técnico asignado intenta cambiarle la visibilidad.
+select '4e técnico cambia la visibilidad de una asignada', 'contiene: Solo Operativo puede pasar una tarea', pg_temp.intentar($q$
+  update tareas set visibilidad = 'interna' where id = '00000000-0000-0000-0000-0000000000c5'$q$);
 
 -- ============================================================ 5) dependencias
 select pg_temp.como('00000000-0000-0000-0000-0000000000e9');

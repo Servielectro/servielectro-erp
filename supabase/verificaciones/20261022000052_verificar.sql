@@ -95,7 +95,9 @@ insert into resultado (prueba, esperado, resultado)
 select '3a el técnico NO tiene Planificación (no la ve en el menú)', 'false',
   pg_temp.valor($q$select exists (select 1 from fn_mis_permisos() where modulo_id = 'planificacion')::text$q$);
 insert into resultado (prueba, esperado, resultado)
-select '3b el técnico NO puede crear tareas de agenda (ni por la API)', 'RECHAZADO', pg_temp.intentar($q$
+-- Esto ES la llamada directa a la API: un insert con la sesión del técnico (su JWT), sin
+-- pasar por ninguna pantalla. Lo que lo frena es la política de la base.
+select '3b el técnico, llamando directo a la API, crea una interna: rechazado', 'RECHAZADO', pg_temp.intentar($q$
   insert into tareas (titulo, visibilidad) values ('Agenda del técnico', 'interna')$q$);
 insert into resultado (prueba, esperado, resultado)
 select '3c el técnico no ve ninguna agenda ajena', '0',
