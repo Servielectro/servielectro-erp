@@ -3,7 +3,7 @@
 // medianoche de Bogotá, historial) las exige la base; acá solo armar, mostrar y guardar.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Participante, VisibilidadTarea } from "./tareas";
+import type { Participante } from "./tareas";
 
 export interface Evento {
   id: string;
@@ -14,7 +14,8 @@ export interface Evento {
   inicio: string;
   fin: string;
   todoElDia: boolean;
-  visibilidad: VisibilidadTarea;
+  /** Desde la 56 los eventos no tienen "equipo". */
+  visibilidad: "interna" | "compartida";
   creadoPor: string;
   archivado: boolean;
   participantes: Participante[];
@@ -54,7 +55,11 @@ export function horaBogota(iso: string): string {
   return new Date(iso).toLocaleTimeString("en-GB", { timeZone: "America/Bogota", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 }
 
-/** Instante de un día y hora de Bogotá. Colombia no tiene horario de verano: siempre -05:00. */
+/**
+ * Instante de un día y hora de Bogotá. -05:00 FIJO: vale solo porque Colombia no tiene
+ * horario de verano y todos los usuarios están en el país. Si eso cambia, pasar a fecha y
+ * hora locales con su zona (ver el encabezado de la migración 55).
+ */
 export function instanteBogota(dia: string, hora: string): string {
   return new Date(`${dia}T${hora || "00:00"}:00-05:00`).toISOString();
 }

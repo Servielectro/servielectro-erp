@@ -21,6 +21,17 @@
 -- cuántos miembros tienen y cuántos NO tienen Planificación (para avisar "esa persona no lo
 -- va a ver"). Solo cantidades, no quiénes.
 --
+-- AGREGADO DESPUÉS de correrla (2026-10-19), sin cambiar nada de lo que hace:
+--   - "equipo" se quitó de los eventos en la 56 (la pantalla nunca lo ofreció).
+--   - SUPUESTO DE HORA, escrito para que no quede implícito: inicio y fin se guardan como
+--     timestamptz (un instante). La pantalla convierte el día y la hora que escribe el
+--     usuario con -05:00 FIJO (src/lib/eventos.ts, instanteBogota), y el trigger de día
+--     completo usa 'America/Bogota'. Eso es correcto SOLO porque Colombia no tiene horario
+--     de verano y todos los usuarios están en Colombia. Si Colombia adopta horario de verano,
+--     o hay un usuario fuera del país, hay que pasar a guardar fecha y hora locales con su
+--     `zona` (lo que espera Google Calendar) y convertir con la zona, no con un número fijo.
+--     Se hará junto con la sincronización con Google Calendar.
+--
 -- Va después de la 53 (grupos) y la 54. Idempotente.
 -- Verificación: supabase/verificaciones/20261023000055_verificar.sql
 -- Rollback:     supabase/rollbacks/20261023000055_eventos_agenda_down.sql
