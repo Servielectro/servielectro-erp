@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   formatCOP,
   UNIDADES_SUGERIDAS,
@@ -284,11 +284,13 @@ function CampoMargen({
 }) {
   const margenActual = factorAMargen(factorRentabilidadLinea);
   const [texto, setTexto] = useState(String(margenActual));
-
-  useEffect(() => {
+  // Si el factor cambia desde afuera, el texto se pone al día en el mismo render (patrón de
+  // React para "reiniciar estado cuando cambia una prop"), sin el render extra del efecto.
+  const [factorPrevio, setFactorPrevio] = useState(factorRentabilidadLinea);
+  if (factorPrevio !== factorRentabilidadLinea) {
+    setFactorPrevio(factorRentabilidadLinea);
     setTexto(String(margenActual));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [factorRentabilidadLinea]);
+  }
 
   function commit(valorTexto: string) {
     const n = Number(valorTexto);
