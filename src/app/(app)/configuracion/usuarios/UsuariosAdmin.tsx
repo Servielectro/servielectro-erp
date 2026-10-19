@@ -28,6 +28,8 @@ export interface DatosUsuariosAdmin {
   }[];
   roles: { id: string; nombre: string }[];
   modulos: { id: string; nombre: string }[];
+  /** Módulos que ve cualquiera con usuario (sin permisos por rol). */
+  modulosParaTodos: string[];
   permisos: (FilaPermiso & { rolId: string })[];
 }
 
@@ -433,6 +435,14 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
+                  {datos.modulosParaTodos.map((nombre) => (
+                    <tr key={nombre}>
+                      <td className="p-2 font-medium text-slate-900">{nombre}</td>
+                      <td colSpan={NIVELES.length + 1} className="p-2 text-center text-xs text-slate-500">
+                        Todos los usuarios (no se asigna por rol)
+                      </td>
+                    </tr>
+                  ))}
                   {datos.modulos.map((m) => {
                     const p = matriz[m.id];
                     return (

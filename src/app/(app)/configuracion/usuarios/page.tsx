@@ -15,7 +15,8 @@ export default async function UsuariosPage() {
   const [usuariosRes, rolesRes, modulosRes, permisosRes, personalesRes] = await Promise.all([
     supabase.rpc("fn_listar_usuarios"),
     supabase.from("roles").select("id, nombre").order("nombre"),
-    supabase.from("modulos").select("id, nombre, orden").order("orden"),
+    // "*" a propósito: incluye para_todos cuando existe (migración 52) sin romper antes.
+    supabase.from("modulos").select("*").order("orden"),
     supabase.from("permisos_rol").select("rol_id, modulo_id, nivel, ve_datos_sensibles"),
     // Cédula y teléfono (migración 45): la firma del técnico se precarga de acá.
     supabase.from("perfiles").select("id, cedula, telefono"),
@@ -50,7 +51,12 @@ export default async function UsuariosPage() {
       ultimoIngreso: u.ultimo_ingreso,
     })),
     roles: (rolesRes.data ?? []) as { id: string; nombre: string }[],
-    modulos: (modulosRes.data ?? []) as { id: string; nombre: string }[],
+    // Los módulos "para todos" (Planificación) no llevan permisos por rol: van aparte,
+    // sin casillas (la base rechaza cargarles permisos).
+    modulos: ((modulosRes.data ?? []) as { id: string; nombre: string; para_todos?: boolean }[]).filter((m) => !m.para_todos),
+    modulosParaTodos: ((modulosRes.data ?? []) as { id: string; nombre: string; para_todos?: boolean }[])
+      .filter((m) => m.para_todos)
+      .map((m) => m.nombre),
     permisos: ((permisosRes.data ?? []) as {
       rol_id: string;
       modulo_id: string;
