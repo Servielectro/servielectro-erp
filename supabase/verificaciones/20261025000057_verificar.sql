@@ -12,8 +12,9 @@ with cli as (
   insert into public.clientes (nombre) values ('PRUEBA MIGRACION 57 (se borra)') returning id
 ), cot as (
   insert into public.cotizaciones
+  -- Descripción distinta por cotización: (anio, version, cliente_id, descripcion) es única.
     (codigo, anio, cliente_id, descripcion, esquema_iva, pct_admin, pct_imprevistos, pct_utilidad_aiu, factor_recargo_proyecto)
-  select v.codigo, 2026, cli.id, 'prueba 57', v.esquema::esquema_iva, 0.05, 0.06, 0.05, 1
+  select v.codigo, 2026, cli.id, 'prueba 57 ' || v.codigo, v.esquema::esquema_iva, 0.05, 0.06, 0.05, 1
   from cli, (values ('PRUEBA-57-FULL', 'IVA_FULL'), ('PRUEBA-57-AIU', 'IVA_AIU')) v(codigo, esquema)
   returning id
 )
