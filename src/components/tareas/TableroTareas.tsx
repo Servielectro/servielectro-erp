@@ -146,6 +146,12 @@ export function TableroTareas({
     return () => window.cancelAnimationFrame(cuadro);
   }, [arrastrando]);
 
+  // El tablero arranca siempre en la primera columna ("Por hacer"), aunque el navegador
+  // quiera restaurar un desplazamiento anterior al volver a la pantalla.
+  useEffect(() => {
+    if (vista === "tablero") tablero.current?.scrollTo({ left: 0 });
+  }, [vista]);
+
   const porId = useMemo(() => new Map(tareas.map((t) => [t.id, t])), [tareas]);
   const nombreObra = useMemo(() => new Map(obras.map((o) => [o.clave, o.nombre])), [obras]);
   const nombrePersona = useMemo(() => new Map(personas.map((p) => [p.id, p.nombre])), [personas]);
@@ -346,7 +352,7 @@ export function TableroTareas({
                 });
               }}
               onPointerDown={(e) => e.stopPropagation()}
-              className="-my-2 -ml-1 flex min-h-10 min-w-8 items-center justify-center text-slate-500"
+              className="-my-2 -ml-1 flex min-h-11 min-w-11 items-center justify-center text-slate-500"
               aria-label={abierta ? "Plegar" : "Desplegar"}
               aria-expanded={abierta}
             >
@@ -407,14 +413,14 @@ export function TableroTareas({
           }`}
         >
           <span>{franja.texto}</span>
-          <button type="button" onClick={() => setFranja(null)} className="min-h-10 min-w-10 text-xl" aria-label="Cerrar aviso">
+          <button type="button" onClick={() => setFranja(null)} className="min-h-11 min-w-11 text-xl" aria-label="Cerrar aviso">
             ×
           </button>
         </div>
       )}
 
       {/* Filtros con contador */}
-      <div className="flex gap-2 overflow-x-auto pb-2">
+      <div className="flex gap-2 overflow-x-auto overscroll-x-contain pb-2">
         {FILTROS.map((f) => (
           <button
             key={f.valor}
@@ -429,7 +435,7 @@ export function TableroTareas({
         ))}
       </div>
 
-      <div className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-1 grid grid-cols-2 gap-2 lg:grid-cols-4 [&>*]:min-w-0">
         <input
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
@@ -480,7 +486,7 @@ export function TableroTareas({
               key={v.valor}
               type="button"
               onClick={() => setVista(v.valor)}
-              className={`min-h-10 rounded-md px-3 text-sm font-medium ${vista === v.valor ? "bg-slate-900 text-white" : "text-slate-700"}`}
+              className={`min-h-11 rounded-md px-3 text-sm font-medium ${vista === v.valor ? "bg-slate-900 text-white" : "text-slate-700"}`}
             >
               {v.etiqueta}
             </button>
@@ -560,7 +566,7 @@ export function TableroTareas({
         <div
           ref={tablero}
           // Sin ajuste por columnas mientras se arrastra: si no, cada desplazamiento chico salta una columna entera.
-          className={`mt-3 flex gap-3 overflow-x-auto pb-4 ${arrastre ? "snap-none" : "snap-x snap-mandatory md:snap-none"}`}
+          className={`mt-3 flex gap-3 overflow-x-auto overscroll-x-contain pb-4 ${arrastre ? "snap-none" : "snap-x snap-mandatory md:snap-none"}`}
         >
           {COLUMNAS.filter((c) => !cerradas.has(c.estado)).map((c) => {
             const lista = deColumna(c.estado);
@@ -571,7 +577,7 @@ export function TableroTareas({
                 key={c.estado}
                 data-columna={c.estado}
                 className={`flex shrink-0 snap-start flex-col rounded-xl border border-t-4 border-slate-200 bg-slate-50 ${c.borde} ${
-                  plegada ? "w-16" : "w-[85vw] max-w-sm md:w-80"
+                  plegada ? "w-16" : "w-[88%] max-w-sm md:w-80"
                 } ${marcada ? "ring-2 ring-slate-400" : ""}`}
               >
                 <header className="flex items-center gap-1 px-3 py-2">
@@ -581,7 +587,7 @@ export function TableroTareas({
                     </h3>
                   )}
                   {!plegada && (
-                    <button type="button" onClick={() => setForm({ original: null, estado: c.estado })} className="min-h-10 min-w-10 rounded-lg text-xl text-slate-600" aria-label={`Agregar en ${c.titulo}`}>
+                    <button type="button" onClick={() => setForm({ original: null, estado: c.estado })} className="min-h-11 min-w-11 rounded-lg text-xl text-slate-600" aria-label={`Agregar en ${c.titulo}`}>
                       +
                     </button>
                   )}
@@ -595,7 +601,7 @@ export function TableroTareas({
                         return n;
                       })
                     }
-                    className="min-h-10 min-w-10 rounded-lg text-slate-600"
+                    className="min-h-11 min-w-11 rounded-lg text-slate-600"
                     aria-label={plegada ? `Desplegar ${c.titulo}` : `Plegar ${c.titulo}`}
                   >
                     {plegada ? "›" : "‹"}
@@ -604,7 +610,7 @@ export function TableroTareas({
                     <button
                       type="button"
                       onClick={() => setCerradas((s) => new Set([...s, c.estado]))}
-                      className="min-h-10 min-w-10 rounded-lg text-slate-400"
+                      className="min-h-11 min-w-11 rounded-lg text-slate-400"
                       aria-label={`Ocultar ${c.titulo}`}
                     >
                       ×
