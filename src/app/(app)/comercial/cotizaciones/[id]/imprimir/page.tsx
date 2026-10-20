@@ -85,6 +85,7 @@ export default async function ImprimirCotizacionPage(
         totales={
           cotizacion.totales
             ? {
+                esquemaIva: cotizacion.esquemaIva,
                 subtotalCalculo: cotizacion.totales.subtotalCalculo,
                 valorAdmin: cotizacion.totales.valorAdmin,
                 valorImprevistos: cotizacion.totales.valorImprevistos,

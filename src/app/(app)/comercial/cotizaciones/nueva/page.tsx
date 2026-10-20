@@ -249,8 +249,28 @@ export default async function NuevaCotizacionPage(
     }
   }
 
+  // Próximo código, solo para mostrarlo en la vista previa. Se LEE el contador, no se
+  // asigna: el número de verdad lo pone fn_siguiente_codigo_cotizacion al guardar (si se
+  // asignara acá, cada vista previa quemaría un consecutivo y dejaría huecos).
+  let proximoCodigo: string | null = null;
+  try {
+    const anio = Number(
+      new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota", year: "numeric" }).format(new Date()),
+    );
+    const { data } = await supabase
+      .from("cotizacion_consecutivos")
+      .select("ultimo_numero")
+      .eq("anio", anio)
+      .maybeSingle();
+    const siguiente = Number(data?.ultimo_numero ?? 0) + 1;
+    proximoCodigo = `CSE-${String(anio % 100).padStart(2, "0")}-${String(siguiente).padStart(3, "0")}`;
+  } catch {
+    // Sin acceso al contador: la vista previa dice solo "borrador".
+  }
+
   return (
     <CotizacionBuilder
+      proximoCodigo={proximoCodigo}
       catalogoInicial={catalogo}
       polizasCatalogoInicial={polizasCatalogo}
       clientesIniciales={clientes}

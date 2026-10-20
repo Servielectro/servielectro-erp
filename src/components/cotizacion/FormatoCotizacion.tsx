@@ -1,4 +1,4 @@
-import { formatCOP, type Categoria } from "@/lib/pricing";
+import { formatCOP, type Categoria, type EsquemaIva } from "@/lib/pricing";
 
 // Réplica del documento formal real (PDF CSE-26-104 "CCTV Analíticas Tintal II",
 // generado desde el Excel de Jhojan): carta, página 1 = encabezado + datos + las tres
@@ -71,6 +71,8 @@ export interface FormatoCotizacionHito {
 }
 
 export interface FormatoCotizacionTotales {
+  /** IVA_FULL: sin filas de AIU y una sola fila de resumen antes del IVA. */
+  esquemaIva: EsquemaIva;
   subtotalCalculo: number;
   valorAdmin: number;
   valorImprevistos: number;
@@ -105,6 +107,8 @@ export interface FormatoCotizacionPoliza {
 
 export interface FormatoCotizacionProps {
   codigo: string;
+  /** Vista previa sin guardar: el código es el próximo consecutivo, todavía no asignado. */
+  borrador?: boolean;
   fecha: string;
   comercial: string | null;
   proyecto: string;
@@ -147,6 +151,7 @@ const BORDE = "border border-black";
  */
 export function FormatoCotizacion({
   codigo,
+  borrador = false,
   fecha,
   comercial,
   proyecto,
@@ -243,7 +248,10 @@ export function FormatoCotizacion({
                   </tr>
                   <tr>
                     <td colSpan={2} className="bg-[#d9d9d9] text-center font-bold">CLIENTE</td>
-                    <td className="text-center font-bold text-[#c00000]">{codigo}</td>
+                    <td className="text-center font-bold text-[#c00000]">
+                      {codigo}
+                      {borrador && <span className="block text-[0.7em] font-normal">(borrador)</span>}
+                    </td>
                     <td colSpan={2} className="bg-[#d9d9d9] text-center font-bold">SERVIELECTRO</td>
                   </tr>
                   <tr>
@@ -354,6 +362,9 @@ export function FormatoCotizacion({
               <p>{formatCOP(subtotalDe("MANO_DE_OBRA"))}</p>
             </div>
           </div>
+          {/* IVA FULL no lleva AIU: PROYECTO y SUBTOTAL serían el mismo número, queda una sola. */}
+          {totales.esquemaIva === "IVA_AIU" && (
+            <>
           <CajaTotal label="PROYECTO" valor={totales.subtotalCalculo} />
           <div className="mt-2">
             {[
@@ -366,6 +377,8 @@ export function FormatoCotizacion({
                 <FilaResumen key={label as string} label={label as string} pct={pct(p as number | undefined)} valor={v as number} />
               ))}
           </div>
+            </>
+          )}
           <CajaTotal label="SUBTOTAL" valor={totales.subtotalGeneral} />
           <div className="mt-2">
             <FilaResumen label="IVA" pct={pct(porcentajes?.iva)} valor={totales.valorIva} negrita />

@@ -99,20 +99,25 @@ export default async function CotizacionDetallePage(
               label="Subtotal cálculo"
               valor={cotizacion.totales.subtotalCalculo}
             />
-            <FilaTotal label="Administración" valor={cotizacion.totales.valorAdmin} />
-            <FilaTotal
-              label="Imprevistos"
-              valor={cotizacion.totales.valorImprevistos}
-            />
-            <FilaTotal
-              label="Utilidad (AIU)"
-              valor={cotizacion.totales.valorUtilidadAiu}
-            />
-            <FilaTotal
-              label="Subtotal general"
-              valor={cotizacion.totales.subtotalGeneral}
-              destacado
-            />
+            {/* IVA FULL no lleva AIU: ni filas de A, I, U ni un subtotal general repetido. */}
+            {cotizacion.esquemaIva === "IVA_AIU" && (
+              <>
+                <FilaTotal label="Administración" valor={cotizacion.totales.valorAdmin} />
+                <FilaTotal
+                  label="Imprevistos"
+                  valor={cotizacion.totales.valorImprevistos}
+                />
+                <FilaTotal
+                  label="Utilidad (AIU)"
+                  valor={cotizacion.totales.valorUtilidadAiu}
+                />
+                <FilaTotal
+                  label="Subtotal general"
+                  valor={cotizacion.totales.subtotalGeneral}
+                  destacado
+                />
+              </>
+            )}
             <FilaTotal label="IVA" valor={cotizacion.totales.valorIva} />
             <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-bold text-slate-900">
               <span>Total</span>

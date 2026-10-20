@@ -152,6 +152,7 @@ export function CotizacionBuilder({
   duplicarId,
   oportunidad,
   sugerencias,
+  proximoCodigo = null,
 }: {
   catalogoInicial: CatalogoItem[];
   polizasCatalogoInicial: PolizaCatalogo[];
@@ -166,6 +167,8 @@ export function CotizacionBuilder({
   // "Cotizar en el armador" desde la bandeja de sugerencias: al guardar, se marcan
   // cotizadas con el código nuevo.
   sugerencias?: string[];
+  /** Próximo consecutivo (solo lectura, para la vista previa); se asigna al guardar. */
+  proximoCodigo?: string | null;
 }) {
   const clienteOp = oportunidad?.cliente;
   // Clave del borrador: un borrador solo se recupera sobre la misma cotización de origen.
@@ -859,9 +862,16 @@ export function CotizacionBuilder({
         </div>
 
         <div className="mx-auto w-full max-w-2xl space-y-3 px-3 pb-3 sm:px-4 sm:pb-4">
-          <div className="mt-1 grid grid-cols-2 gap-2 sm:mt-2 sm:w-2/3 sm:mx-auto">
+          {/* Un solo valor para los dos: excluyentes por construcción, nunca los dos a la vez. */}
+          <div
+            role="radiogroup"
+            aria-label="Régimen de IVA"
+            className="mt-1 grid grid-cols-2 gap-2 sm:mt-2 sm:w-2/3 sm:mx-auto"
+          >
             <button
               type="button"
+              role="radio"
+              aria-checked={esquemaIva === "IVA_FULL"}
               onClick={() => setEsquemaIva("IVA_FULL")}
               className={`rounded-md border px-2 py-1.5 text-center text-xs font-semibold ${
                 esquemaIva === "IVA_FULL"
@@ -873,6 +883,8 @@ export function CotizacionBuilder({
             </button>
             <button
               type="button"
+              role="radio"
+              aria-checked={esquemaIva === "IVA_AIU"}
               onClick={() => setEsquemaIva("IVA_AIU")}
               className={`rounded-md border px-2 py-1.5 text-center text-xs font-semibold ${
                 esquemaIva === "IVA_AIU"
@@ -1201,14 +1213,22 @@ export function CotizacionBuilder({
         {avanzadoAbierto && (
           <div className="space-y-2 rounded-md bg-slate-100 p-3 text-sm">
             <div className="grid grid-cols-2 gap-2">
+              {esquemaIva === "IVA_FULL" && (
+                <p className="col-span-2 text-xs text-slate-600">
+                  IVA FULL no lleva AIU: los porcentajes de Administración, Imprevistos y
+                  Utilidad no se usan. Para usarlos, elegí IVA AIU.
+                </p>
+              )}
               <CampoPct
                 label="Admin AIU %"
                 value={config.pctAdmin}
+                disabled={esquemaIva === "IVA_FULL"}
                 onChange={(v) => setConfig((c) => ({ ...c, pctAdmin: v }))}
               />
               <CampoPct
                 label="Imprevistos %"
                 value={config.pctImprevistos}
+                disabled={esquemaIva === "IVA_FULL"}
                 onChange={(v) =>
                   setConfig((c) => ({ ...c, pctImprevistos: v }))
                 }
@@ -1216,6 +1236,7 @@ export function CotizacionBuilder({
               <CampoPct
                 label="Utilidad AIU %"
                 value={config.pctUtilidadAiu}
+                disabled={esquemaIva === "IVA_FULL"}
                 onChange={(v) =>
                   setConfig((c) => ({ ...c, pctUtilidadAiu: v }))
                 }
@@ -1286,17 +1307,21 @@ export function CotizacionBuilder({
               label="Subtotal cálculo (cliente)"
               valor={totales.subtotalCalculo}
             />
-            <FilaTotal label="Administración" valor={totales.valorAdmin} />
-            <FilaTotal label="Imprevistos" valor={totales.valorImprevistos} />
-            <FilaTotal
-              label="Utilidad (AIU)"
-              valor={totales.valorUtilidadAiu}
-            />
-            <FilaTotal
-              label="Subtotal general"
-              valor={totales.subtotalGeneral}
-              destacado
-            />
+            {esquemaIva === "IVA_AIU" && (
+              <>
+                <FilaTotal label="Administración" valor={totales.valorAdmin} />
+                <FilaTotal label="Imprevistos" valor={totales.valorImprevistos} />
+                <FilaTotal
+                  label="Utilidad (AIU)"
+                  valor={totales.valorUtilidadAiu}
+                />
+                <FilaTotal
+                  label="Subtotal general"
+                  valor={totales.subtotalGeneral}
+                  destacado
+                />
+              </>
+            )}
             <p className="pt-1 text-xs text-slate-600">
               Base IVA: {totales.ivaBaseMotivo} · Factor recargo:{" "}
               {totales.factorRecargoProyecto.toFixed(6)}
@@ -1440,7 +1465,8 @@ export function CotizacionBuilder({
       {vistaPreviaAbierta && (
         <VistaPreviaModal
           onCerrar={() => setVistaPreviaAbierta(false)}
-          codigo="BORRADOR (sin guardar)"
+          codigo={proximoCodigo ?? "BORRADOR"}
+          borrador
           fecha={new Date().toISOString()}
           comercial={comercial || null}
           proyecto={descripcion || clienteNombre}
@@ -1461,7 +1487,7 @@ export function CotizacionBuilder({
             unidad: l.unidad,
             valorCalculoUnitario: l.valorCalculoUnitario,
           }))}
-          totales={totales}
+          totales={{ ...totales, esquemaIva }}
           diasEjecucion={diasEjecucion.trim() ? Number(diasEjecucion) || null : null}
           bloquesDocumento={valoresAgregados.filter((v) => v.titulo.trim() && v.texto.trim())}
           porcentajes={{
@@ -1496,10 +1522,12 @@ function CampoPct({
   label,
   value,
   onChange,
+  disabled = false,
 }: {
   label: string;
   value: number;
   onChange: (v: number) => void;
+  disabled?: boolean;
 }) {
   // Texto mientras se escribe ("13," o "13.5" a medias); si el valor cambia por fuera
   // (borrador, cotización nueva), se muestra el valor.
@@ -1516,12 +1544,13 @@ function CampoPct({
         type="text"
         inputMode="decimal"
         value={mostrado}
+        disabled={disabled}
         onFocus={(e) => e.target.select()}
         onChange={(e) => {
           setTexto(e.target.value);
           onChange(aNumero(e.target.value));
         }}
-        className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-2 text-sm"
+        className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-2 text-sm disabled:bg-slate-200 disabled:text-slate-400"
       />
     </div>
   );

@@ -228,23 +228,31 @@ export function calcularTotales(
     lineas.reduce((acc, l) => acc + l.subtotalCalculo, 0),
   );
 
-  const valorAdmin = round2(subtotalCalculo * config.pctAdmin);
-  const valorImprevistos = round2(subtotalCalculo * config.pctImprevistos);
-  const valorUtilidadAiu = round2(subtotalCalculo * config.pctUtilidadAiu);
+  // Los dos esquemas son excluyentes. El precio de cada línea ya trae la ganancia; acá solo
+  // se suma.
+  // - IVA_FULL: sin AIU (ni se calcula ni se suma). IVA = 19% del subtotal.
+  // - IVA_AIU: A, I y U sobre el subtotal con los % de la cotización, e IVA = 19% de la
+  //   UTILIDAD, no del subtotal. NO es un error: es la regla de Jhojan para obra civil,
+  //   validada con su contador y facturada así desde hace cinco años. No "corregirla".
+  // Mismas fórmulas en v_cotizacion_totales (migración 20261025000057).
+  const esAiu = config.esquemaIva === "IVA_AIU";
+  const valorAdmin = esAiu ? round2(subtotalCalculo * config.pctAdmin) : 0;
+  const valorImprevistos = esAiu ? round2(subtotalCalculo * config.pctImprevistos) : 0;
+  const valorUtilidadAiu = esAiu ? round2(subtotalCalculo * config.pctUtilidadAiu) : 0;
   const subtotalGeneral = round2(
     subtotalCalculo + valorAdmin + valorImprevistos + valorUtilidadAiu,
   );
 
-  const esAiu = config.esquemaIva === "IVA_AIU";
-  const ivaBaseValor = esAiu ? valorUtilidadAiu : subtotalGeneral;
+  const ivaBaseValor = esAiu ? valorUtilidadAiu : subtotalCalculo;
   const ivaBaseMotivo = esAiu
     ? "UTILIDAD_AIU (esquema IVA AIU elegido en la cotización)"
-    : "SUBTOTAL_GENERAL (esquema IVA FULL elegido en la cotización)";
+    : "SUBTOTAL (esquema IVA FULL elegido en la cotización, sin AIU)";
 
   const valorIva = round2(ivaBaseValor * config.ivaPct);
   const total = round2(subtotalGeneral + valorIva);
 
-  // Gastos internos (bases reales verificadas contra Tintalá)
+  // Gastos internos (bases reales verificadas contra Tintalá). No dependen de los totales
+  // del documento (salvo la comisión), así que el cambio de arriba no los mueve.
   const adminVenta = config.pctAdmin * subtotalVenta;
   const imprevistosVenta = config.pctImprevistos * subtotalVenta;
   const utilidadVenta = config.pctUtilidadAiu * subtotalVenta;
