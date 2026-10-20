@@ -31,6 +31,10 @@ const VISTAS: { valor: Vista; etiqueta: string }[] = [
 ];
 
 const ESPERA_PULSACION_MS = 280;
+/** Franja del borde del tablero que, con el dedo encima, lo desplaza de lado. */
+const BORDE_DESPLAZAR_PX = 48;
+/** Desplazamiento máximo por cuadro (~60 por segundo) con el dedo pegado al borde. */
+const VELOCIDAD_MAX_PX = 12;
 
 interface Arrastre {
   id: string;
@@ -38,6 +42,26 @@ interface Arrastre {
   y: number;
   ancho: number;
   destino: { estado: EstadoTarea; indice: number } | null;
+}
+
+/** Columna y posición bajo el dedo (se mide en vivo, después de cualquier desplazamiento). */
+function destinoEn(x: number, y: number, arrastrada: string): Arrastre["destino"] {
+  const col = document
+    .elementsFromPoint(x, y)
+    .map((el) => (el as HTMLElement).closest("[data-columna]") as HTMLElement | null)
+    .find(Boolean);
+  if (!col) return null;
+  const estado = col.dataset.columna as EstadoTarea;
+  const tarjetas = [...col.querySelectorAll<HTMLElement>("[data-tarjeta]")].filter((el) => el.dataset.tarjeta !== arrastrada);
+  let indice = tarjetas.length;
+  for (const [i, el] of tarjetas.entries()) {
+    const r = el.getBoundingClientRect();
+    if (y < r.top + r.height / 2) {
+      indice = i;
+      break;
+    }
+  }
+  return { estado, indice };
 }
 
 export function TableroTareas({
@@ -86,6 +110,41 @@ export function TableroTareas({
   const pulsacion = useRef<{ timer: number; x: number; y: number } | null>(null);
   const recienSoltada = useRef(false);
   const tablero = useRef<HTMLDivElement>(null);
+  /** Dónde está el dedo durante el arrastre (lo lee el desplazamiento automático). */
+  const dedo = useRef<{ x: number; y: number } | null>(null);
+  const arrastrando = arrastre?.id ?? null;
+
+  // Desplazamiento automático mientras se arrastra con el dedo cerca de un borde: continuo,
+  // de a pocos píxeles por cuadro y más rápido cuanto más cerca del borde, y el destino se
+  // recalcula después de cada desplazamiento. Antes se desplazaba 24 px por cada movimiento
+  // del dedo y, con el ajuste por columnas (snap) activo, cada uno saltaba una columna
+  // entera: la del medio pasaba de largo y la tarjeta caía en "Hecho".
+  useEffect(() => {
+    if (!arrastrando) return;
+    let cuadro = 0;
+    const paso = () => {
+      const contenedor = tablero.current;
+      const d = dedo.current;
+      if (contenedor && d) {
+        const r = contenedor.getBoundingClientRect();
+        let dx = 0;
+        if (d.x > r.right - BORDE_DESPLAZAR_PX) dx = (d.x - (r.right - BORDE_DESPLAZAR_PX)) / BORDE_DESPLAZAR_PX;
+        else if (d.x < r.left + BORDE_DESPLAZAR_PX) dx = -((r.left + BORDE_DESPLAZAR_PX) - d.x) / BORDE_DESPLAZAR_PX;
+        dx = Math.max(-1, Math.min(1, dx)) * VELOCIDAD_MAX_PX;
+        if (Math.abs(dx) >= 1) {
+          const antes = contenedor.scrollLeft;
+          contenedor.scrollLeft = antes + dx;
+          if (contenedor.scrollLeft !== antes) {
+            const destino = destinoEn(d.x, d.y, arrastrando);
+            setArrastre((a) => (a ? { ...a, destino } : a));
+          }
+        }
+      }
+      cuadro = window.requestAnimationFrame(paso);
+    };
+    cuadro = window.requestAnimationFrame(paso);
+    return () => window.cancelAnimationFrame(cuadro);
+  }, [arrastrando]);
 
   const porId = useMemo(() => new Map(tareas.map((t) => [t.id, t])), [tareas]);
   const nombreObra = useMemo(() => new Map(obras.map((o) => [o.clave, o.nombre])), [obras]);
@@ -180,28 +239,10 @@ export function TableroTareas({
           objetivo.setPointerCapture(id);
         } catch {}
         navigator.vibrate?.(15);
+        dedo.current = { x, y };
         setArrastre({ id: t.id, x, y, ancho: rect.width, destino: { estado: t.estado, indice: 0 } });
       }, ESPERA_PULSACION_MS),
     };
-  }
-
-  function destinoEn(x: number, y: number, arrastrada: string): Arrastre["destino"] {
-    const col = document
-      .elementsFromPoint(x, y)
-      .map((el) => (el as HTMLElement).closest("[data-columna]") as HTMLElement | null)
-      .find(Boolean);
-    if (!col) return null;
-    const estado = col.dataset.columna as EstadoTarea;
-    const tarjetas = [...col.querySelectorAll<HTMLElement>("[data-tarjeta]")].filter((el) => el.dataset.tarjeta !== arrastrada);
-    let indice = tarjetas.length;
-    for (const [i, el] of tarjetas.entries()) {
-      const r = el.getBoundingClientRect();
-      if (y < r.top + r.height / 2) {
-        indice = i;
-        break;
-      }
-    }
-    return { estado, indice };
   }
 
   function alMover(e: React.PointerEvent<HTMLElement>) {
@@ -215,12 +256,7 @@ export function TableroTareas({
     }
     if (!arrastre) return;
     e.preventDefault();
-    const contenedor = tablero.current;
-    if (contenedor) {
-      const r = contenedor.getBoundingClientRect();
-      if (e.clientX > r.right - 40) contenedor.scrollBy({ left: 24 });
-      if (e.clientX < r.left + 40) contenedor.scrollBy({ left: -24 });
-    }
+    dedo.current = { x: e.clientX, y: e.clientY };
     setArrastre({ ...arrastre, x: e.clientX, y: e.clientY, destino: destinoEn(e.clientX, e.clientY, arrastre.id) });
   }
 
@@ -230,6 +266,7 @@ export function TableroTareas({
       pulsacion.current = null;
     }
     const a = arrastre;
+    dedo.current = null;
     setArrastre(null);
     if (a) {
       recienSoltada.current = true;
@@ -520,7 +557,11 @@ export function TableroTareas({
       )}
 
       {vista === "tablero" && (
-        <div ref={tablero} className="mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-4 md:snap-none">
+        <div
+          ref={tablero}
+          // Sin ajuste por columnas mientras se arrastra: si no, cada desplazamiento chico salta una columna entera.
+          className={`mt-3 flex gap-3 overflow-x-auto pb-4 ${arrastre ? "snap-none" : "snap-x snap-mandatory md:snap-none"}`}
+        >
           {COLUMNAS.filter((c) => !cerradas.has(c.estado)).map((c) => {
             const lista = deColumna(c.estado);
             const plegada = plegadas.has(c.estado);
