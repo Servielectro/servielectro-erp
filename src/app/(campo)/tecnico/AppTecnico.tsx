@@ -443,9 +443,19 @@ function DetalleVisita({
   }, [cargar]);
 
   const firmaCliente = firmas.find((f) => f.tipo === "cliente");
+  const firmaTecnico = firmas.find((f) => f.tipo === "tecnico");
   const cerrada = Boolean(firmaCliente) || visita.estado === "firmada";
   const hoy = hoyBogota();
   const jornadaHoy = jornadas.find((j) => j.fecha === hoy) ?? null;
+  // Orden (Jhojan, 2026-10-21): firma del técnico → firma del cliente → marcar salida. "El
+  // marcar salida es lo último": así nadie se va sin que quede firmado. En una OBRA de varios
+  // días la salida de cada día no espera la firma (la firma del cliente cierra la obra entera).
+  const bloqueoSalida =
+    visita.tipo === "obra" || firmaCliente
+      ? null
+      : firmaTecnico
+        ? "Falta la firma del cliente: la salida es lo último."
+        : "Primero las firmas (técnico y cliente): la salida es lo último.";
 
   async function despues(mensaje?: string) {
     await cargar();
@@ -544,6 +554,7 @@ function DetalleVisita({
       {cerrada && (
         <p className="rounded-xl bg-green-100 px-4 py-1.5 text-base font-semibold text-green-900">
           Visita firmada por el cliente. Ya no se edita.
+          {jornadaHoy && !jornadaHoy.checkOutEn ? " Falta marcar la salida." : ""}
         </p>
       )}
 
@@ -552,6 +563,7 @@ function DetalleVisita({
       {avisoSalida && (
         <AvisoSalida
           revision={avisoSalida.revision}
+          puedeTomarFotos={!cerrada}
           onVolver={() => setAvisoSalida(null)}
           onConfirmar={(motivo) => hacerSalida(avisoSalida.jornada, avisoSalida.revision.resumen, motivo)}
         />
@@ -564,6 +576,7 @@ function DetalleVisita({
           anterior={[...jornadas].reverse().find((j) => j.fecha < hoy) ?? null}
           cerrada={cerrada}
           ocupado={Boolean(ocupado)}
+          bloqueoSalida={bloqueoSalida}
           onEntrada={marcarEntrada}
           onSalida={marcarSalida}
           onGuardar={guardarJornada}
@@ -582,6 +595,7 @@ function DetalleVisita({
               esHoy={j.fecha === hoy}
               cerrada={cerrada}
               ocupado={Boolean(ocupado)}
+              bloqueoSalida={bloqueoSalida}
               onSalida={() => marcarSalida(j)}
               onGuardar={guardarJornada}
             />
@@ -628,7 +642,12 @@ function DetalleVisita({
           jornadas={jornadas}
           fotos={fotos}
           sugerencias={sugerencias}
-          salidaPendiente={jornadas.some((j) => !j.checkOutEn)}
+          faltaLabor={Boolean(jornadaHoy && !jornadaHoy.laborEjecutada.trim())}
+          avisoFotos={(() => {
+            if (!jornadaHoy) return null;
+            const r = revisarEvidencia(contarFotos(fotos, jornadaHoy.id), visita.fotosMinimasDia ?? null);
+            return r.completa ? null : `${r.resumen}. Después de la firma del cliente ya no se pueden agregar fotos.`;
+          })()}
           rechazados={rechazadosVisita}
           onCambio={despues}
         />
@@ -642,6 +661,7 @@ function Jornada({
   esHoy,
   cerrada,
   ocupado,
+  bloqueoSalida,
   onSalida,
   onGuardar,
   esObra = false,
@@ -650,6 +670,8 @@ function Jornada({
   esHoy: boolean;
   cerrada: boolean;
   ocupado: boolean;
+  /** Por qué todavía no se puede marcar la salida (null = se puede). */
+  bloqueoSalida: string | null;
   onSalida: () => void;
   onGuardar: (j: JornadaLocal) => Promise<void>;
   esObra?: boolean;
@@ -721,13 +743,27 @@ function Jornada({
           {editable && (
             <p className="text-sm text-slate-500">{guardado ? "Guardado en el celular" : "Guardando…"}</p>
           )}
-          {!editable && !cerrada && (
-            <p className="text-sm text-slate-600">Ya marcaste la salida de este día: el reporte quedó cerrado.</p>
+          {!editable && (
+            <p className="text-sm text-slate-600">
+              {jornada.checkOutEn
+                ? "Ya marcaste la salida de este día: el reporte quedó cerrado."
+                : "Firmado por el cliente: el reporte ya no se cambia."}
+            </p>
           )}
-          {editable && esHoy && (
-            <button type="button" onClick={onSalida} disabled={ocupado || !guardado} className={BOTON_ACCION_SECUNDARIO}>
-              Marcar salida (con GPS)
-            </button>
+          {/* La salida se marca aunque la visita ya esté firmada: es lo último (base: migración 58). */}
+          {esHoy && !jornada.checkOutEn && (
+            <>
+              {bloqueoSalida && <p className="text-sm font-medium text-amber-800">{bloqueoSalida}</p>}
+              {!bloqueoSalida && !guardado && <p className="text-sm text-slate-600">Guardando el reporte…</p>}
+              <button
+                type="button"
+                onClick={onSalida}
+                disabled={ocupado || !guardado || Boolean(bloqueoSalida)}
+                className={BOTON_ACCION_SECUNDARIO}
+              >
+                Marcar salida (con GPS)
+              </button>
+            </>
           )}
         </div>
       )}
@@ -745,6 +781,7 @@ function ReporteDeHoy({
   anterior,
   cerrada,
   ocupado,
+  bloqueoSalida,
   onEntrada,
   onSalida,
   onGuardar,
@@ -754,6 +791,7 @@ function ReporteDeHoy({
   anterior: JornadaLocal | null;
   cerrada: boolean;
   ocupado: boolean;
+  bloqueoSalida: string | null;
   onEntrada: () => void;
   onSalida: (j: JornadaLocal) => void;
   onGuardar: (j: JornadaLocal) => Promise<void>;
@@ -792,6 +830,7 @@ function ReporteDeHoy({
           esObra
           cerrada={cerrada}
           ocupado={ocupado}
+          bloqueoSalida={bloqueoSalida}
           onSalida={() => onSalida(jornadaHoy)}
           onGuardar={onGuardar}
         />
@@ -830,6 +869,7 @@ function HistorialObra({
                   esObra
                   cerrada={cerrada}
                   ocupado={false}
+                  bloqueoSalida={null}
                   onSalida={() => {}}
                   onGuardar={onGuardar}
                 />
@@ -1044,10 +1084,13 @@ function Fotos({
  */
 function AvisoSalida({
   revision,
+  puedeTomarFotos,
   onVolver,
   onConfirmar,
 }: {
   revision: RevisionEvidencia;
+  /** Con la visita firmada ya no se agregan fotos: solo queda dejar el motivo. */
+  puedeTomarFotos: boolean;
   onVolver: () => void;
   onConfirmar: (motivo: string) => void;
 }) {
@@ -1080,7 +1123,7 @@ function AvisoSalida({
         </p>
         <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={onVolver} className={BOTON_SECUNDARIO}>
-            Tomar fotos
+            {puedeTomarFotos ? "Tomar fotos" : "Volver"}
           </button>
           <button type="button" onClick={() => onConfirmar(motivo.trim())} disabled={!motivo.trim()} className={BOTON_ACCION}>
             Salir igual
@@ -1209,7 +1252,8 @@ function Firmas({
   jornadas,
   fotos,
   sugerencias,
-  salidaPendiente,
+  faltaLabor,
+  avisoFotos,
   rechazados,
   onCambio,
 }: {
@@ -1219,8 +1263,13 @@ function Firmas({
   jornadas: JornadaLocal[];
   fotos: FotoLocal[];
   sugerencias: SugerenciaLocal[];
-  /** Hay una jornada sin salida: la firma del cliente cierra la visita, así que va después. */
-  salidaPendiente: boolean;
+  /**
+   * El reporte de hoy no tiene la labor escrita. Las firmas van ANTES de la salida (orden de
+   * Jhojan) y la del cliente cierra el reporte: si se firma sin la labor, ya no se puede escribir.
+   */
+  faltaLabor: boolean;
+  /** Fotos por debajo del mínimo: no bloquea, pero avisa que después de firmar ya no se agregan. */
+  avisoFotos: string | null;
   /**
    * Registros de esta visita rechazados de forma permanente. La firma del cliente sube
    * última y solo cuando no queda nada de la visita: con un rechazado, nunca subiría.
@@ -1306,7 +1355,12 @@ function Firmas({
             </p>
           )}
           {paso === "datos-cliente" && (
-            <p className="text-sm text-slate-600">Al firmar el cliente, la visita se cierra y ya no se puede editar.</p>
+            <p className="text-sm text-slate-600">
+              Al firmar el cliente, el reporte y las fotos se cierran; después solo queda marcar la salida.
+            </p>
+          )}
+          {paso === "datos-cliente" && avisoFotos && (
+            <p className="rounded-lg bg-amber-100 px-3 py-1.5 text-sm font-medium text-amber-900">{avisoFotos}</p>
           )}
           {/* El cuadro de firma se ve siempre: tocarlo abre el lienzo a pantalla completa. Si
               falta un dato, dice cuál (antes era un botón apagado sin explicación). */}
@@ -1327,9 +1381,16 @@ function Firmas({
         </div>
       )}
 
+      {paso === null && !firmaCliente && faltaLabor && (
+        <p className="mt-1.5 rounded-lg bg-amber-100 px-3 py-1.5 text-base font-medium text-amber-900">
+          Antes de firmar, escribe la labor de hoy en el reporte: después de la firma del cliente el reporte ya
+          no se puede cambiar.
+        </p>
+      )}
       {paso === null && !firmaTecnico && (
         <button
           type="button"
+          disabled={faltaLabor}
           onClick={() => {
             setDatos({ nombre: tecnico.nombre, cedula: tecnico.cedula, cargo: "" });
             setPaso("datos-tecnico");
@@ -1352,16 +1413,10 @@ function Firmas({
           {rechazados === 1 ? "1 registro rechazado" : `${rechazados} registros rechazados`}. Avisa a la oficina.
         </p>
       )}
-      {paso === null && firmaTecnico && !firmaCliente && salidaPendiente && (
-        <p className="mt-1.5 rounded-xl bg-amber-100 px-4 py-1.5 text-base font-medium text-amber-900">
-          Marca la salida del día antes de la firma del cliente: al firmar, la visita se cierra y ya no se
-          puede registrar nada más.
-        </p>
-      )}
       {paso === null && firmaTecnico && !firmaCliente && (
         <button
           type="button"
-          disabled={salidaPendiente || rechazados > 0}
+          disabled={faltaLabor || rechazados > 0}
           onClick={() => {
             setDatos({ nombre: "", cedula: "", cargo: "" });
             setPaso("datos-cliente");

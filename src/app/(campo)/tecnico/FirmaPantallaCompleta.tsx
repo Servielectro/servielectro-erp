@@ -3,8 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Firma a mano alzada en pantalla completa (horizontal donde el celular lo permita).
+ * Firma a mano alzada a pantalla completa, en la orientación en que esté el celular.
  * Devuelve un PNG. Trazo con pointer events: dedo, lápiz o guante capacitivo.
+ *
+ * 2026-10-21 (prueba de Jhojan en su celular): no se fuerza el giro a horizontal; al girar,
+ * el botón "Listo" quedaba fuera de la pantalla. Causa: el <canvas> toma como alto propio el
+ * de su resolución interna (alto × densidad de píxeles, 2 o 3 en un celular) y empujaba la
+ * barra de botones hacia abajo. Ahora el lienzo va posicionado sobre su contenedor, así su
+ * resolución no cambia el diseño, y los botones quedan siempre a la vista.
  */
 export function FirmaPantallaCompleta({
   titulo,
@@ -22,35 +28,39 @@ export function FirmaPantallaCompleta({
   const [hayTrazo, setHayTrazo] = useState(false);
 
   useEffect(() => {
-    const el = contenedor.current;
-    // Pantalla completa y horizontal: si el celular no deja, igual ocupa toda la vista.
-    el?.requestFullscreen?.().catch(() => {});
-    const orientacion = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
-    orientacion?.lock?.("landscape").catch(() => {});
-
+    let anchoPrevio = 0;
     const ajustar = () => {
       const c = lienzo.current;
       if (!c) return;
       const r = c.getBoundingClientRect();
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      // Solo el alto cambió (la barra del navegador que aparece o se esconde): se conserva
+      // lo firmado. Si cambió el ancho, el celular giró: se borra, mejor firmar de nuevo que
+      // una firma deformada.
+      const giro = Math.round(r.width) !== anchoPrevio;
+      anchoPrevio = Math.round(r.width);
+      let copia: HTMLCanvasElement | null = null;
+      if (!giro && c.width && c.height) {
+        copia = document.createElement("canvas");
+        copia.width = c.width;
+        copia.height = c.height;
+        copia.getContext("2d")?.drawImage(c, 0, 0);
+      }
       c.width = Math.round(r.width * dpr);
       c.height = Math.round(r.height * dpr);
       const ctx = c.getContext("2d");
       if (!ctx) return;
+      if (copia) ctx.drawImage(copia, 0, 0);
       ctx.scale(dpr, dpr);
       ctx.lineWidth = 2.5;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.strokeStyle = "#0f172a";
-      setHayTrazo(false); // al girar se borra: mejor firmar de nuevo que una firma deformada
+      if (giro) setHayTrazo(false);
     };
     ajustar();
     window.addEventListener("resize", ajustar);
-    return () => {
-      window.removeEventListener("resize", ajustar);
-      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-      screen.orientation?.unlock?.();
-    };
+    return () => window.removeEventListener("resize", ajustar);
   }, []);
 
   function punto(e: React.PointerEvent<HTMLCanvasElement>) {
@@ -108,33 +118,41 @@ export function FirmaPantallaCompleta({
     salida.toBlob((b) => b && onListo(b), "image/png");
   }
 
+  // Botones chicos y oscuros, del tamaño de Antes/Durante/Después: no tapan el lienzo.
+  const boton = "min-h-9 rounded-lg px-3 text-base font-semibold";
   return (
     <div ref={contenedor} className="fixed inset-0 z-50 flex flex-col bg-white">
-      <div className="flex items-center justify-between gap-2 border-b border-slate-300 px-3 py-2">
-        <p className="text-base font-semibold">{titulo}</p>
-        <button type="button" onClick={borrarTodo} className="min-h-12 rounded-lg border border-slate-400 px-4 text-base font-medium">
-          Borrar
-        </button>
+      <div className="flex shrink-0 items-center gap-2 border-b border-slate-300 px-3 py-1.5">
+        <p className="min-w-0 flex-1 truncate text-base font-semibold">{titulo}</p>
       </div>
-      <canvas
-        ref={lienzo}
-        onPointerDown={bajar}
-        onPointerMove={mover}
-        onPointerUp={subir}
-        onPointerCancel={subir}
-        className="flex-1 touch-none bg-white"
-        aria-label="Espacio para firmar"
-      />
-      <p className="pointer-events-none -mt-16 mb-10 text-center text-sm text-slate-400">Firme aquí con el dedo</p>
-      <div className="flex gap-3 border-t border-slate-300 p-3">
-        <button type="button" onClick={onCancelar} className="min-h-14 flex-1 rounded-xl border border-slate-400 text-lg font-medium">
+      <div className="relative min-h-0 flex-1">
+        <canvas
+          ref={lienzo}
+          onPointerDown={bajar}
+          onPointerMove={mover}
+          onPointerUp={subir}
+          onPointerCancel={subir}
+          className="absolute inset-0 h-full w-full touch-none bg-white"
+          aria-label="Espacio para firmar"
+        />
+        {!hayTrazo && (
+          <p className="pointer-events-none absolute inset-x-0 bottom-4 text-center text-sm text-slate-400">
+            Firme aquí con el dedo o con el lápiz
+          </p>
+        )}
+      </div>
+      <div className="flex shrink-0 gap-2 border-t border-slate-300 px-3 py-1.5">
+        <button type="button" onClick={onCancelar} className={`${boton} border border-slate-400 text-slate-800`}>
           Cancelar
+        </button>
+        <button type="button" onClick={borrarTodo} className={`${boton} border border-slate-400 text-slate-800`}>
+          Borrar
         </button>
         <button
           type="button"
           onClick={listo}
           disabled={!hayTrazo}
-          className="min-h-14 flex-1 rounded-xl bg-[#A82323] text-lg font-semibold text-white disabled:opacity-40"
+          className={`${boton} ml-auto bg-slate-900 text-white disabled:bg-slate-300 disabled:text-slate-600`}
         >
           {hayTrazo ? "Listo" : "Firme primero"}
         </button>
