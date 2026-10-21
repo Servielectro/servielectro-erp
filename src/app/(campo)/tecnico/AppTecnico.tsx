@@ -305,7 +305,8 @@ function MisTareas({
     .sort((a, b) => (a.fechaLimite ?? a.fechaProgramada ?? "9999").localeCompare(b.fechaLimite ?? b.fechaProgramada ?? "9999"));
   const hechas = tareas.filter((t) => t.estado === "hecho");
   // "Vista" (migración 59): las tareas abiertas que el técnico tiene en pantalla.
-  const idsAbiertas = abiertas.map((t) => t.id).join(",");
+  // Solo las que siguen en "Por hacer": una ya empezada se vio antes de que existiera "vista".
+  const idsAbiertas = abiertas.filter((t) => t.estado === "por_hacer").map((t) => t.id).join(",");
   useEffect(() => {
     for (const id of idsAbiertas.split(",").filter(Boolean)) marcarVista("tarea", id);
   }, [idsAbiertas]);
@@ -449,10 +450,13 @@ function DetalleVisita({
     cargar();
   }, [cargar]);
 
-  // "Vista" (migración 59): el técnico abrió la visita. Sin señal queda pendiente.
+  // "Vista" (migración 59): el técnico abrió la visita. Sin señal queda pendiente. Solo antes
+  // de empezar: abrir una visita ya hecha (o hecha antes de que existiera "vista") marcaría una
+  // hora de "vista" posterior al trabajo, que es falsa.
+  const sinEmpezar = visita.estado === "programada";
   useEffect(() => {
-    marcarVista("visita", visita.id);
-  }, [visita.id]);
+    if (sinEmpezar) marcarVista("visita", visita.id);
+  }, [visita.id, sinEmpezar]);
 
   const firmaCliente = firmas.find((f) => f.tipo === "cliente");
   const firmaTecnico = firmas.find((f) => f.tipo === "tecnico");

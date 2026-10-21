@@ -7,6 +7,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 const VIGENCIA_ENLACE_S = 60 * 60;
 
+/** Dónde marcó el técnico (entrada o salida). Es evidencia de dónde estuvo, no el sitio. */
+export interface Marcacion {
+  /** concedido | denegado | sin_senal | no_disponible */
+  estado: string | null;
+  lat: number | null;
+  lng: number | null;
+  precisionM: number | null;
+}
+
 export interface VisitaDetalle {
   id: string;
   titulo: string;
@@ -33,8 +42,10 @@ export interface VisitaDetalle {
     fecha: string;
     checkInEn: string | null;
     checkInGps: string | null;
+    checkIn: Marcacion;
     checkOutEn: string | null;
     checkOutGps: string | null;
+    checkOut: Marcacion;
     laborEjecutada: string | null;
     noEjecutado: string | null;
     pendiente: string | null;
@@ -64,6 +75,11 @@ export interface VisitaDetalle {
   notas: { texto: string; autor: string | null; en: string }[];
 }
 
+const num = (x: unknown) => (x === null || x === undefined || x === "" ? null : Number(x));
+function marcacion(estado: unknown, lat: unknown, lng: unknown, precision: unknown): Marcacion {
+  return { estado: (estado as string | null) ?? null, lat: num(lat), lng: num(lng), precisionM: num(precision) };
+}
+
 export async function getVisitaDetalle(supabase: SupabaseClient, id: string): Promise<VisitaDetalle | null> {
   const columnas =
     "id, titulo, tipo, estado, cliente_nombre, direccion, contacto_sitio, telefono_sitio, descripcion_trabajo, fecha_programada, hora_programada, fecha_fin_estimada, fotos_minimas_dia, sitio_lat, sitio_lng, sitio_url_maps, tecnico_id, creada_por, created_at, visto_en, firmada_en";
@@ -83,7 +99,7 @@ export async function getVisitaDetalle(supabase: SupabaseClient, id: string): Pr
     supabase
       .from("visita_jornadas")
       .select(
-        "id, fecha, check_in_en, check_in_gps_estado, check_out_en, check_out_gps_estado, labor_ejecutada, no_ejecutado, pendiente, observaciones, fotos_al_salir, motivo_fotos_incompletas",
+        "id, fecha, check_in_en, check_in_gps_estado, check_in_lat, check_in_lng, check_in_precision_m, check_out_en, check_out_gps_estado, check_out_lat, check_out_lng, check_out_precision_m, labor_ejecutada, no_ejecutado, pendiente, observaciones, fotos_al_salir, motivo_fotos_incompletas",
       )
       .eq("visita_id", id)
       .order("fecha"),
@@ -170,8 +186,10 @@ export async function getVisitaDetalle(supabase: SupabaseClient, id: string): Pr
       fecha: j.fecha as string,
       checkInEn: j.check_in_en,
       checkInGps: j.check_in_gps_estado,
+      checkIn: marcacion(j.check_in_gps_estado, j.check_in_lat, j.check_in_lng, j.check_in_precision_m),
       checkOutEn: j.check_out_en,
       checkOutGps: j.check_out_gps_estado,
+      checkOut: marcacion(j.check_out_gps_estado, j.check_out_lat, j.check_out_lng, j.check_out_precision_m),
       laborEjecutada: j.labor_ejecutada,
       noEjecutado: j.no_ejecutado,
       pendiente: j.pendiente,

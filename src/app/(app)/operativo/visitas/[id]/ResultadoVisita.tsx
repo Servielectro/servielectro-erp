@@ -7,7 +7,10 @@ import {
   programadaEn,
   retrasoMs,
   textoRetraso,
+  distanciaMetros,
+  formatoDistancia,
 } from "@/lib/visitas/metricas";
+import type { Marcacion } from "@/lib/supabase/visita-detalle";
 import { GaleriaFotos } from "./GaleriaFotos";
 import { CierreVisita } from "./CierreVisita";
 import { AccionesVisita } from "./AccionesVisita";
@@ -27,12 +30,6 @@ const ESTADO: Record<string, string> = {
   cancelada: "Cancelada",
 };
 const MOMENTO: Record<string, string> = { antes: "Antes", durante: "Durante", despues: "Después" };
-const GPS: Record<string, string> = {
-  concedido: "GPS registrado",
-  denegado: "GPS denegado",
-  sin_senal: "sin señal de GPS",
-  no_disponible: "GPS no disponible",
-};
 const SUGERENCIA: Record<string, string> = {
   pendiente: "Pendiente",
   en_revision: "En revisión",
@@ -66,6 +63,60 @@ function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactN
       <dt className="w-28 shrink-0 text-slate-500">{etiqueta}</dt>
       <dd className="min-w-0 flex-1 text-slate-900">{children}</dd>
     </div>
+  );
+}
+
+/**
+ * Dónde marcó el técnico. Con la PRECISIÓN siempre a la vista: 40 m de error no es lo mismo que
+ * 5, y sin eso se puede acusar a alguien de no haber estado en el sitio por un GPS impreciso.
+ * Si la visita tiene la ubicación del sitio, a qué distancia marcó.
+ */
+function PuntoMarcado({
+  etiqueta,
+  en,
+  m,
+  sitio,
+}: {
+  etiqueta: string;
+  en: string | null;
+  m: Marcacion | null | undefined;
+  sitio: { lat: number; lng: number } | null;
+}) {
+  if (!en) return null;
+  m = m ?? { estado: null, lat: null, lng: null, precisionM: null };
+  const punto = m.estado === "concedido" && m.lat !== null && m.lng !== null ? { lat: m.lat, lng: m.lng } : null;
+  const distancia = punto && sitio ? distanciaMetros(punto.lat, punto.lng, sitio.lat, sitio.lng) : null;
+  const sinPunto: Record<string, string> = {
+    sin_senal: "sin señal de GPS: no se registró la ubicación",
+    denegado: "el técnico no dio permiso de ubicación: no se registró",
+    no_disponible: "el celular no tenía GPS disponible: no se registró",
+  };
+  return (
+    <p className="text-sm text-slate-700">
+      <span className="font-semibold">{etiqueta}</span> {hora(en)}
+      {punto ? (
+        <>
+          {distancia !== null && (
+            <>
+              {" · "}a <span className="font-semibold">{formatoDistancia(distancia)}</span> del sitio
+              {m.precisionM !== null && distancia <= m.precisionM ? " (dentro del margen del GPS)" : ""}
+            </>
+          )}
+          {m.precisionM !== null && ` · precisión ±${formatoDistancia(m.precisionM)}`}
+          {" · "}
+          <a
+            href={`https://www.google.com/maps?q=${punto.lat},${punto.lng}`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex min-h-9 items-center font-semibold text-[#A82323] underline"
+          >
+            Ver en el mapa
+          </a>
+        </>
+      ) : (
+        <span className="text-amber-800"> · {sinPunto[m.estado ?? ""] ?? "sin dato de ubicación"}</span>
+      )}
+    </p>
   );
 }
 
@@ -166,10 +217,28 @@ export function ResultadoVisita({
                 aria-hidden
               />
               <span className="text-xs font-semibold text-slate-800">{h.etiqueta}</span>
-              <span className="text-xs text-slate-600">{h.en ? fechaHora(h.en) : "pendiente"}</span>
+              <span className="text-xs text-slate-600">
+                {h.en
+                  ? fechaHora(h.en)
+                  : h.clave === "vista" && hitos[2].en
+                    ? "no aplica"
+                    : "pendiente"}
+              </span>
             </li>
           ))}
         </ol>
+        {/* Dónde marcó (visita de un día; en una obra va por día en el reporte). */}
+        {v.tipo !== "obra" && v.jornadas[0] && (
+          <div className="mt-2 space-y-0.5 rounded-md bg-slate-50 p-2">
+            <PuntoMarcado etiqueta="Check-in" en={v.jornadas[0].checkInEn} m={v.jornadas[0].checkIn} sitio={v.sitio} />
+            <PuntoMarcado
+              etiqueta="Check-out"
+              en={v.jornadas[v.jornadas.length - 1].checkOutEn}
+              m={v.jornadas[v.jornadas.length - 1].checkOut}
+              sitio={v.sitio}
+            />
+          </div>
+        )}
         <dl className="mt-2 grid grid-cols-2 gap-2 text-sm">
           <div className="rounded-md bg-slate-50 p-2">
             <dt className="text-xs text-slate-500">{v.tipo === "obra" ? "Tiempo en sitio (suma)" : "Duración"}</dt>
@@ -253,12 +322,14 @@ export function ResultadoVisita({
             {v.jornadas.map((j) => (
               <div key={j.id} className="rounded-md border border-slate-200 p-2 text-sm">
                 <p className="font-semibold first-letter:uppercase text-slate-900">{fechaLarga(j.fecha)}</p>
-                <p className="text-slate-600">
-                  Entrada {hora(j.checkInEn)}
-                  {j.checkInGps ? ` (${GPS[j.checkInGps] ?? j.checkInGps})` : ""} · Salida{" "}
-                  {j.checkOutEn ? hora(j.checkOutEn) : "sin marcar"}
-                  {j.checkOutGps ? ` (${GPS[j.checkOutGps] ?? j.checkOutGps})` : ""}
-                </p>
+                <PuntoMarcado etiqueta="Entrada" en={j.checkInEn} m={j.checkIn} sitio={v.sitio} />
+                {j.checkOutEn ? (
+                  <PuntoMarcado etiqueta="Salida" en={j.checkOutEn} m={j.checkOut} sitio={v.sitio} />
+                ) : (
+                  <p className="text-sm text-slate-700">
+                    <span className="font-semibold">Salida</span> sin marcar
+                  </p>
+                )}
                 {[
                   ["Labor ejecutada", j.laborEjecutada],
                   ["No se hizo", j.noEjecutado],
