@@ -19,6 +19,7 @@ function vacia(): NuevaVisita {
     tipo: "visita",
     tecnicoId: null,
     fechaProgramada: hoyColombia(),
+    horaProgramada: "",
     fechaFinEstimada: "",
     descripcionTrabajo: "",
     fotosMinimasDia: "",
@@ -140,6 +141,11 @@ export function NuevaVisitaForm({
         <div>
           <label className="text-xs text-slate-600">Fecha *</label>
           <input type="date" value={v.fechaProgramada} onChange={(e) => cambiar("fechaProgramada", e.target.value)} className={CAMPO} />
+        </div>
+        <div>
+          {/* Con la hora, la pantalla de la visita calcula el retraso (entrada − hora programada). */}
+          <label className="text-xs text-slate-600">Hora</label>
+          <input type="time" value={v.horaProgramada} onChange={(e) => cambiar("horaProgramada", e.target.value)} className={CAMPO} />
         </div>
         {v.tipo === "obra" && (
           <div>

@@ -69,7 +69,8 @@ export default async function OperativoPage() {
       ) : (
         <ul className="divide-y divide-slate-200 rounded-lg border border-slate-300 bg-white">
           {(visitas ?? []).map((v) => (
-            <li key={v.id} className="p-3 text-sm">
+            <li key={v.id} className="text-sm">
+              <Link href={`/operativo/visitas/${v.id}`} className="block p-3 active:bg-slate-50">
               <p className="font-semibold text-slate-900">{v.titulo}</p>
               <p className="text-xs text-slate-600">
                 {ESTADO[v.estado] ?? v.estado}
@@ -80,6 +81,7 @@ export default async function OperativoPage() {
               {(v.cliente_nombre || v.direccion) && (
                 <p className="text-xs text-slate-500">{[v.cliente_nombre, v.direccion].filter(Boolean).join(" · ")}</p>
               )}
+              </Link>
             </li>
           ))}
         </ul>

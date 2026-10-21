@@ -32,6 +32,7 @@ import {
 } from "@/lib/tecnico/evidencia";
 import { descargarTareas, descargarVisitas, servidorSupabase } from "@/lib/tecnico/servidor-supabase";
 import { etiquetaVence, PRIORIDADES } from "@/lib/tareas";
+import { enviarVistas, marcarVista } from "@/lib/tecnico/vistas";
 import { FirmaPantallaCompleta } from "./FirmaPantallaCompleta";
 
 interface Tecnico {
@@ -117,6 +118,7 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
         try {
           await descargarVisitas(supabase, tecnico.id);
           await descargarTareas(supabase, tecnico.id);
+          await enviarVistas();
         } catch {
           // sin red o sesión vencida: se queda con lo que ya tenía
         }
@@ -302,6 +304,11 @@ function MisTareas({
     .filter((t) => t.estado !== "hecho")
     .sort((a, b) => (a.fechaLimite ?? a.fechaProgramada ?? "9999").localeCompare(b.fechaLimite ?? b.fechaProgramada ?? "9999"));
   const hechas = tareas.filter((t) => t.estado === "hecho");
+  // "Vista" (migración 59): las tareas abiertas que el técnico tiene en pantalla.
+  const idsAbiertas = abiertas.map((t) => t.id).join(",");
+  useEffect(() => {
+    for (const id of idsAbiertas.split(",").filter(Boolean)) marcarVista("tarea", id);
+  }, [idsAbiertas]);
   if (tareas.length === 0) return null;
   return (
     <section className="px-4 pt-4">
@@ -441,6 +448,11 @@ function DetalleVisita({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     cargar();
   }, [cargar]);
+
+  // "Vista" (migración 59): el técnico abrió la visita. Sin señal queda pendiente.
+  useEffect(() => {
+    marcarVista("visita", visita.id);
+  }, [visita.id]);
 
   const firmaCliente = firmas.find((f) => f.tipo === "cliente");
   const firmaTecnico = firmas.find((f) => f.tipo === "tecnico");
