@@ -136,7 +136,7 @@ export function FirmaPantallaCompleta({
           disabled={!hayTrazo}
           className="min-h-14 flex-1 rounded-xl bg-[#A82323] text-lg font-semibold text-white disabled:opacity-40"
         >
-          Listo
+          {hayTrazo ? "Listo" : "Firme primero"}
         </button>
       </div>
     </div>

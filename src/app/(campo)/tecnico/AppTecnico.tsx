@@ -189,7 +189,7 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
             disabled={sincronizando || !enLinea}
             className="min-h-9 shrink-0 rounded-xl border-2 border-slate-400 px-3 text-base font-semibold disabled:opacity-40"
           >
-            {sincronizando ? "Subiendo…" : "Sincronizar"}
+            {sincronizando ? "Subiendo…" : enLinea ? "Sincronizar" : "Sin señal"}
           </button>
         </div>
         <p className="mt-1 text-sm text-slate-600">
@@ -233,6 +233,7 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
           >
             Ya lo resolvió la oficina: reintentar
           </button>
+          {!enLinea && <p className="mt-1 text-sm text-slate-600">Para reintentar hace falta señal.</p>}
         </div>
       )}
       {conErrores.length > 0 && (
@@ -720,6 +721,9 @@ function Jornada({
           {editable && (
             <p className="text-sm text-slate-500">{guardado ? "Guardado en el celular" : "Guardando…"}</p>
           )}
+          {!editable && !cerrada && (
+            <p className="text-sm text-slate-600">Ya marcaste la salida de este día: el reporte quedó cerrado.</p>
+          )}
           {editable && esHoy && (
             <button type="button" onClick={onSalida} disabled={ocupado || !guardado} className={BOTON_ACCION_SECUNDARIO}>
               Marcar salida (con GPS)
@@ -999,6 +1003,11 @@ function Fotos({
           </div>
         </>
       )}
+      {!cerrada && sinEspacio && !progreso && (
+        <p className="mt-1.5 rounded-lg bg-red-100 px-3 py-1.5 text-base font-semibold text-red-900">
+          No queda espacio en el celular para más fotos. Conéctate a una red para subir las pendientes y liberar espacio.
+        </p>
+      )}
       {progreso && <p className="mt-1.5 text-base font-semibold">{progreso}</p>}
 
       {/* Agrupadas por momento: así el informe de corte se arma solo. */}
@@ -1066,7 +1075,9 @@ function AvisoSalida({
             className={`${CAMPO} mt-1`}
           />
         </label>
-        <p className="text-sm text-slate-600">Queda registrado en el reporte del día.</p>
+        <p className="text-sm text-slate-600">
+          {motivo.trim() ? "Queda registrado en el reporte del día." : "Escribe el motivo para poder salir sin completar las fotos."}
+        </p>
         <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={onVolver} className={BOTON_SECUNDARIO}>
             Tomar fotos
@@ -1176,6 +1187,11 @@ function Sugerencias({
                 Guardar
               </button>
             </div>
+            {(!descripcion.trim() || faltaFecha) && (
+              <p className="text-sm text-slate-600">
+                Para guardar falta {[!descripcion.trim() && "qué falta", faltaFecha && "para cuándo lo necesitas"].filter(Boolean).join(" y ")}.
+              </p>
+            )}
           </div>
         ) : (
           <button type="button" onClick={() => setAbierto(true)} className={`${BOTON_SECUNDARIO} mt-1.5`}>
