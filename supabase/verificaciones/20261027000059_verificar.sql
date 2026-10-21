@@ -202,7 +202,7 @@ select '7d la del trigger de reasignación NO la ejecuta authenticated', 'false'
   has_function_privilege('authenticated', 'public.fn_visita_reasignada()', 'EXECUTE')::text;
 
 -- ============================================================ limpieza (admin)
-delete from tarea_eventos where tarea_id = '00000000-0000-0000-0000-00000000c591';
+-- Orden: borrar asignados dispara el historial (un evento "quitado"); los eventos van DESPUÉS.
 delete from tarea_asignados where tarea_id = '00000000-0000-0000-0000-00000000c591';
 delete from tarea_eventos where tarea_id = '00000000-0000-0000-0000-00000000c591';
 delete from tareas where id = '00000000-0000-0000-0000-00000000c591';
