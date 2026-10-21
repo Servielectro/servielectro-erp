@@ -1333,10 +1333,39 @@ function Firmas({
 
       {(paso === "datos-tecnico" || paso === "datos-cliente") && (
         <div className="mt-1.5 space-y-1.5">
-          <input value={datos.nombre} onChange={(e) => setDatos({ ...datos, nombre: e.target.value })} placeholder="Nombre completo" className={CAMPO} />
-          <input value={datos.cedula} onChange={(e) => setDatos({ ...datos, cedula: e.target.value })} inputMode="numeric" placeholder="Cédula" className={CAMPO} />
+          <input
+            value={datos.nombre}
+            onChange={(e) => setDatos({ ...datos, nombre: e.target.value })}
+            placeholder="Nombre y apellido"
+            aria-label="Nombre y apellido"
+            className={CAMPO}
+          />
+          {/* Dos renglones (Jhojan): cédula y cargo comparten el de abajo. El cargo solo en la
+              firma del cliente (el técnico ya tiene su rol) y no bloquea: en propiedad horizontal
+              no pesa igual la firma del administrador que la del vigilante, pero un cliente que no
+              lo dice no puede dejar trabado al técnico. Va a visita_firmas.cargo (vacío = nulo). */}
+          <div className={paso === "datos-cliente" ? "grid grid-cols-[6rem_1fr] gap-2" : ""}>
+            <input
+              value={datos.cedula}
+              onChange={(e) => setDatos({ ...datos, cedula: e.target.value })}
+              inputMode="numeric"
+              placeholder="Cédula"
+              aria-label="Cédula"
+              className={`${CAMPO} min-w-0`}
+            />
+            {paso === "datos-cliente" && (
+              <input
+                value={datos.cargo}
+                onChange={(e) => setDatos({ ...datos, cargo: e.target.value })}
+                placeholder="Cargo"
+                aria-label="Cargo"
+                className={`${CAMPO} min-w-0`}
+              />
+            )}
+          </div>
+          {/* El ejemplo no cabe dentro del campo a 13 px junto a la cédula: va debajo, entero. */}
           {paso === "datos-cliente" && (
-            <input value={datos.cargo} onChange={(e) => setDatos({ ...datos, cargo: e.target.value })} placeholder="Cargo (ej. administrador, portería)" className={CAMPO} />
+            <p className="text-sm text-slate-600">Cargo, ej.: Administrador, Consejo, Residente</p>
           )}
           {paso === "datos-tecnico" && !tecnico.cedula && (
             <p className="text-sm text-amber-800">
