@@ -522,7 +522,7 @@ function DetalleVisita({
             {visita.telefonoSitio && (
               <>
                 {" · "}
-                <a href={`tel:${visita.telefonoSitio}`} className="font-semibold text-[#A82323] underline">
+                <a href={`tel:${visita.telefonoSitio}`} className="inline-flex min-h-11 items-center font-semibold text-[#A82323] underline">
                   {visita.telefonoSitio}
                 </a>
               </>
