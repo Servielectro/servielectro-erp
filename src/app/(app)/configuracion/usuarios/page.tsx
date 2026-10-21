@@ -66,7 +66,7 @@ export default async function UsuariosPage() {
 
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6">
-      <Link href="/configuracion" className="mb-2 inline-block text-sm text-slate-600">
+      <Link href="/configuracion" className="min-h-11 mb-2 inline-flex items-center text-sm text-slate-600">
         ← Configuración
       </Link>
       <h1 className="mb-4 text-center text-sm font-bold text-slate-900">

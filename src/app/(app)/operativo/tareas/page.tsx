@@ -21,11 +21,11 @@ export default async function TareasPage() {
   return (
     <>
       <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-3 pt-3 text-sm sm:px-4">
-        <Link href="/operativo" className="text-slate-600">
+        <Link href="/operativo" className="flex min-h-11 items-center text-slate-600">
           ← Operativo
         </Link>
         <h1 className="flex-1 text-center text-sm font-bold text-slate-900">Tablero de tareas</h1>
-        <Link href="/operativo/agenda" className="text-slate-600">
+        <Link href="/operativo/agenda" className="flex min-h-11 items-center text-slate-600">
           Agenda del equipo →
         </Link>
       </div>

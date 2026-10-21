@@ -174,7 +174,7 @@ export function MenuPrincipal({
       <div className="flex h-full w-full max-w-xs flex-col overflow-y-auto bg-white p-4 shadow-xl sm:max-w-sm">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold text-slate-900">Menú</h2>
-          <button type="button" onClick={onCerrar} className="rounded-md p-1 text-slate-600">
+          <button type="button" onClick={onCerrar} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md p-1 text-slate-600">
             ✕
           </button>
         </div>
@@ -183,31 +183,31 @@ export function MenuPrincipal({
         <nav className="space-y-1 text-sm" onClick={(e) => {
           if ((e.target as HTMLElement).closest("a")) onCerrar();
         }}>
-          <Link href="/" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+          <Link href="/" className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
             Inicio (módulos)
           </Link>
           {accesos.modulos.includes("comercial") && (
             <>
-              <Link href="/comercial" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+              <Link href="/comercial" className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
                 Comercial
               </Link>
-              <Link href="/comercial/cotizaciones" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+              <Link href="/comercial/cotizaciones" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
                 Cotizaciones
               </Link>
-              <Link href="/comercial/catalogo" className="block rounded-md py-1.5 pl-10 text-xs text-slate-500 hover:bg-slate-50">
+              <Link href="/comercial/catalogo" className="flex min-h-11 items-center rounded-md py-1.5 pl-10 text-xs text-slate-500 hover:bg-slate-50">
                 Catálogo de ítems
               </Link>
-              <Link href="/comercial/crm" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+              <Link href="/comercial/crm" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
                 CRM
               </Link>
             </>
           )}
           {accesos.modulos.includes("rrhh") && (
             <>
-              <Link href="/rrhh" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+              <Link href="/rrhh" className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
                 RRHH
               </Link>
-              <Link href="/rrhh/plantillas" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+              <Link href="/rrhh/plantillas" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
                 Plantillas de documentos
               </Link>
             </>
@@ -215,54 +215,54 @@ export function MenuPrincipal({
           {/* Planificación y la Agenda: solo con planificacion/trabajar (el técnico no la ve). */}
           {accesos.planificacion && (
             <>
-              <Link href="/planificacion" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+              <Link href="/planificacion" className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
                 Planificación
               </Link>
-              <Link href="/planificacion/agenda" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+              <Link href="/planificacion/agenda" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
                 📅 Agenda
               </Link>
             </>
           )}
           {accesos.modulos.includes("operativo") && (
             <>
-              <Link href="/operativo" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+              <Link href="/operativo" className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
                 Operativo — visitas técnicas
               </Link>
-              <Link href="/operativo/tareas" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+              <Link href="/operativo/tareas" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
                 Tablero de tareas
               </Link>
-              <Link href="/operativo/sugerencias" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+              <Link href="/operativo/sugerencias" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
                 Sugerencias de los técnicos
               </Link>
-              <Link href="/operativo/agenda" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+              <Link href="/operativo/agenda" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
                 Agenda del equipo
               </Link>
             </>
           )}
           {accesos.campoTecnico && (
-            <Link href="/tecnico" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+            <Link href="/tecnico" className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
               Técnico — mis visitas
             </Link>
           )}
           {accesos.modulos.includes("licitaciones") && (
-            <Link href="/licitaciones" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+            <Link href="/licitaciones" className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
               Licitaciones <span className="text-xs font-normal text-amber-700">(en construcción)</span>
             </Link>
           )}
           {accesos.modulos.includes("configuracion") && (
             <>
-              <Link href="/configuracion" className="block rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+              <Link href="/configuracion" className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
                 Configuración
               </Link>
-              <Link href="/configuracion/usuarios" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+              <Link href="/configuracion/usuarios" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
                 🔐 Usuarios y permisos
               </Link>
               {accesos.configResponsable && (
                 <>
-                  <Link href="/configuracion/grupos" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+                  <Link href="/configuracion/grupos" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
                     👥 Grupos
                   </Link>
-                  <Link href="/configuracion/transferir" className="block rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+                  <Link href="/configuracion/transferir" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
                     🔁 Transferir tareas
                   </Link>
                 </>
@@ -279,7 +279,7 @@ export function MenuPrincipal({
             reset();
             setMensaje(null);
           }}
-          className="mt-4 flex w-full items-center justify-between rounded-md px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          className="min-h-11 mt-4 flex w-full items-center justify-between rounded-md px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
         >
           Base de datos
           <span>{seccionAbierta === "basedatos" ? "▾" : "▸"}</span>
@@ -295,7 +295,7 @@ export function MenuPrincipal({
                     type="button"
                     onClick={exportar}
                     disabled={cargando}
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 disabled:opacity-60"
+                    className="min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 disabled:opacity-60"
                   >
                     {cargando ? "Generando…" : "⬇ Exportar copia"}
                   </button>
@@ -310,7 +310,7 @@ export function MenuPrincipal({
                     type="button"
                     onClick={() => inputArchivoRef.current?.click()}
                     disabled={cargando}
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 disabled:opacity-60"
+                    className="min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 disabled:opacity-60"
                   >
                     ⬆ Importar archivo
                   </button>
@@ -336,7 +336,7 @@ export function MenuPrincipal({
                     type="button"
                     onClick={abrirListaRespaldos}
                     disabled={cargando}
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 disabled:opacity-60"
+                    className="min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 disabled:opacity-60"
                   >
                     {cargando ? "Buscando…" : "↺ Restaurar"}
                   </button>
@@ -366,7 +366,7 @@ export function MenuPrincipal({
                 <button
                   type="button"
                   onClick={reset}
-                  className="text-xs font-medium text-slate-600"
+                  className="inline-flex min-h-11 items-center text-xs font-medium text-slate-600"
                 >
                   ← Volver
                 </button>
@@ -383,7 +383,7 @@ export function MenuPrincipal({
                       type="button"
                       onClick={() => elegirRespaldo(r.nombre)}
                       disabled={cargando}
-                      className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-xs disabled:opacity-60"
+                      className="min-h-11 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-xs disabled:opacity-60"
                     >
                       <span className="block font-medium text-slate-800">
                         {r.creadoEn
@@ -402,7 +402,7 @@ export function MenuPrincipal({
                 <button
                   type="button"
                   onClick={reset}
-                  className="text-xs font-medium text-slate-600"
+                  className="inline-flex min-h-11 items-center text-xs font-medium text-slate-600"
                 >
                   ← Cancelar
                 </button>
@@ -463,7 +463,7 @@ export function MenuPrincipal({
                     type="button"
                     onClick={exportar}
                     disabled={cargando}
-                    className="mt-1.5 text-xs font-medium text-slate-900 underline disabled:opacity-60"
+                    className="inline-flex min-h-11 items-center mt-1.5 text-xs font-medium text-slate-900 underline disabled:opacity-60"
                   >
                     Exportar copia de ahora
                   </button>
@@ -474,7 +474,7 @@ export function MenuPrincipal({
                     type="button"
                     onClick={reset}
                     disabled={cargando}
-                    className="flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 disabled:opacity-60"
+                    className="min-h-11 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 disabled:opacity-60"
                   >
                     Cancelar
                   </button>
@@ -482,7 +482,7 @@ export function MenuPrincipal({
                     type="button"
                     onClick={confirmarAplicar}
                     disabled={cargando}
-                    className="flex-1 rounded-md bg-red-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
+                    className="min-h-11 flex-1 rounded-md bg-red-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
                   >
                     {cargando ? "Aplicando…" : "Confirmar y aplicar"}
                   </button>

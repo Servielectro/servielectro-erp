@@ -154,7 +154,7 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
             <button
               type="button"
               onClick={() => setCreandoUsuario(true)}
-              className="rounded-md bg-brand-red px-3 py-1.5 text-sm font-semibold text-white"
+              className="min-h-11 rounded-md bg-brand-red px-3 py-1.5 text-sm font-semibold text-white"
             >
               + Nuevo usuario
             </button>
@@ -197,7 +197,7 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
                           correr(() => cambiarNombre(u.id, nuevo), "Nombre actualizado");
                         }
                       }}
-                      className="ml-2 text-xs font-normal text-slate-500 underline"
+                      className="inline-flex min-h-11 items-center ml-2 text-xs font-normal text-slate-500 underline"
                     >
                       {u.nombre ? "cambiar nombre" : "ponerle nombre"}
                     </button>
@@ -216,7 +216,7 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
                         if (telefono === null) return;
                         correr(() => cambiarDatosPersonales(u.id, cedula, telefono), "Cédula y teléfono actualizados");
                       }}
-                      className="ml-2 text-xs font-normal text-slate-500 underline"
+                      className="inline-flex min-h-11 items-center ml-2 text-xs font-normal text-slate-500 underline"
                     >
                       {u.cedula ? "cambiar cédula/teléfono" : "agregar cédula/teléfono"}
                     </button>
@@ -242,7 +242,7 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
                       `Rol de ${u.nombre || u.email} actualizado`,
                     )
                   }
-                  className="rounded-md border border-slate-300 bg-white px-2 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500"
+                  className="min-h-11 rounded-md border border-slate-300 bg-white px-2 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500"
                 >
                   <option value="">Sin rol (sin acceso)</option>
                   {datos.roles.map((r) => (
@@ -290,7 +290,7 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
               key={r.id}
               type="button"
               onClick={() => elegirRol(r.id)}
-              className={`rounded-full border px-3 py-1.5 text-sm ${
+              className={`min-h-11 rounded-full border px-3 py-1.5 text-sm ${
                 r.id === rolSel
                   ? "border-slate-900 bg-slate-900 text-white"
                   : "border-slate-300 bg-white text-slate-700"
@@ -330,7 +330,7 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
             value={nuevoRol}
             onChange={(e) => setNuevoRol(e.target.value)}
             placeholder="Nombre del rol nuevo (ej. Comercial)"
-            className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="min-h-11 min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
           <button
             type="submit"
@@ -355,7 +355,7 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
                   <button
                     type="button"
                     onClick={() => setNombreEdit(rolActual.nombre)}
-                    className="text-xs text-slate-600 underline"
+                    className="inline-flex min-h-11 items-center text-xs text-slate-600 underline"
                   >
                     Renombrar
                   </button>
@@ -377,7 +377,7 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
                           return res;
                         }, "Rol eliminado");
                       }}
-                      className="text-xs text-red-700 underline"
+                      className="inline-flex min-h-11 items-center text-xs text-red-700 underline"
                     >
                       Eliminar
                     </button>
@@ -401,7 +401,7 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
                     value={nombreEdit}
                     onChange={(e) => setNombreEdit(e.target.value)}
                     autoFocus
-                    className="min-w-0 flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                    className="min-h-11 min-w-0 flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
                   />
                   <button type="submit" className="text-sm font-medium text-slate-900">
                     Guardar
@@ -409,7 +409,7 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
                   <button
                     type="button"
                     onClick={() => setNombreEdit(null)}
-                    className="text-sm text-slate-500"
+                    className="min-h-11 text-sm text-slate-500"
                   >
                     Cancelar
                   </button>
@@ -443,7 +443,7 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
                             <button
                               type="button"
                               onClick={() => quitarAcceso(m.id)}
-                              className="text-xs text-slate-500 underline"
+                              className="inline-flex min-h-11 items-center text-xs text-slate-500 underline"
                             >
                               Quitar acceso
                             </button>
@@ -461,7 +461,7 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
                                 onClick={() => marcarNivel(m.id, n.key)}
                                 aria-label={`${m.nombre}: ${n.label}`}
                                 aria-pressed={exacto}
-                                className={`h-9 w-9 rounded-md border text-lg leading-none ${
+                                className={`h-11 w-11 rounded-md border text-lg leading-none ${
                                   exacto
                                     ? "border-green-600 bg-green-600 text-white"
                                     : marcado
@@ -481,7 +481,7 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
                             onClick={() => alternarSensibles(m.id)}
                             aria-label={`${m.nombre}: ver datos sensibles`}
                             aria-pressed={p?.veDatosSensibles ?? false}
-                            className={`h-9 w-9 rounded-md border text-lg leading-none disabled:opacity-30 ${
+                            className={`h-11 w-11 rounded-md border text-lg leading-none disabled:opacity-30 ${
                               p?.veDatosSensibles
                                 ? "border-amber-600 bg-amber-500 text-white"
                                 : "border-slate-300 bg-white text-transparent"
@@ -509,7 +509,7 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
                       setMatriz(matrizDeRol(datos.permisos, rolActual.id));
                       setSucia(false);
                     }}
-                    className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700"
+                    className="min-h-11 rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700"
                   >
                     Descartar
                   </button>
@@ -563,7 +563,7 @@ function NuevoUsuarioForm({
         value={nombre}
         onChange={(e) => setNombre(e.target.value)}
         placeholder="Nombre (ej. Carlos Pérez)"
-        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+        className="min-h-11 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
         autoFocus
       />
       <input
@@ -572,7 +572,7 @@ function NuevoUsuarioForm({
         onChange={(e) => setEmail(e.target.value)}
         placeholder="Correo con el que va a entrar"
         autoComplete="off"
-        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+        className="min-h-11 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
       />
       <div className="flex gap-2">
         <input
@@ -581,12 +581,12 @@ function NuevoUsuarioForm({
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Contraseña inicial (mínimo 8)"
           autoComplete="new-password"
-          className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className="min-h-11 min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
         <button
           type="button"
           onClick={() => setVer((v) => !v)}
-          className="shrink-0 rounded-md border border-slate-300 px-2 text-xs text-slate-600"
+          className="min-h-11 shrink-0 rounded-md border border-slate-300 px-2 text-xs text-slate-600"
         >
           {ver ? "Ocultar" : "Ver"}
         </button>
@@ -594,7 +594,7 @@ function NuevoUsuarioForm({
       <select
         value={rolId}
         onChange={(e) => setRolId(e.target.value)}
-        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+        className="min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
       >
         <option value="">Sin rol por ahora (no ve ningún módulo)</option>
         {roles.map((r) => (

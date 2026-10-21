@@ -16,8 +16,8 @@ export function AppHeader({ accesos }: { accesos: AccesosMenu }) {
   return (
     <>
       <header className="sticky top-0 z-30 border-b print:hidden border-slate-200 bg-white">
-        <div className="mx-auto flex w-full max-w-3xl items-center gap-2 p-3 sm:p-4">
-          <Link href="/" className="shrink-0">
+        <div className="mx-auto flex w-full max-w-3xl items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2.5">
+          <Link href="/" className="flex min-h-11 items-center shrink-0">
             <Image
               src="/logo-servielectro.png"
               alt="Servielectro SAS"
@@ -32,7 +32,7 @@ export function AppHeader({ accesos }: { accesos: AccesosMenu }) {
             type="button"
             onClick={() => setMenuAbierto(true)}
             aria-label="Menú"
-            className="shrink-0 rounded-md p-1.5 text-slate-700"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center shrink-0 rounded-md p-1.5 text-slate-700"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"

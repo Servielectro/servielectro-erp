@@ -501,7 +501,7 @@ export function TableroTareas({
                 key={c}
                 type="button"
                 onClick={() => setCerradas((s) => new Set([...s].filter((x) => x !== c)))}
-                className="ml-1 underline"
+                className="inline-flex min-h-11 items-center ml-1 underline"
               >
                 {ETIQUETA_ESTADO[c]} ↺
               </button>

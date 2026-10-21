@@ -68,7 +68,7 @@ export default async function SugerenciasPage() {
 
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6">
-      <Link href="/operativo" className="text-sm text-slate-600">
+      <Link href="/operativo" className="inline-flex min-h-11 items-center text-sm text-slate-600">
         ← Operativo
       </Link>
       <h1 className="mb-1 mt-2 text-center text-sm font-bold text-slate-900">Sugerencias de los técnicos</h1>

@@ -679,7 +679,7 @@ function Jornada({
 
   return (
     <section className="rounded-2xl border-2 border-slate-300 bg-white p-4">
-      <button type="button" onClick={() => setAbierta((a) => !a)} className="w-full text-left">
+      <button type="button" onClick={() => setAbierta((a) => !a)} className="min-h-11 w-full text-left">
         <p className="text-lg font-bold first-letter:uppercase">
           {esHoy ? "Hoy" : fechaLarga(jornada.fecha)} {abierta ? "▾" : "▸"}
         </p>

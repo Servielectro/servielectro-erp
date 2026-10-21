@@ -25,7 +25,7 @@ import {
 } from "@/lib/tareas-guardar";
 import { ElegirParticipantes } from "./ElegirParticipantes";
 
-const CAMPO = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base";
+const CAMPO = "mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base";
 const ETIQUETA = "text-sm font-semibold text-slate-700";
 
 const NOMBRE_VISIBILIDAD: Record<VisibilidadTarea, string> = {

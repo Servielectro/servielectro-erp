@@ -158,12 +158,12 @@ export function BandejaSugerencias({
           <span className="flex-1 text-sm">
             {seleccion.length} {seleccion.length === 1 ? "sugerencia elegida" : "sugerencias elegidas"} (misma visita)
           </span>
-          <button type="button" onClick={() => setSeleccion([])} className="min-h-10 px-2 text-sm underline">
+          <button type="button" onClick={() => setSeleccion([])} className="min-h-11 px-2 text-sm underline">
             Limpiar
           </button>
           <Link
             href={`/comercial/cotizaciones/nueva?sugerencias=${seleccion.join(",")}`}
-            className="min-h-10 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-900"
+            className="min-h-11 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-900"
           >
             Cotizar en el armador
           </Link>
@@ -180,7 +180,7 @@ export function BandejaSugerencias({
               <li key={s.id} className="rounded-xl border border-slate-300 bg-white p-4 shadow-sm">
                 <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
                   {puedeComercial && (s.estado === "pendiente" || s.estado === "en_revision") && (
-                    <label className="flex min-h-10 items-center gap-1.5 pr-1 text-sm font-medium text-slate-700">
+                    <label className="flex min-h-11 items-center gap-1.5 pr-1 text-sm font-medium text-slate-700">
                       <input
                         type="checkbox"
                         checked={seleccion.includes(s.id)}

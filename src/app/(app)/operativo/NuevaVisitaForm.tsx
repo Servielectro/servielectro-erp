@@ -62,7 +62,7 @@ export function NuevaVisitaForm({
             setAbierto(true);
             setOk(false);
           }}
-          className="w-full rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
+          className="min-h-11 w-full rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
         >
           + Nueva visita
         </button>
@@ -167,10 +167,10 @@ export function NuevaVisitaForm({
       </div>
       {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       <div className="flex gap-2">
-        <button type="button" onClick={() => setAbierto(false)} disabled={pendiente} className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium">
+        <button type="button" onClick={() => setAbierto(false)} disabled={pendiente} className="min-h-11 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium">
           Cancelar
         </button>
-        <button type="button" onClick={guardar} disabled={pendiente} className="flex-1 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">
+        <button type="button" onClick={guardar} disabled={pendiente} className="min-h-11 flex-1 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">
           {pendiente ? "Guardando…" : "Crear visita"}
         </button>
       </div>
