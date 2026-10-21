@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { ClienteCombobox } from "@/components/clientes/ClienteCombobox";
+import { NuevoClienteModal } from "@/components/clientes/NuevoClienteModal";
 import type { ClienteResumen } from "@/lib/supabase/clientes";
 import { hoyColombia } from "@/lib/crm";
 import { crearVisita, type NuevaVisita } from "./actions";
@@ -28,13 +29,22 @@ function vacia(): NuevaVisita {
 
 export function NuevaVisitaForm({
   tecnicos,
-  clientes,
+  clientes: clientesIniciales,
   errorTecnicos,
+  veClientes,
+  puedeCrearCliente,
 }: {
   tecnicos: { id: string; nombre: string }[];
   clientes: ClienteResumen[];
   errorTecnicos: string | null;
+  /** comercial/consultar: puede buscar en la lista de clientes. */
+  veClientes: boolean;
+  /** comercial/trabajar: puede crear clientes (el mismo alta del cotizador). */
+  puedeCrearCliente: boolean;
 }) {
+  const [clientes, setClientes] = useState(clientesIniciales);
+  const [nuevoCliente, setNuevoCliente] = useState<string | null>(null);
+  const [avisoCliente, setAvisoCliente] = useState<string | null>(null);
   const [abierto, setAbierto] = useState(false);
   const [v, setV] = useState<NuevaVisita>(vacia);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +89,7 @@ export function NuevaVisitaForm({
         <label className="text-xs text-slate-600">Qué es (lo ve el técnico en su lista) *</label>
         <input value={v.titulo} onChange={(e) => cambiar("titulo", e.target.value)} placeholder="Ej. Mantenimiento CCTV torre 2" className={CAMPO} />
       </div>
-      {clientes.length > 0 ? (
+      {veClientes ? (
         <ClienteCombobox
           clientes={clientes}
           label="Cliente"
@@ -94,13 +104,49 @@ export function NuevaVisitaForm({
               telefonoSitio: p.telefonoSitio || c.telefono || "",
             }))
           }
-          onCrearNuevo={(busqueda) => setV((p) => ({ ...p, clienteId: null, clienteNombre: busqueda }))}
+          // Crear: el MISMO alta del cotizador (RUT, NIT, ubicación). Sin permiso de Comercial
+          // para crear, no se ofrece un botón que no puede funcionar: se usa como texto y se dice.
+          onCrearNuevo={puedeCrearCliente ? (busqueda) => setNuevoCliente(busqueda) : undefined}
+          onUsarTexto={puedeCrearCliente ? undefined : (texto) => setV((p) => ({ ...p, clienteId: null, clienteNombre: texto }))}
+          motivoSinCrear={
+            puedeCrearCliente
+              ? undefined
+              : "Crear clientes es de Comercial: puedes dejar el nombre como texto y Comercial lo registra después."
+          }
         />
       ) : (
         <div>
           <label className="text-xs text-slate-600">Cliente</label>
           <input value={v.clienteNombre} onChange={(e) => cambiar("clienteNombre", e.target.value)} className={CAMPO} />
+          <p className="mt-1 text-xs text-slate-600">
+            Sin permiso de Comercial no se ve la lista de clientes: el nombre queda como texto.
+          </p>
         </div>
+      )}
+      {avisoCliente && <p className="text-xs text-blue-700">{avisoCliente}</p>}
+      {nuevoCliente !== null && (
+        <NuevoClienteModal
+          nombreInicial={nuevoCliente}
+          onCerrar={() => setNuevoCliente(null)}
+          onCreado={(c, yaExistia) => {
+            if (!yaExistia) setClientes((prev) => [...prev, c].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+            // Enlazado por id, no solo por nombre; y lo que se sepa del sitio, precargado.
+            setV((p) => ({
+              ...p,
+              clienteId: c.id,
+              clienteNombre: c.nombre,
+              direccion: p.direccion || c.direccion || "",
+              contactoSitio: p.contactoSitio || c.contacto || "",
+              telefonoSitio: p.telefonoSitio || c.telefono || "",
+            }));
+            setAvisoCliente(
+              yaExistia
+                ? `Ya existía un cliente con ese NIT (${c.nombre}): quedó seleccionado, no se duplicó.`
+                : `Cliente ${c.nombre} creado y seleccionado.`,
+            );
+            setNuevoCliente(null);
+          }}
+        />
       )}
       <div>
         <label className="text-xs text-slate-600">Dirección</label>

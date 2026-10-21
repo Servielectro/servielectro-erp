@@ -19,12 +19,19 @@ export function ClienteCombobox({
   seleccionado,
   onSeleccionar,
   onCrearNuevo,
+  onUsarTexto,
+  motivoSinCrear,
   label = "Cliente *",
 }: {
   clientes: ClienteResumen[];
   seleccionado: { id: string | null; nombre: string } | null;
   onSeleccionar: (cliente: ClienteResumen) => void;
-  onCrearNuevo: (busqueda: string) => void;
+  /** Abre el alta de cliente. Si no se pasa (sin permiso), no se ofrece crear. */
+  onCrearNuevo?: (busqueda: string) => void;
+  /** Sin permiso para crear: usar lo escrito como texto, sin registrar el cliente. */
+  onUsarTexto?: (texto: string) => void;
+  /** Por qué no se puede crear (se muestra en lugar del botón de crear). */
+  motivoSinCrear?: string;
   label?: string;
 }) {
   const [abierto, setAbierto] = useState(false);
@@ -62,23 +69,44 @@ export function ClienteCombobox({
       />
       {!abierto && sinRegistrar && (
         <p className="mt-1 text-xs text-amber-700">
-          Este cliente no está en la lista: búscalo o créalo con «+ Nuevo cliente».
+          {onCrearNuevo
+            ? "Este cliente no está en la lista: búscalo o créalo con «+ Nuevo cliente»."
+            : "Queda como texto: no está registrado como cliente."}
         </p>
       )}
 
       {abierto && (
         <div className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-md border border-slate-200 bg-white shadow-lg">
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              onCrearNuevo(query.trim());
-              setAbierto(false);
-            }}
-            className="flex w-full items-center gap-2 border-b border-slate-100 px-3 py-3 text-left text-base font-medium text-blue-700 active:bg-blue-50"
-          >
-            + Nuevo cliente{query.trim() ? `: "${query.trim()}"` : ""}
-          </button>
+          {onCrearNuevo ? (
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onCrearNuevo(query.trim());
+                setAbierto(false);
+              }}
+              className="flex w-full items-center gap-2 border-b border-slate-100 px-3 py-3 text-left text-base font-medium text-blue-700 active:bg-blue-50"
+            >
+              + Nuevo cliente{query.trim() ? `: "${query.trim()}"` : ""}
+            </button>
+          ) : (
+            <div className="border-b border-slate-100 px-3 py-2">
+              {motivoSinCrear && <p className="text-xs text-slate-600">{motivoSinCrear}</p>}
+              {onUsarTexto && query.trim() && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    onUsarTexto(query.trim());
+                    setAbierto(false);
+                  }}
+                  className="mt-1 flex min-h-11 w-full items-center text-left text-base font-medium text-blue-700"
+                >
+                  Usar «{query.trim()}» como texto
+                </button>
+              )}
+            </div>
+          )}
 
           {resultados.lista.length === 0 && (
             <p className="px-3 py-3 text-sm text-slate-600">Ningún cliente coincide.</p>

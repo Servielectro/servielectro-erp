@@ -16,6 +16,7 @@ export default async function OperativoPage() {
   const supabase = await createClient();
   const puedeCrear = await tienePermiso("operativo", "trabajar");
   const veComercial = await tienePermiso("comercial", "consultar");
+  const creaClientes = await tienePermiso("comercial", "trabajar");
 
   const [{ data: visitas, error }, tecnicosRes, clientes] = await Promise.all([
     supabase
@@ -57,6 +58,8 @@ export default async function OperativoPage() {
         <NuevaVisitaForm
           tecnicos={tecnicos}
           clientes={clientes}
+          veClientes={veComercial}
+          puedeCrearCliente={creaClientes}
           errorTecnicos={tecnicosRes.error ? tecnicosRes.error.message : null}
         />
       )}
