@@ -10,6 +10,7 @@ import {
 } from "@/lib/visitas/metricas";
 import { GaleriaFotos } from "./GaleriaFotos";
 import { CierreVisita } from "./CierreVisita";
+import { AccionesVisita } from "./AccionesVisita";
 
 // Vista del resultado de una visita para el coordinador (los datos los carga page.tsx). Va
 // aparte de la carga para poder medirla con datos de prueba.
@@ -68,7 +69,16 @@ function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactN
   );
 }
 
-export function VisitaCoordinador({ v, puedeCerrar }: { v: VisitaDetalle; puedeCerrar: boolean }) {
+export function VisitaCoordinador({
+  v,
+  puedeCerrar,
+  tecnicos = [],
+}: {
+  v: VisitaDetalle;
+  puedeCerrar: boolean;
+  /** Para cambiar el técnico (solo con operativo/trabajar). */
+  tecnicos?: { id: string; nombre: string }[];
+}) {
   const hitos = lineaDeTiempo(v.creadaEn, v.vistoEn, v.jornadas);
   const duracion = duracionMs(v.jornadas);
   const programada = programadaEn(v.fechaProgramada, v.horaProgramada);
@@ -139,6 +149,11 @@ export function VisitaCoordinador({ v, puedeCerrar }: { v: VisitaDetalle; puedeC
           )}
           {v.descripcionTrabajo && <Dato etiqueta="Trabajo">{v.descripcionTrabajo}</Dato>}
         </dl>
+        {puedeCerrar && (v.estado === "programada" || v.estado === "cancelada" || v.estado === "en_curso") && (
+          <div className="mt-2 border-t border-slate-100 pt-2">
+            <AccionesVisita visitaId={v.id} estado={v.estado} tecnicoId={v.tecnico.id} tecnicos={tecnicos} />
+          </div>
+        )}
       </Seccion>
 
       {/* ---------------------------------------------------------------- monitoreo */}
@@ -312,6 +327,9 @@ export function VisitaCoordinador({ v, puedeCerrar }: { v: VisitaDetalle; puedeC
               </li>
             ))}
           </ul>
+          <Link href="/operativo/tareas" className="mt-1 flex min-h-11 items-center text-sm font-semibold text-[#A82323] underline">
+            Reasignar o eliminar tareas en el tablero →
+          </Link>
         </Seccion>
       )}
 

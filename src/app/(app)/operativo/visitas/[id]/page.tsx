@@ -10,5 +10,8 @@ export default async function VisitaDetallePage(props: PageProps<"/operativo/vis
   const supabase = await createClient();
   const [v, puedeCerrar] = await Promise.all([getVisitaDetalle(supabase, id), tienePermiso("operativo", "trabajar")]);
   if (!v) notFound();
-  return <VisitaCoordinador v={v} puedeCerrar={puedeCerrar} />;
+  const tecnicos = puedeCerrar
+    ? (((await supabase.rpc("fn_tecnicos_asignables")).data ?? []) as { id: string; nombre: string }[])
+    : [];
+  return <VisitaCoordinador v={v} puedeCerrar={puedeCerrar} tecnicos={tecnicos} />;
 }

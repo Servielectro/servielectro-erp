@@ -96,3 +96,47 @@ export async function cerrarVisita(
   revalidatePath(`/operativo/visitas/${visitaId}`);
   return { ok: true };
 }
+
+type Resultado = { ok: true } | { ok: false; error: string };
+
+async function actualizarVisita(visitaId: string, cambios: Record<string, unknown>, soloDesde: string[]): Promise<Resultado> {
+  if (!(await tienePermiso("operativo", "trabajar"))) {
+    return { ok: false, error: "Esto requiere permiso de Operativo." };
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("visitas")
+    .update(cambios)
+    .eq("id", visitaId)
+    .in("estado", soloDesde)
+    .select("id");
+  if (error) return { ok: false, error: error.message };
+  if (!data || data.length === 0) {
+    return { ok: false, error: "La visita cambió de estado mientras tanto: recarga la pantalla." };
+  }
+  revalidatePath("/operativo");
+  revalidatePath(`/operativo/visitas/${visitaId}`);
+  return { ok: true };
+}
+
+/**
+ * Cambia el técnico de una visita que todavía no empezó. Ya empezada no: el técnico anterior
+ * tiene evidencia en su celular que, reasignada, ya no podría subir. El "vista" vuelve a
+ * nulo solo (trigger de la migración 59): el nuevo todavía no la vio.
+ */
+export async function reasignarVisita(visitaId: string, tecnicoId: string): Promise<Resultado> {
+  if (!tecnicoId) return { ok: false, error: "Elige el técnico." };
+  return actualizarVisita(visitaId, { tecnico_id: tecnicoId }, ["programada"]);
+}
+
+/**
+ * "Eliminar" una visita = cancelarla: el técnico deja de verla, no se borra nada y se puede
+ * recuperar. Solo si todavía no empezó (una visita con evidencia no se esconde).
+ */
+export async function cancelarVisita(visitaId: string): Promise<Resultado> {
+  return actualizarVisita(visitaId, { estado: "cancelada" }, ["programada"]);
+}
+
+export async function recuperarVisita(visitaId: string): Promise<Resultado> {
+  return actualizarVisita(visitaId, { estado: "programada" }, ["cancelada"]);
+}
