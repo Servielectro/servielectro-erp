@@ -38,17 +38,23 @@ interface Tecnico {
   id: string;
   nombre: string;
   cedula: string;
+  /** Puede editar perfiles (responsable de Configuración): la cédula la carga él mismo. */
+  puedeEditarPerfil?: boolean;
 }
 
 // Avisos de espacio: con tiempo, no cuando ya no cabe.
 const POCAS_FOTOS = 80;
 const CASI_SIN_ESPACIO = 20;
 
-const BOTON =
-  "min-h-14 w-full rounded-xl px-4 text-lg font-semibold active:scale-[0.99] disabled:opacity-40";
-const BOTON_PRIMARIO = `${BOTON} bg-[#A82323] text-white`;
-const BOTON_SECUNDARIO = `${BOTON} border-2 border-slate-400 bg-white text-slate-900`;
-const CAMPO = "w-full rounded-xl border-2 border-slate-300 bg-white px-3 py-3 text-lg";
+// Tamaños (2026-10-20, contra los pantallazos de NEXGO que aprobó Jhojan): los botones
+// comunes miden 36 px; SOLO las acciones que se tocan con guante o deciden algo (tomar foto,
+// firmar, marcar entrada y salida) quedan en 44 px. Más alto en todo no dejaba ver nada.
+const BOTON = "w-full rounded-lg px-3 text-base font-semibold active:scale-[0.99] disabled:opacity-40";
+const BOTON_PRIMARIO = `min-h-9 ${BOTON} bg-[#A82323] text-white`;
+const BOTON_SECUNDARIO = `min-h-9 ${BOTON} border-2 border-slate-400 bg-white text-slate-900`;
+const BOTON_ACCION = `min-h-11 ${BOTON} bg-[#A82323] text-white`;
+const BOTON_ACCION_SECUNDARIO = `min-h-11 ${BOTON} border-2 border-slate-400 bg-white text-slate-900`;
+const CAMPO = "w-full rounded-lg border-2 border-slate-300 bg-white px-2 py-1.5 text-base";
 
 function fechaLarga(fecha: string) {
   // Mediodía UTC: la fecha "YYYY-MM-DD" no se corre de día en Colombia.
@@ -169,10 +175,10 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
   return (
     <div className="mx-auto w-full max-w-xl pb-24">
       {/* Debajo del encabezado global (57 px; 65 px desde sm, medidos), que también es fijo. */}
-      <div className="sticky top-[57px] z-10 border-b border-slate-300 bg-white px-4 py-3 sm:top-[65px]">
+      <div className="sticky top-[57px] z-10 border-b border-slate-300 bg-white px-4 py-1.5 sm:top-[65px]">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <p className="truncate text-lg font-bold">{tecnico.nombre || "Técnico"}</p>
+            <p className="truncate text-base font-bold">{tecnico.nombre || "Técnico"}</p>
             <p className={`text-sm font-medium ${enLinea ? "text-green-700" : "text-amber-700"}`}>
               {enLinea ? "Con señal" : "Sin señal — todo se guarda en el celular"}
             </p>
@@ -181,7 +187,7 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
             type="button"
             onClick={subir}
             disabled={sincronizando || !enLinea}
-            className="min-h-12 shrink-0 rounded-xl border-2 border-slate-400 px-3 text-base font-semibold disabled:opacity-40"
+            className="min-h-9 shrink-0 rounded-xl border-2 border-slate-400 px-3 text-base font-semibold disabled:opacity-40"
           >
             {sincronizando ? "Subiendo…" : "Sincronizar"}
           </button>
@@ -195,7 +201,7 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
 
       {fotosQueCaben !== null && fotosQueCaben < POCAS_FOTOS && (
         <p
-          className={`mx-4 mt-3 rounded-xl px-4 py-3 text-base font-medium ${
+          className={`mx-4 mt-1.5 rounded-xl px-4 py-1.5 text-base font-medium ${
             fotosQueCaben < CASI_SIN_ESPACIO ? "bg-red-100 text-red-900" : "bg-amber-100 text-amber-900"
           }`}
         >
@@ -205,7 +211,7 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
         </p>
       )}
       {rechazados.length > 0 && (
-        <div className="mx-4 mt-3 rounded-xl border-2 border-red-400 bg-red-100 px-4 py-3 text-base text-red-900">
+        <div className="mx-4 mt-1.5 rounded-xl border-2 border-red-400 bg-red-100 px-4 py-1.5 text-base text-red-900">
           <p className="font-semibold">
             {rechazados.length === 1 ? "1 registro no se subió" : `${rechazados.length} registros no se subieron`}. No se
             borró nada del celular.
@@ -223,20 +229,20 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
               subir();
             }}
             disabled={!enLinea || sincronizando}
-            className="mt-2 min-h-12 rounded-xl border-2 border-red-700 px-4 text-base font-semibold disabled:opacity-40"
+            className="mt-2 min-h-9 rounded-xl border-2 border-red-700 px-4 text-base font-semibold disabled:opacity-40"
           >
             Ya lo resolvió la oficina: reintentar
           </button>
         </div>
       )}
       {conErrores.length > 0 && (
-        <div className="mx-4 mt-3 rounded-xl bg-amber-100 px-4 py-3 text-base text-amber-900">
+        <div className="mx-4 mt-1.5 rounded-xl bg-amber-100 px-4 py-1.5 text-base text-amber-900">
           <p className="font-semibold">{conErrores.length} sin poder subir todavía — se reintenta solo. No se borró nada.</p>
           <p className="mt-1 text-sm">{conErrores[0].ultimoError}</p>
         </div>
       )}
       {aviso && (
-        <p role="status" className="mx-4 mt-3 rounded-xl bg-slate-800 px-4 py-3 text-base text-white">
+        <p role="status" className="mx-4 mt-1.5 rounded-xl bg-slate-800 px-4 py-1.5 text-base text-white">
           {aviso}
         </p>
       )}
@@ -301,19 +307,19 @@ function MisTareas({
       <h2 className="mb-2 text-sm font-bold uppercase text-slate-600">
         Mis tareas <span className="font-normal text-slate-400">{abiertas.length}</span>
       </h2>
-      <ul className="space-y-2">
+      <ul className="space-y-1">
         {abiertas.map((t) => {
           const p = PRIORIDADES.find((x) => x.valor === t.prioridad)!;
           const vence = etiquetaVence({ fechaLimite: t.fechaLimite, estado: t.estado }, hoy);
           return (
-            <li key={t.id} className={`rounded-2xl border-2 p-3 ${p.tinte}`}>
+            <li key={t.id} className={`rounded-xl border-2 p-3 ${p.tinte}`}>
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className={`font-bold ${p.texto}`}>{p.etiqueta}</span>
                 {vence && <span className={vence.clase}>{vence.texto}</span>}
                 <span className="text-slate-500">{t.estado === "en_progreso" ? "En progreso" : "Por hacer"}</span>
                 {t.estadoPendiente && <span className="text-amber-700">· pendiente de subir</span>}
               </div>
-              <p className="mt-0.5 text-lg font-bold leading-snug">{t.titulo}</p>
+              <p className="mt-0.5 text-base font-bold leading-snug">{t.titulo}</p>
               {t.descripcion && <p className="mt-1 whitespace-pre-line text-base text-slate-700">{t.descripcion}</p>}
               <div className="mt-2 grid grid-cols-2 gap-2">
                 {t.estado === "por_hacer" ? (
@@ -335,13 +341,13 @@ function MisTareas({
       </ul>
       {hechas.length > 0 && (
         <div className="mt-2">
-          <button type="button" onClick={() => setVerHechas((v) => !v)} className="min-h-12 text-base font-semibold text-slate-600">
+          <button type="button" onClick={() => setVerHechas((v) => !v)} className="min-h-9 text-base font-semibold text-slate-600">
             {verHechas ? "▾" : "▸"} Terminadas ({hechas.length})
           </button>
           {verHechas && (
             <ul className="space-y-1">
               {hechas.map((t) => (
-                <li key={t.id} className="flex min-h-12 items-center justify-between gap-2 rounded-xl bg-white px-3 text-base text-slate-500">
+                <li key={t.id} className="flex min-h-9 items-center justify-between gap-2 rounded-xl bg-white px-3 text-base text-slate-500">
                   <span className="line-through">{t.titulo}</span>
                   <button type="button" onClick={() => onMover(t, "en_progreso")} className="min-h-11 shrink-0 px-2 text-sm font-semibold text-[#A82323]">
                     Reabrir
@@ -368,7 +374,7 @@ function ListaVisitas({
   const hoy = hoyBogota();
   if (visitas.length === 0) {
     return (
-      <p className="px-4 py-8 text-center text-lg text-slate-600">
+      <p className="px-4 py-8 text-center text-base text-slate-600">
         {enLinea
           ? "No tienes visitas asignadas."
           : "Sin señal y sin visitas guardadas en este celular. Ábrela con señal para descargar tus visitas."}
@@ -376,20 +382,20 @@ function ListaVisitas({
     );
   }
   return (
-    <ul className="space-y-3 px-4 pt-4">
+    <ul className="space-y-1.5 px-3 pt-2">
       {visitas.map((v) => (
         <li key={v.id}>
           <button
             type="button"
             onClick={() => onAbrir(v.id)}
-            className="w-full rounded-2xl border-2 border-slate-300 bg-white p-4 text-left active:bg-slate-50"
+            className="w-full rounded-xl border-2 border-slate-300 bg-white p-2 text-left active:bg-slate-50"
           >
             <p className="text-sm font-semibold uppercase text-slate-500">
               {v.estado === "en_curso" ? "En curso" : v.estado === "firmada" ? "Firmada" : "Programada"}
               {v.fechaProgramada === hoy ? " · Hoy" : v.fechaProgramada ? ` · ${v.fechaProgramada}` : ""}
               {v.tipo === "obra" ? " · Obra" : ""}
             </p>
-            <p className="mt-1 text-xl font-bold leading-snug">{v.titulo}</p>
+            <p className="mt-0.5 text-lg font-bold leading-snug">{v.titulo}</p>
             {v.clienteNombre && <p className="text-base text-slate-700">{v.clienteNombre}</p>}
             {v.direccion && <p className="text-base text-slate-600">{v.direccion}</p>}
           </button>
@@ -507,14 +513,14 @@ function DetalleVisita({
   }
 
   return (
-    <div className="space-y-4 px-4 pt-4">
-      <button type="button" onClick={onVolver} className="min-h-12 text-lg font-semibold text-[#A82323]">
+    <div className="space-y-2 px-3 pt-2 pb-4">
+      <button type="button" onClick={onVolver} className="min-h-9 text-base font-semibold text-[#A82323]">
         ← Mis visitas
       </button>
 
-      <section className="rounded-2xl border-2 border-slate-300 bg-white p-4">
-        <p className="text-xl font-bold leading-snug">{visita.titulo}</p>
-        {visita.clienteNombre && <p className="mt-1 text-lg">{visita.clienteNombre}</p>}
+      <section className="rounded-xl border-2 border-slate-300 bg-white p-2">
+        <p className="text-lg font-bold leading-snug">{visita.titulo}</p>
+        {visita.clienteNombre && <p className="mt-1 text-base">{visita.clienteNombre}</p>}
         {visita.direccion && <p className="text-base text-slate-700">{visita.direccion}</p>}
         {(visita.contactoSitio || visita.telefonoSitio) && (
           <p className="mt-1 text-base">
@@ -530,17 +536,17 @@ function DetalleVisita({
           </p>
         )}
         {visita.descripcionTrabajo && (
-          <p className="mt-3 whitespace-pre-line rounded-xl bg-slate-100 p-3 text-base">{visita.descripcionTrabajo}</p>
+          <p className="mt-1.5 whitespace-pre-line rounded-xl bg-slate-100 p-3 text-base">{visita.descripcionTrabajo}</p>
         )}
       </section>
 
       {cerrada && (
-        <p className="rounded-xl bg-green-100 px-4 py-3 text-lg font-semibold text-green-900">
+        <p className="rounded-xl bg-green-100 px-4 py-1.5 text-base font-semibold text-green-900">
           Visita firmada por el cliente. Ya no se edita.
         </p>
       )}
 
-      {ocupado && <p className="rounded-xl bg-slate-800 px-4 py-3 text-lg text-white">{ocupado}</p>}
+      {ocupado && <p className="rounded-xl bg-slate-800 px-4 py-1.5 text-base text-white">{ocupado}</p>}
 
       {avisoSalida && (
         <AvisoSalida
@@ -564,7 +570,7 @@ function DetalleVisita({
       ) : (
         <>
           {!cerrada && !jornadaHoy && (
-            <button type="button" onClick={marcarEntrada} disabled={Boolean(ocupado)} className={BOTON_PRIMARIO}>
+            <button type="button" onClick={marcarEntrada} disabled={Boolean(ocupado)} className={BOTON_ACCION}>
               Marcar entrada (con GPS)
             </button>
           )}
@@ -678,9 +684,9 @@ function Jornada({
   ];
 
   return (
-    <section className="rounded-2xl border-2 border-slate-300 bg-white p-4">
+    <section className="rounded-xl border-2 border-slate-300 bg-white p-2">
       <button type="button" onClick={() => setAbierta((a) => !a)} className="min-h-11 w-full text-left">
-        <p className="text-lg font-bold first-letter:uppercase">
+        <p className="text-base font-bold first-letter:uppercase">
           {esHoy ? "Hoy" : fechaLarga(jornada.fecha)} {abierta ? "▾" : "▸"}
         </p>
         <p className="text-base text-slate-700">
@@ -698,12 +704,12 @@ function Jornada({
       </button>
 
       {abierta && (
-        <div className="mt-3 space-y-3">
+        <div className="mt-1.5 space-y-1.5">
           {campos.map((c) => (
             <label key={c.clave} className="block">
               <span className="text-base font-semibold">{c.etiqueta}</span>
               <textarea
-                rows={3}
+                rows={2}
                 value={texto[c.clave]}
                 disabled={!editable}
                 onChange={(e) => cambiar(c.clave, e.target.value)}
@@ -715,7 +721,7 @@ function Jornada({
             <p className="text-sm text-slate-500">{guardado ? "Guardado en el celular" : "Guardando…"}</p>
           )}
           {editable && esHoy && (
-            <button type="button" onClick={onSalida} disabled={ocupado || !guardado} className={BOTON_SECUNDARIO}>
+            <button type="button" onClick={onSalida} disabled={ocupado || !guardado} className={BOTON_ACCION_SECUNDARIO}>
               Marcar salida (con GPS)
             </button>
           )}
@@ -749,16 +755,16 @@ function ReporteDeHoy({
   onGuardar: (j: JornadaLocal) => Promise<void>;
 }) {
   return (
-    <section className="space-y-3 rounded-2xl border-2 border-[#A82323] bg-white p-4">
+    <section className="space-y-1.5 rounded-xl border-2 border-[#A82323] bg-white p-2">
       <div>
         <p className="text-sm font-semibold uppercase text-[#A82323]">Reporte diario</p>
-        <p className="text-xl font-bold first-letter:uppercase">{fechaLarga(hoy)}</p>
+        <p className="text-base font-bold first-letter:uppercase">{fechaLarga(hoy)}</p>
       </div>
 
       {anterior ? (
         <div className="rounded-xl bg-amber-100 p-3 text-amber-950">
           <p className="text-base font-semibold first-letter:uppercase">Pendiente del {fechaLarga(anterior.fecha)}:</p>
-          <p className="whitespace-pre-line text-lg">{anterior.pendiente.trim() || "No dejó pendientes anotados."}</p>
+          <p className="whitespace-pre-line text-base">{anterior.pendiente.trim() || "No dejó pendientes anotados."}</p>
           {anterior.noEjecutado.trim() && (
             <p className="mt-2 whitespace-pre-line text-base">
               <span className="font-semibold">No se alcanzó: </span>
@@ -771,7 +777,7 @@ function ReporteDeHoy({
       )}
 
       {!cerrada && !jornadaHoy && (
-        <button type="button" onClick={onEntrada} disabled={ocupado} className={BOTON_PRIMARIO}>
+        <button type="button" onClick={onEntrada} disabled={ocupado} className={BOTON_ACCION}>
           Marcar entrada de hoy (con GPS)
         </button>
       )}
@@ -803,8 +809,8 @@ function HistorialObra({
   const [abierta, setAbierta] = useState<string | null>(null);
   const dias = [...jornadas].sort((a, b) => b.fecha.localeCompare(a.fecha));
   return (
-    <section className="rounded-2xl border-2 border-slate-300 bg-white p-4">
-      <p className="text-lg font-bold">
+    <section className="rounded-xl border-2 border-slate-300 bg-white p-2">
+      <p className="text-base font-bold">
         Historial de la obra ({dias.length} {dias.length === 1 ? "día" : "días"})
       </p>
       {dias.length === 0 ? (
@@ -826,14 +832,14 @@ function HistorialObra({
                 <button
                   type="button"
                   onClick={() => setAbierta(null)}
-                  className="mt-2 min-h-12 text-base font-semibold text-[#A82323]"
+                  className="mt-2 min-h-9 text-base font-semibold text-[#A82323]"
                 >
                   Cerrar
                 </button>
               </li>
             ) : (
               <li key={j.id}>
-                <button type="button" onClick={() => setAbierta(j.id)} className="w-full py-3 text-left">
+                <button type="button" onClick={() => setAbierta(j.id)} className="w-full py-1.5 text-left">
                   <p className="text-base font-bold first-letter:uppercase">{fechaLarga(j.fecha)}</p>
                   <p className="text-sm text-slate-600">
                     Entrada {hora(j.checkInEn) || "—"} · Salida {hora(j.checkOutEn) || "sin marcar"}
@@ -941,10 +947,10 @@ function Fotos({
   }
 
   return (
-    <section className="rounded-2xl border-2 border-slate-300 bg-white p-4">
-      <p className="text-lg font-bold">Fotos de hoy</p>
+    <section className="rounded-xl border-2 border-slate-300 bg-white p-2">
+      <p className="text-base font-bold">Fotos de hoy</p>
       {/* Contador siempre a la vista: sabe qué le falta sin pensarlo. */}
-      <p className={`text-lg font-semibold ${revision.completa ? "text-green-800" : "text-slate-900"}`}>
+      <p className={`text-base font-semibold ${revision.completa ? "text-green-800" : "text-slate-900"}`}>
         {revision.resumen}
       </p>
       {revision.faltanMomentos.length > 0 && (
@@ -964,7 +970,7 @@ function Fotos({
 
       {!cerrada && (
         <>
-          <p className="mt-3 text-base font-semibold">Momento de la foto</p>
+          <p className="mt-1.5 text-base font-semibold">Momento de la foto</p>
           <div className="mt-1 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Momento de la foto">
             {MOMENTOS.map((m) => (
               <button
@@ -973,7 +979,7 @@ function Fotos({
                 role="radio"
                 aria-checked={momento === m}
                 onClick={() => elegirMomento(m)}
-                className={`min-h-14 rounded-xl border-2 text-lg font-bold ${
+                className={`min-h-9 rounded-lg border-2 text-base font-semibold ${
                   momento === m ? "border-[#A82323] bg-[#A82323] text-white" : "border-slate-400 bg-white text-slate-900"
                 }`}
               >
@@ -981,10 +987,10 @@ function Fotos({
               </button>
             ))}
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-3">
+          <div className="mt-1.5 grid grid-cols-2 items-center gap-2">
             <input ref={camara} type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => procesar(e.target.files)} />
             <input ref={galeria} type="file" accept="image/*" multiple className="sr-only" onChange={(e) => procesar(e.target.files)} />
-            <button type="button" onClick={() => camara.current?.click()} disabled={Boolean(progreso) || sinEspacio} className={BOTON_PRIMARIO}>
+            <button type="button" onClick={() => camara.current?.click()} disabled={Boolean(progreso) || sinEspacio} className={BOTON_ACCION}>
               Tomar foto
             </button>
             <button type="button" onClick={() => galeria.current?.click()} disabled={Boolean(progreso) || sinEspacio} className={BOTON_SECUNDARIO}>
@@ -993,10 +999,10 @@ function Fotos({
           </div>
         </>
       )}
-      {progreso && <p className="mt-3 text-lg font-semibold">{progreso}</p>}
+      {progreso && <p className="mt-1.5 text-base font-semibold">{progreso}</p>}
 
       {/* Agrupadas por momento: así el informe de corte se arma solo. */}
-      <div className="mt-4 space-y-3">
+      <div className="mt-2 space-y-1.5">
         {MOMENTOS.map((m) => {
           const grupo = delDia.filter((f) => f.momento === m);
           const conImagen = grupo.filter((f) => miniaturas.has(f.id));
@@ -1039,11 +1045,11 @@ function AvisoSalida({
   const [motivo, setMotivo] = useState("");
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-900/60 p-3 sm:items-center">
-      <div className="w-full max-w-md space-y-3 rounded-2xl bg-white p-5">
-        <p className="text-xl font-bold">Faltan fotos de hoy</p>
-        <p className="text-lg">{revision.resumen}</p>
+      <div className="w-full max-w-md space-y-1.5 rounded-xl bg-white p-3">
+        <p className="text-base font-bold">Faltan fotos de hoy</p>
+        <p className="text-base">{revision.resumen}</p>
         {revision.faltanMomentos.length > 0 && (
-          <p className="rounded-lg bg-red-100 px-3 py-2 text-lg font-semibold text-red-900">
+          <p className="rounded-lg bg-red-100 px-3 py-2 text-base font-semibold text-red-900">
             No hay ninguna foto de {revision.faltanMomentos.map((m) => ETIQUETA_MOMENTO[m]).join(", ")}.
           </p>
         )}
@@ -1061,11 +1067,11 @@ function AvisoSalida({
           />
         </label>
         <p className="text-sm text-slate-600">Queda registrado en el reporte del día.</p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={onVolver} className={BOTON_SECUNDARIO}>
             Tomar fotos
           </button>
-          <button type="button" onClick={() => onConfirmar(motivo.trim())} disabled={!motivo.trim()} className={BOTON_PRIMARIO}>
+          <button type="button" onClick={() => onConfirmar(motivo.trim())} disabled={!motivo.trim()} className={BOTON_ACCION}>
             Salir igual
           </button>
         </div>
@@ -1123,11 +1129,11 @@ function Sugerencias({
   }
 
   return (
-    <section className="rounded-2xl border-2 border-slate-300 bg-white p-4">
-      <p className="text-lg font-bold">Equipos y materiales que faltan</p>
+    <section className="rounded-xl border-2 border-slate-300 bg-white p-2">
+      <p className="text-base font-bold">Equipos y materiales que faltan</p>
       <p className="text-base text-slate-600">Quedan como sugerencia para que el comercial los cotice.</p>
       {sugerencias.length > 0 && (
-        <ul className="mt-3 space-y-2">
+        <ul className="mt-1.5 space-y-1">
           {sugerencias.map((s) => (
             <li key={s.id} className="rounded-xl bg-slate-100 p-3 text-base">
               <p className="font-semibold">
@@ -1143,9 +1149,9 @@ function Sugerencias({
       )}
       {!cerrada &&
         (abierto ? (
-          <div className="mt-3 space-y-3">
+          <div className="mt-1.5 space-y-1.5">
             <input value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Qué falta (ej. cable UTP cat 6)" className={CAMPO} />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <input value={cantidad} onChange={(e) => setCantidad(e.target.value)} inputMode="decimal" placeholder="Cantidad" className={CAMPO} />
               <input value={unidad} onChange={(e) => setUnidad(e.target.value)} placeholder="Unidad (m, und)" className={CAMPO} />
             </div>
@@ -1162,7 +1168,7 @@ function Sugerencias({
               </label>
             )}
             <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} placeholder="Por qué hace falta" className={CAMPO} />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <button type="button" onClick={() => setAbierto(false)} className={BOTON_SECUNDARIO}>
                 Cancelar
               </button>
@@ -1172,7 +1178,7 @@ function Sugerencias({
             </div>
           </div>
         ) : (
-          <button type="button" onClick={() => setAbierto(true)} className={`${BOTON_SECUNDARIO} mt-3`}>
+          <button type="button" onClick={() => setAbierto(true)} className={`${BOTON_SECUNDARIO} mt-1.5`}>
             + Sugerir equipo o material
           </button>
         ))}
@@ -1248,11 +1254,11 @@ function Firmas({
     return <FirmaPantallaCompleta titulo={`Firma del cliente — ${datos.nombre}`} onCancelar={() => setPaso(null)} onListo={(b) => guardarFirma("cliente", b)} />;
   }
 
-  const datosCompletos = datos.nombre.trim() && datos.cedula.trim();
+  const faltan = [!datos.nombre.trim() && "el nombre", !datos.cedula.trim() && "la cédula"].filter(Boolean);
 
   return (
-    <section className="rounded-2xl border-2 border-slate-300 bg-white p-4">
-      <p className="text-lg font-bold">Firmas</p>
+    <section className="rounded-xl border-2 border-slate-300 bg-white p-2">
+      <p className="text-base font-bold">Firmas</p>
       <p className="text-base text-slate-700">
         Técnico: {firmaTecnico ? `${firmaTecnico.nombre} · ${hora(firmaTecnico.firmadaEn)}` : "pendiente"}
       </p>
@@ -1261,31 +1267,47 @@ function Firmas({
       </p>
 
       {(paso === "datos-tecnico" || paso === "datos-cliente") && (
-        <div className="mt-3 space-y-3">
+        <div className="mt-1.5 space-y-1.5">
           <input value={datos.nombre} onChange={(e) => setDatos({ ...datos, nombre: e.target.value })} placeholder="Nombre completo" className={CAMPO} />
           <input value={datos.cedula} onChange={(e) => setDatos({ ...datos, cedula: e.target.value })} inputMode="numeric" placeholder="Cédula" className={CAMPO} />
           {paso === "datos-cliente" && (
             <input value={datos.cargo} onChange={(e) => setDatos({ ...datos, cargo: e.target.value })} placeholder="Cargo (ej. administrador, portería)" className={CAMPO} />
           )}
           {paso === "datos-tecnico" && !tecnico.cedula && (
-            <p className="text-sm text-amber-800">Tu perfil no tiene cédula: pídele a la oficina que la cargue.</p>
+            <p className="text-sm text-amber-800">
+              Tu perfil no tiene cédula: escríbela arriba para esta firma
+              {tecnico.puedeEditarPerfil ? (
+                <>
+                  {" "}y cárgala en{" "}
+                  <a href="/configuracion/usuarios" className="font-semibold underline">
+                    tu perfil
+                  </a>{" "}
+                  para no escribirla cada vez.
+                </>
+              ) : (
+                " y pídele a la oficina que la cargue en tu perfil."
+              )}
+            </p>
           )}
           {paso === "datos-cliente" && (
             <p className="text-sm text-slate-600">Al firmar el cliente, la visita se cierra y ya no se puede editar.</p>
           )}
-          <div className="grid grid-cols-2 gap-3">
-            <button type="button" onClick={() => setPaso(null)} className={BOTON_SECUNDARIO}>
-              Cancelar
-            </button>
-            <button
-              type="button"
-              disabled={!datosCompletos}
-              onClick={() => setPaso(paso === "datos-tecnico" ? "lienzo-tecnico" : "lienzo-cliente")}
-              className={BOTON_PRIMARIO}
-            >
-              Firmar
-            </button>
-          </div>
+          {/* El cuadro de firma se ve siempre: tocarlo abre el lienzo a pantalla completa. Si
+              falta un dato, dice cuál (antes era un botón apagado sin explicación). */}
+          <button
+            type="button"
+            disabled={faltan.length > 0}
+            onClick={() => setPaso(paso === "datos-tecnico" ? "lienzo-tecnico" : "lienzo-cliente")}
+            className="flex min-h-28 w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#A82323] bg-white px-4 text-center text-[#A82323] active:bg-red-50 disabled:border-slate-300 disabled:text-slate-500"
+          >
+            <span className="text-base font-semibold">✍️ Firmar aquí</span>
+            <span className="text-sm">
+              {faltan.length > 0 ? `Antes escribe ${faltan.join(" y ")}` : "Con el dedo o con el lápiz, en pantalla completa"}
+            </span>
+          </button>
+          <button type="button" onClick={() => setPaso(null)} className={BOTON_SECUNDARIO}>
+            Cancelar
+          </button>
         </div>
       )}
 
@@ -1296,26 +1318,26 @@ function Firmas({
             setDatos({ nombre: tecnico.nombre, cedula: tecnico.cedula, cargo: "" });
             setPaso("datos-tecnico");
           }}
-          className={`${BOTON_PRIMARIO} mt-3`}
+          className={`${BOTON_ACCION} mt-1.5`}
         >
           Firma del técnico
         </button>
       )}
       {rechazados > 0 && !firmaCliente && (
-        <p className="mt-3 rounded-xl border-2 border-red-400 bg-red-100 px-4 py-3 text-base font-medium text-red-900">
+        <p className="mt-1.5 rounded-xl border-2 border-red-400 bg-red-100 px-4 py-1.5 text-base font-medium text-red-900">
           {rechazados === 1 ? "Hay 1 registro" : `Hay ${rechazados} registros`} de esta visita que el servidor no aceptó. Si
           el cliente firma ahora, su firma quedaría solo en este celular y no subiría. Avisa a la oficina antes de pedir la
           firma.
         </p>
       )}
       {rechazados > 0 && firmaCliente && !firmaCliente.subida && (
-        <p className="mt-3 rounded-xl border-2 border-red-400 bg-red-100 px-4 py-3 text-base font-medium text-red-900">
+        <p className="mt-1.5 rounded-xl border-2 border-red-400 bg-red-100 px-4 py-1.5 text-base font-medium text-red-900">
           La firma del cliente está guardada en este celular, pero no va a subir hasta que se resuelva{" "}
           {rechazados === 1 ? "1 registro rechazado" : `${rechazados} registros rechazados`}. Avisa a la oficina.
         </p>
       )}
       {paso === null && firmaTecnico && !firmaCliente && salidaPendiente && (
-        <p className="mt-3 rounded-xl bg-amber-100 px-4 py-3 text-base font-medium text-amber-900">
+        <p className="mt-1.5 rounded-xl bg-amber-100 px-4 py-1.5 text-base font-medium text-amber-900">
           Marca la salida del día antes de la firma del cliente: al firmar, la visita se cierra y ya no se
           puede registrar nada más.
         </p>
@@ -1328,7 +1350,7 @@ function Firmas({
             setDatos({ nombre: "", cedula: "", cargo: "" });
             setPaso("datos-cliente");
           }}
-          className={`${BOTON_PRIMARIO} mt-3`}
+          className={`${BOTON_ACCION} mt-1.5`}
         >
           Firma del cliente y cerrar
         </button>

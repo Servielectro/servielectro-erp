@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requierePermiso } from "@/lib/permisos";
+import { requierePermiso, tienePermiso } from "@/lib/permisos";
 import { AppTecnico } from "./AppTecnico";
 
 // App de campo del técnico. Esta página se guarda en el celular (public/sw.js) y abre
@@ -28,6 +28,7 @@ export default async function TecnicoPage() {
         id: user.id,
         nombre: perfil?.nombre ?? user.email ?? "",
         cedula: perfil?.cedula ?? "",
+        puedeEditarPerfil: await tienePermiso("configuracion", "responsable"),
       }}
     />
   );
