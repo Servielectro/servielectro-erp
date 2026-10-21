@@ -1,4 +1,4 @@
-// Métricas de una visita para el coordinador: línea de tiempo, duración y retraso. Puras (sin
+// Métricas de una visita para Operativo: línea de tiempo, duración y retraso. Puras (sin
 // base ni pantalla) para poder probarlas con números.
 //
 // Bogotá no tiene horario de verano: la hora programada se lee como -05:00 fijo (el mismo

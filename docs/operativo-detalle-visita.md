@@ -1,11 +1,11 @@
-# 2Workers — "Detalles de la tarea": la vista del coordinador
+# 2Workers — "Detalles de la tarea": el resultado de la visita en Operativo
 
 Transcrito del video que grabó Jhojan el 20/10/2026 (2 min 8 s, su cuenta real, tarea 5002293).
 Pedido suyo: *"mira los resultados de una visita y cómo se visualizan. Así lo quiero para el
 módulo de operativo, para que el coordinador vea y tenga la gestión de eso"*.
 
 Es la contraparte de [la pantalla de asignación](./2workers-registrar-nueva-tarea.md): una vez
-el técnico cerró la visita, acá es donde el coordinador ve el resultado.
+el técnico cerró la visita, acá es donde Operativo ve el resultado.
 
 ## Encabezado
 
@@ -106,7 +106,7 @@ Tabla con Productos, Servicios y Costos adicionales, con cantidad, valor unitari
 | Fotos con antes/durante/después | Sí |
 | Sugerencias → cotización, con trazabilidad | Sí (la bandeja de Operativo) |
 | Reporte diario | Sí |
-| **Pantalla de resultado para el coordinador** | **No. Es lo que pide acá.** |
+| **Ver el resultado de la visita en Operativo** | **No. Es lo que pide acá.** |
 | Línea de tiempo Recibida/Vista/Check-in/Check-out | Falta `visto_en`; el resto ya está |
 | Duración y Retraso | Se calculan de lo que ya hay |
 | Dirección y ubicación del sitio | No (migración pendiente) |
@@ -117,7 +117,7 @@ Tabla con Productos, Servicios y Costos adicionales, con cantidad, valor unitari
 
 ## Orden que propongo
 
-1. **La pantalla del coordinador** con lo que ya existe: datos, línea de tiempo, duración y
+1. **Ver el resultado de la visita en Operativo** con lo que ya existe: datos, línea de tiempo, duración y
    retraso, firmas, fotos en galería, reporte diario y sugerencias. No necesita nada nuevo en la
    base salvo `visto_en`.
 2. El **PDF** de esa misma pantalla.

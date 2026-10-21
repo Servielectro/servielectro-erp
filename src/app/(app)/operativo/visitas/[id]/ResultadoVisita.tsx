@@ -12,11 +12,11 @@ import { GaleriaFotos } from "./GaleriaFotos";
 import { CierreVisita } from "./CierreVisita";
 import { AccionesVisita } from "./AccionesVisita";
 
-// Vista del resultado de una visita para el coordinador (los datos los carga page.tsx). Va
+// Resultado de una visita, dentro de Operativo (los datos los carga page.tsx). Va
 // aparte de la carga para poder medirla con datos de prueba.
 //
-// Resultado de una visita para el coordinador (referencia: docs/2workers-detalle-visita-
-// coordinador.md). Solo lectura, salvo "Dar por terminada" / "Cerrar". Sin PDF ni correo
+// Lo que se ve al abrir una visita desde la lista de Operativo (referencia:
+// docs/operativo-detalle-visita.md). Solo lectura, salvo "Dar por terminada" / "Cerrar". Sin PDF ni correo
 // todavía: van después, sobre esta misma pantalla.
 
 const ESTADO: Record<string, string> = {
@@ -69,7 +69,7 @@ function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactN
   );
 }
 
-export function VisitaCoordinador({
+export function ResultadoVisita({
   v,
   puedeCerrar,
   tecnicos = [],

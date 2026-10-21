@@ -1,9 +1,9 @@
--- Base para la pantalla del coordinador (docs/2workers-detalle-visita-coordinador.md):
+-- Base para ver los resultados de una visita en Operativo (docs/operativo-detalle-visita.md):
 --
 --   1) "Vista": cuándo el técnico abrió lo que le asignaron. Es el segundo hito de la línea de
 --      tiempo Recibida · Vista · Check-in · Check-out.
 --        - tarea_asignados.visto_en (por persona asignada: una tarea puede tener varios).
---        - visitas.visto_en: la línea de tiempo del coordinador es de la VISITA, y la visita se
+--        - visitas.visto_en: la línea de tiempo que ve Operativo es de la VISITA, y la visita se
 --          asigna con visitas.tecnico_id, no con tarea_asignados. Sin esta columna, el hito
 --          "Vista" de una visita no existiría. Si se reasigna a otro técnico, vuelve a nulo.
 --      Nadie las escribe directo: tarea_asignados no tiene política de update, y en visitas el

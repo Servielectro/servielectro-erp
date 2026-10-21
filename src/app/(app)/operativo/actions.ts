@@ -68,7 +68,7 @@ export async function crearVisita(v: NuevaVisita): Promise<{ ok: true } | { ok: 
 }
 
 /**
- * Cierra una visita desde la pantalla del coordinador (migración 60): una obra en curso se da
+ * Cierra una visita desde su detalle en Operativo (migración 60): una obra en curso se da
  * por terminada; una visita firmada se cierra. Quién y cuándo los pone la base; la nota es
  * opcional. Las reglas (permiso, desde qué estado) las exige la base: acá solo se pide.
  */

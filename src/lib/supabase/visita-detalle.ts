@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-// Todo lo que el coordinador ve de una visita (pantalla /operativo/visitas/[id]). Lee con la
+// Todo lo que Operativo ve de una visita al abrirla (/operativo/visitas/[id]). Lee con la
 // sesión de quien mira: la RLS decide (operativo/consultar ve todas las visitas).
 // Fotos y firmas viven en el bucket privado "visitas": se entregan con enlaces firmados de
 // una hora; las fotos que ya pasaron a Drive, con su enlace de Drive.

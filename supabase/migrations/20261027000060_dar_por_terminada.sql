@@ -3,7 +3,7 @@
 -- Por qué (2026-10-21): la entrega de una obra se hace con una visita aparte, de un día, que
 -- es la que firma el cliente (decisión de Jhojan). La obra en sí nunca llega a "firmada", y
 -- de "en curso" solo se podía cerrar desde "firmada": quedaba en curso para siempre y
--- ensuciaba el tablero del coordinador.
+-- ensuciaba la lista de Operativo.
 --
 -- Reglas (trigger fn_visita_cierre, antes de actualizar visitas):
 --   - Pasar a "cerrada" requiere operativo/trabajar.
