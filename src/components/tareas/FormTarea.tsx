@@ -256,7 +256,7 @@ export function FormTarea({
 
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className={ETIQUETA}>Día</span>
+              <span className={ETIQUETA}>Fecha</span>
               <input type="date" value={b.fechaProgramada} disabled={soloMover} onChange={(e) => cambiar("fechaProgramada", e.target.value)} className={CAMPO} />
             </label>
             <label className="block">
@@ -264,6 +264,10 @@ export function FormTarea({
               <input type="time" value={b.hora} disabled={soloMover || !b.fechaProgramada} onChange={(e) => cambiar("hora", e.target.value)} className={CAMPO} />
             </label>
           </div>
+          {/* La base no acepta hora sin fecha (migración 50): se dice, no se apaga en silencio. */}
+          {!soloMover && !b.fechaProgramada && (
+            <p className="-mt-2 text-sm text-slate-600">Para poner la hora, elige primero la fecha.</p>
+          )}
 
           <label className="block">
             <span className={ETIQUETA}>Fecha límite</span>

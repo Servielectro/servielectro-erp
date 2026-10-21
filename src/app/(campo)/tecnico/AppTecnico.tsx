@@ -608,6 +608,7 @@ function DetalleVisita({
               cerrada={cerrada}
               ocupado={Boolean(ocupado)}
               bloqueoSalida={bloqueoSalida}
+              salidaAlFinal
               onSalida={() => marcarSalida(j)}
               onGuardar={guardarJornada}
             />
@@ -664,6 +665,24 @@ function DetalleVisita({
           onCambio={despues}
         />
       )}
+
+      {/* Visita de un día: el orden de la pantalla es el orden del trabajo (Jhojan, 2026-10-21):
+          reporte y fotos → firmas → salida. En una obra la salida es diaria y va en el reporte. */}
+      {visita.tipo !== "obra" && jornadaHoy && !jornadaHoy.checkOutEn && (
+        <section className="space-y-1.5 rounded-xl border-2 border-slate-300 bg-white p-2">
+          <p className="text-base font-bold">Salida</p>
+          <p className="text-sm text-slate-600">Es lo último: después de las firmas.</p>
+          {bloqueoSalida && <p className="text-sm font-medium text-amber-800">{bloqueoSalida}</p>}
+          <button
+            type="button"
+            onClick={() => marcarSalida(jornadaHoy)}
+            disabled={Boolean(ocupado) || Boolean(bloqueoSalida)}
+            className={BOTON_ACCION_SECUNDARIO}
+          >
+            Marcar salida (con GPS)
+          </button>
+        </section>
+      )}
     </div>
   );
 }
@@ -677,6 +696,7 @@ function Jornada({
   onSalida,
   onGuardar,
   esObra = false,
+  salidaAlFinal = false,
 }: {
   jornada: JornadaLocal;
   esHoy: boolean;
@@ -684,6 +704,8 @@ function Jornada({
   ocupado: boolean;
   /** Por qué todavía no se puede marcar la salida (null = se puede). */
   bloqueoSalida: string | null;
+  /** Visita de un día: la salida va al final de la pantalla, después de las firmas. */
+  salidaAlFinal?: boolean;
   onSalida: () => void;
   onGuardar: (j: JornadaLocal) => Promise<void>;
   esObra?: boolean;
@@ -763,7 +785,7 @@ function Jornada({
             </p>
           )}
           {/* La salida se marca aunque la visita ya esté firmada: es lo último (base: migración 58). */}
-          {esHoy && !jornada.checkOutEn && (
+          {esHoy && !jornada.checkOutEn && !salidaAlFinal && (
             <>
               {bloqueoSalida && <p className="text-sm font-medium text-amber-800">{bloqueoSalida}</p>}
               {!bloqueoSalida && !guardado && <p className="text-sm text-slate-600">Guardando el reporte…</p>}

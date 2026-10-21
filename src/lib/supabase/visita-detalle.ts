@@ -65,13 +65,17 @@ export interface VisitaDetalle {
 }
 
 export async function getVisitaDetalle(supabase: SupabaseClient, id: string): Promise<VisitaDetalle | null> {
-  const { data: v, error } = await supabase
+  const columnas =
+    "id, titulo, tipo, estado, cliente_nombre, direccion, contacto_sitio, telefono_sitio, descripcion_trabajo, fecha_programada, hora_programada, fecha_fin_estimada, fotos_minimas_dia, sitio_lat, sitio_lng, sitio_url_maps, tecnico_id, creada_por, created_at, visto_en, firmada_en";
+  let { data: v, error } = await supabase
     .from("visitas")
-    .select(
-      "id, titulo, tipo, estado, cliente_nombre, direccion, contacto_sitio, telefono_sitio, descripcion_trabajo, fecha_programada, hora_programada, fecha_fin_estimada, fotos_minimas_dia, sitio_lat, sitio_lng, sitio_url_maps, tecnico_id, creada_por, created_at, visto_en, firmada_en, cerrada_en, cerrada_por, cierre_nota",
-    )
+    .select(`${columnas}, cerrada_en, cerrada_por, cierre_nota`)
     .eq("id", id)
     .maybeSingle();
+  // Sin la migración 60 todavía: se muestra todo menos quién y cuándo se cerró.
+  if (error && /cerrada_en|cerrada_por|cierre_nota/.test(error.message)) {
+    ({ data: v, error } = await supabase.from("visitas").select(columnas).eq("id", id).maybeSingle());
+  }
   if (error) throw new Error(error.message);
   if (!v) return null;
 
@@ -160,7 +164,7 @@ export async function getVisitaDetalle(supabase: SupabaseClient, id: string): Pr
     creadaEn: v.created_at,
     vistoEn: v.visto_en,
     firmadaEn: v.firmada_en,
-    cierre: v.cerrada_en ? { en: v.cerrada_en, por: nombre(v.cerrada_por), nota: v.cierre_nota } : null,
+    cierre: v.cerrada_en ? { en: v.cerrada_en, por: nombre(v.cerrada_por ?? null), nota: v.cierre_nota ?? null } : null,
     jornadas: ((jornadasR.data ?? []) as Record<string, string | null>[]).map((j) => ({
       id: j.id as string,
       fecha: j.fecha as string,
