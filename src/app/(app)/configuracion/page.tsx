@@ -68,6 +68,18 @@ export default async function ConfiguracionPage() {
                 </p>
               </div>
             </Link>
+            <Link
+              href="/configuracion/archivos"
+              className="flex items-center gap-3 rounded-lg border border-slate-300 bg-white p-4 shadow-sm active:bg-slate-50"
+            >
+              <span className="text-2xl">🗂️</span>
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Archivos sin visita</p>
+                <p className="text-xs text-slate-600">
+                  Fotos y firmas sueltas de visitas que ya no existen: revisarlas y liberar espacio.
+                </p>
+              </div>
+            </Link>
           </>
         )}
 
