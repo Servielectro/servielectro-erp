@@ -207,6 +207,18 @@ export function MenuPrincipal({
               <Link href="/rrhh" className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
                 RRHH
               </Link>
+              <Link href="/rrhh/gastos" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+                Gastos del personal
+              </Link>
+              <Link href="/rrhh/permisos" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+                Permisos
+              </Link>
+              <Link href="/rrhh/abonos" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+                Abonos de nómina
+              </Link>
+              <Link href="/rrhh/documentos" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+                Documentos del personal
+              </Link>
               <Link href="/rrhh/plantillas" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
                 Plantillas de documentos
               </Link>

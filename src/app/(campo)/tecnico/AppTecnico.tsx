@@ -280,6 +280,7 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
             }}
           />
           <ListaVisitas visitas={visitas} enLinea={enLinea} onAbrir={setAbierta} />
+          <MiPerfil enLinea={enLinea} />
         </>
       )}
     </div>
@@ -1493,6 +1494,40 @@ function Firmas({
           Firma del cliente y cerrar
         </button>
       )}
+    </section>
+  );
+}
+
+/**
+ * Mi perfil (RRHH, migración 64): gastos, permisos, abonos y documentos. Son pantallas aparte
+ * que necesitan señal (no se guardan en el celular como las visitas); sin señal se dice.
+ */
+function MiPerfil({ enLinea }: { enLinea: boolean }) {
+  const enlaces = [
+    { href: "/tecnico/gastos", icono: "🧾", nombre: "Gastos y transportes" },
+    { href: "/tecnico/permisos", icono: "🗓️", nombre: "Permisos" },
+    { href: "/tecnico/abonos", icono: "💵", nombre: "Abonos de nómina" },
+    { href: "/tecnico/documentos", icono: "📄", nombre: "Documentos y certificados" },
+  ];
+  return (
+    <section className="px-4 pt-6">
+      <h2 className="mb-2 text-sm font-bold uppercase text-slate-600">Mi perfil</h2>
+      <div className="grid grid-cols-2 gap-2">
+        {enlaces.map((e) => (
+          <a
+            key={e.href}
+            href={e.href}
+            aria-disabled={!enLinea}
+            className={`flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold ${
+              enLinea ? "" : "pointer-events-none opacity-40"
+            }`}
+          >
+            <span className="text-lg">{e.icono}</span>
+            {e.nombre}
+          </a>
+        ))}
+      </div>
+      {!enLinea && <p className="mt-1 text-sm text-amber-800">Estas opciones necesitan señal.</p>}
     </section>
   );
 }
