@@ -45,7 +45,15 @@ interface CuerpoGemini {
     groundingMetadata?: { groundingChunks?: Array<{ web?: { uri?: string } }> };
   }>;
   usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
-  error?: { message?: string; status?: string };
+  error?: {
+    message?: string;
+    status?: string;
+    details?: Array<{
+      "@type"?: string;
+      violations?: Array<{ quotaId?: string; quotaMetric?: string }>;
+      retryDelay?: string;
+    }>;
+  };
 }
 
 class SaturadoError extends Error {}
@@ -131,6 +139,20 @@ async function llamarUnaVez(
 
   const detalle = cuerpo?.error?.message ?? `HTTP ${respuesta.status}`;
   const estado = cuerpo?.error?.status ?? "";
+  // Diagnóstico (2026-10-22): qué responde Google de verdad cuando falla. Sin la clave (va en
+  // la URL, que no se registra). quotaId dice QUÉ cuota se agotó (por minuto, por día, nivel
+  // gratuito…) y retryDelay cuánto pide esperar Google.
+  console.error(
+    "[IA] Gemini falló",
+    JSON.stringify({
+      modelo,
+      http: respuesta.status,
+      status: estado,
+      mensaje: detalle.slice(0, 300),
+      cuotas: (cuerpo?.error?.details ?? []).flatMap((d) => (d.violations ?? []).map((v) => v.quotaId ?? v.quotaMetric)),
+      reintentarEn: (cuerpo?.error?.details ?? []).find((d) => d.retryDelay)?.retryDelay ?? null,
+    }),
+  );
   if (
     respuesta.status === 503 ||
     respuesta.status === 429 ||
