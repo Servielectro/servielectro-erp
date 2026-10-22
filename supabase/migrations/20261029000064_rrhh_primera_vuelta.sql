@@ -1,36 +1,33 @@
--- RRHH, primera vuelta (2026-10-29): gastos en sitio y transportes, permisos, abonos de nómina
--- y el registro de certificados emitidos.
+-- RRHH, primera vuelta (2026-10-29): gastos en sitio y transportes, permisos, abonos de nómina,
+-- documentos con destinatario (desprendibles) y el registro de certificados emitidos.
+-- Requiere la 63 (Proyectos: visitas.proyecto_id, fn_proyectos_del_tecnico, fn_proyectos_nombres).
 --
 -- El para qué: que Alejandra trabaje con la plataforma sin depender de Jhojan. El técnico
 -- registra desde /tecnico; Jhojan aprueba permisos y abonos; Alejandra lo ve todo.
--- El sistema NO calcula nómina, liquidación ni descuentos.
+-- El sistema NO calcula nómina, liquidación ni descuentos: Alejandra los hace por fuera y
+-- sube el documento.
 --
--- Decisiones (aprobadas por el orquestador):
+-- Decisiones (orquestador y Jhojan):
 --   - Ver lo ajeno exige RRHH "trabajar" (fn_rrhh_ve_todo), no "cualquier nivel": un chuleo
 --     de "consultar" en RRHH para el rol Técnico no le abre los abonos de todos.
 --   - Aprobar depende de estar en rrhh_aprobadores (una fila: Jhojan), no de un rol. Nadie
 --     aprueba lo suyo. Tope por monto opcional (nulo = sin tope).
---   - El técnico solo ve proyectos donde tiene una visita o una tarea asignada
---     (fn_proyectos_del_tecnico). Nada de Comercial. "Sin proyecto" es un caso normal (hoy
---     hay 0 proyectos): Alejandra lo asigna después, y queda quién y cuándo.
---   - visitas.proyecto_id nuevo. Es clasificación, no evidencia: Operativo lo puede poner
---     también en una visita firmada (excepción en fn_candado_visita).
+--   - Gasto "sin proyecto" es un caso normal: RRHH lo asigna después, y queda quién y cuándo.
+--   - Quién pagó (propio / empresa) y el reembolso de lo pagado de bolsillo, que marca RRHH.
 --   - El pantallazo del abono es evidencia: con el abono desembolsado, la fila no cambia y
 --     el archivo no se reemplaza ni se borra (el bucket no tiene update ni delete).
 --   - Abono con dos fechas: solicitud y desembolso. La quincena del descuento sale del
 --     desembolso (columna generada). Es una etiqueta de período, no un cálculo.
 --   - Permiso: solicitado → aprobado/rechazado → gozado. Gozado lo marca RRHH. La
 --     compensación del técnico es una PROPUESTA; la confirma el aprobador al aprobar.
---   - Para el mismo día, solo calamidad doméstica (lo exige la base, no solo la pantalla).
+--   - Para el mismo día, solo calamidad doméstica; días anteriores, ningún tipo (Jhojan:
+--     "se le acepta el mismo día que lo solicita"). Lo exige la base, no solo la pantalla.
+--   - Desprendibles y demás documentos: "que no se vea el uno con el otro, sino que
+--     únicamente los vea el técnico al que le pertenezca". RRHH los sube; el destinatario
+--     los ve, los descarga y los firma si hace falta. Nadie más con sesión los abre.
 --
--- Pendientes de Jhojan, que se activan SIN migrar:
---   - Calamidad ya pasada: rrhh_reglas.calamidad_dias_atras (hoy 0 = solo desde hoy).
---   - Reembolso del gasto pagado de bolsillo: columnas reembolso_* en gastos, que RRHH ya
---     puede marcar; la pantalla no lo muestra hasta que él decida.
---   - Desprendibles: segunda vuelta, con su propio caso "el técnico A abre el de B".
---
--- Verificación: supabase/verificaciones/20261029000063_verificar.sql
--- Rollback:     supabase/rollbacks/20261029000063_rrhh_primera_vuelta_down.sql
+-- Verificación: supabase/verificaciones/20261029000064_verificar.sql
+-- Rollback:     supabase/rollbacks/20261029000064_rrhh_primera_vuelta_down.sql
 -- Idempotente.
 
 -- ============================================================ 1) quién ve todo y quién aprueba
@@ -77,56 +74,7 @@ create policy rrhh_aprobadores_select on public.rrhh_aprobadores for select to a
   using (perfil_id = auth.uid() or fn_rrhh_ve_todo());
 -- Sin insert/update/delete: los aprobadores se cambian por SQL, a propósito.
 
--- Reglas que Jhojan todavía no decidió. Una sola fila. La lee cualquiera con sesión (el
--- formulario la necesita para explicar por qué bloquea una fecha); nadie la cambia desde la app.
-create table if not exists public.rrhh_reglas (
-  id boolean primary key default true check (id),
-  calamidad_dias_atras int not null default 0 check (calamidad_dias_atras between 0 and 30)
-);
-insert into public.rrhh_reglas (id) values (true) on conflict (id) do nothing;
-
-alter table public.rrhh_reglas enable row level security;
-drop policy if exists rrhh_reglas_select on public.rrhh_reglas;
-create policy rrhh_reglas_select on public.rrhh_reglas for select to authenticated using (true);
-
--- ============================================================ 2) proyectos: visitas y lista del técnico
-alter table public.visitas add column if not exists proyecto_id uuid references public.proyectos (id);
-create index if not exists idx_visitas_proyecto on public.visitas (proyecto_id);
-
--- Solo id, código y nombre, y solo donde el técnico trabaja. No abre Comercial.
-create or replace function public.fn_proyectos_del_tecnico()
-returns table (id uuid, codigo text, nombre text)
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select p.id, p.codigo, p.nombre
-  from proyectos p
-  where p.estado = 'EN_EJECUCION'
-    and (
-      exists (select 1 from visitas v
-              where v.proyecto_id = p.id and v.tecnico_id = auth.uid() and v.estado <> 'cancelada')
-      or exists (select 1 from tareas t join tarea_asignados a on a.tarea_id = t.id
-                 where t.proyecto_id = p.id and a.perfil_id = auth.uid() and not t.archivada)
-    )
-  order by p.nombre;
-$$;
-
--- Para que Alejandra asigne el proyecto a un gasto: todos, con su estado. Solo RRHH "trabajar".
-create or replace function public.fn_proyectos_para_rrhh()
-returns table (id uuid, codigo text, nombre text, estado text)
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select p.id, p.codigo, p.nombre, p.estado::text
-  from proyectos p
-  where fn_rrhh_ve_todo()
-  order by p.nombre;
-$$;
-
+-- ============================================================ 2) personas para el filtro de RRHH
 -- Para el filtro "por técnico" de Alejandra: solo id y nombre.
 create or replace function public.fn_personas_rrhh()
 returns table (id uuid, nombre text)
@@ -140,64 +88,6 @@ as $$
   where fn_rrhh_ve_todo()
   order by 2;
 $$;
-
--- El candado de la visita firmada (migración 60) deja pasar proyecto_id: es clasificación
--- para Financiero, no evidencia. Lo demás, igual que en la 60.
-create or replace function public.fn_candado_visita()
-returns trigger
-language plpgsql
-set search_path = public
-as $$
-declare
-  -- Por jsonb: visitas no tiene columna visita_id y plpgsql fallaría al resolver old.visita_id.
-  v_visita uuid := case when tg_table_name = 'visitas' then old.id
-                        else (to_jsonb(old) ->> 'visita_id')::uuid end;
-begin
-  if current_user in ('postgres', 'supabase_admin') or not fn_visita_firmada(v_visita) then
-    return case when tg_op = 'DELETE' then old else new end;
-  end if;
-
-  if tg_op = 'DELETE' then
-    raise exception 'La visita ya está firmada por el cliente: no se puede borrar. Agrega una nota posterior.';
-  end if;
-
-  if tg_table_name = 'visitas' then
-    -- Nada fuera del estado cambia, y el estado solo avanza: firmada → cerrada, con
-    -- Operativo. Quedarse igual (un update sin cambios) no es error. Migración 60: el cierre
-    -- escribe cerrada_en/cerrada_por/cierre_nota, que controla fn_visita_cierre.
-    -- Migración 63: proyecto_id tampoco es evidencia (lo cambia solo Operativo, ver
-    -- fn_visitas_solo_estado_tecnico).
-    if (to_jsonb(new) - array['estado', 'updated_at', 'cerrada_en', 'cerrada_por', 'cierre_nota', 'proyecto_id'])
-       is distinct from (to_jsonb(old) - array['estado', 'updated_at', 'cerrada_en', 'cerrada_por', 'cierre_nota', 'proyecto_id']) then
-      raise exception 'La visita ya está firmada por el cliente: no se edita. Agrega una nota posterior.';
-    end if;
-    if new.estado is distinct from old.estado then
-      if not (old.estado = 'firmada' and new.estado = 'cerrada') then
-        raise exception 'Una visita firmada no vuelve atrás: de "%" no puede pasar a "%".', old.estado, new.estado;
-      end if;
-      if not fn_tiene_permiso('operativo', 'trabajar') then
-        raise exception 'Cerrar una visita firmada requiere permiso de Operativo.';
-      end if;
-    end if;
-    return new;
-  end if;
-
-  -- Jornadas, fotos y sugerencias: el contenido de evidencia no cambia. Un update que deja
-  -- el contenido igual (reintento) pasa; lo demás de cada tabla (traslado a Drive de la
-  -- foto, recorrido de la sugerencia) sí puede cambiar.
-  if fn_contenido_evidencia(tg_table_name, to_jsonb(new)) is distinct from fn_contenido_evidencia(tg_table_name, to_jsonb(old)) then
-    -- Migración 58: la única excepción, marcar la salida una vez con la visita "firmada".
-    if tg_table_name = 'visita_jornadas'
-       and (select estado from visitas where id = v_visita) = 'firmada'
-       and fn_es_salida_tras_firma(to_jsonb(old), to_jsonb(new)) then
-      return new;
-    end if;
-    raise exception 'La visita ya está firmada por el cliente: ese registro no se puede cambiar. Agrega una nota posterior.';
-  end if;
-  return new;
-end;
-$$;
-revoke all on function public.fn_candado_visita() from public, anon, authenticated;
 
 -- ============================================================ 3) gastos (compras en sitio y transportes)
 -- Entrada del módulo Financiero: proyecto, monto, fecha, quién, factura y categoría de costo.
@@ -454,13 +344,11 @@ set search_path = public
 as $$
 declare
   v_hoy date := (now() at time zone 'America/Bogota')::date;
-  v_dias int := coalesce((select calamidad_dias_atras from rrhh_reglas where id), 0);
 begin
+  -- Jhojan: "se le acepta el mismo día que lo solicita". Hoy sí; días anteriores, nunca.
   if p_tipo = 'calamidad_domestica' then
-    if p_desde < v_hoy - v_dias then
-      return case when v_dias = 0
-        then 'La calamidad doméstica se puede pedir para hoy, no para días pasados.'
-        else format('La calamidad doméstica se puede pedir con hasta %s día(s) hacia atrás.', v_dias) end;
+    if p_desde < v_hoy then
+      return 'La calamidad doméstica se acepta para el mismo día en que se pide, no para días anteriores.';
     end if;
     return null;
   end if;
@@ -768,6 +656,113 @@ create trigger trg_certificados_inmutable
   before update or delete on public.certificados_emitidos
   for each row execute function public.fn_certificados_inmutable();
 
+-- ============================================================ 6b) documentos con destinatario
+-- Desprendibles, liquidaciones, contratos… que hace RRHH y sube para UNA persona. Es el dato
+-- más sensible del sistema: lo ve el destinatario y RRHH "trabajar", nadie más con sesión.
+-- Viven en el apartado "Documentos y certificados" del perfil del técnico.
+-- Archivo: documentos/{persona_id}/{nombre}. Firma: documentos/{persona_id}/firmas/{documento_id}.png
+-- Un documento no se edita: si quedó mal (otro archivo, otra persona), RRHH lo anula con
+-- motivo, el destinatario deja de verlo, y se sube otro.
+create table if not exists public.documentos_personal (
+  id uuid primary key default gen_random_uuid(),
+  persona_id uuid not null references public.perfiles (id),    -- a quién va dirigido
+  tipo text not null check (tipo in ('desprendible', 'liquidacion', 'contrato', 'otro')),
+  titulo text not null check (length(trim(titulo)) > 0),
+  periodo_inicio date,                                          -- si aplica (quincena, mes…)
+  periodo_fin date,
+  storage_path text not null unique,
+  nombre_archivo text,
+  mime text,
+  bytes bigint,
+  requiere_firma boolean not null default false,
+  subido_por uuid not null default auth.uid() references public.perfiles (id),
+  subido_en timestamptz not null default now(),
+  -- Lo que hace el destinatario.
+  visto_en timestamptz,
+  firma_path text unique,
+  firmado_en timestamptz,
+  -- Lo que hace RRHH si quedó mal.
+  anulado_en timestamptz,
+  anulado_por uuid references public.perfiles (id),
+  motivo_anulacion text,
+  constraint documentos_periodo check (periodo_fin is null or periodo_inicio is null or periodo_fin >= periodo_inicio),
+  constraint documentos_ruta check (storage_path like 'documentos/' || persona_id || '/%'
+                                    and storage_path not like 'documentos/%/firmas/%')
+);
+create index if not exists idx_documentos_persona on public.documentos_personal (persona_id, subido_en desc);
+
+create or replace function public.fn_documentos_reglas()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_permitidos text[] := '{}';
+  v_cambios text[];
+begin
+  if current_user in ('postgres', 'supabase_admin') then
+    return new;
+  end if;
+
+  if tg_op = 'INSERT' then
+    new.subido_por := auth.uid();
+    new.subido_en := now();
+    new.visto_en := null; new.firma_path := null; new.firmado_en := null;
+    new.anulado_en := null; new.anulado_por := null; new.motivo_anulacion := null;
+    return new;
+  end if;
+
+  if old.persona_id = auth.uid() and old.anulado_en is null then
+    v_permitidos := v_permitidos || array['visto_en', 'firma_path', 'firmado_en'];
+  end if;
+  if fn_rrhh_ve_todo() then
+    v_permitidos := v_permitidos || array['anulado_en', 'anulado_por', 'motivo_anulacion'];
+  end if;
+  v_cambios := array(select n.key from jsonb_each(to_jsonb(new)) n
+                     where (to_jsonb(old) -> n.key) is distinct from n.value);
+  if not (v_cambios <@ v_permitidos) then
+    raise exception 'El documento no se edita: si quedó mal, anúlalo y sube otro.';
+  end if;
+
+  if new.visto_en is distinct from old.visto_en then
+    if old.visto_en is not null then
+      raise exception 'El documento ya estaba marcado como visto.';
+    end if;
+    new.visto_en := now();
+  end if;
+
+  if new.firma_path is distinct from old.firma_path or new.firmado_en is distinct from old.firmado_en then
+    if not old.requiere_firma then
+      raise exception 'Este documento no pide firma.';
+    end if;
+    if old.firma_path is not null then
+      raise exception 'El documento ya está firmado.';
+    end if;
+    if new.firma_path is null or new.firma_path not like 'documentos/' || old.persona_id || '/firmas/' || old.id || '.%' then
+      raise exception 'La firma no corresponde a este documento.';
+    end if;
+    new.firmado_en := now();
+  end if;
+
+  if (new.anulado_en, new.anulado_por, new.motivo_anulacion) is distinct from (old.anulado_en, old.anulado_por, old.motivo_anulacion) then
+    if old.anulado_en is not null then
+      raise exception 'El documento ya está anulado.';
+    end if;
+    if length(trim(coalesce(new.motivo_anulacion, ''))) = 0 then
+      raise exception 'Escribe por qué se anula.';
+    end if;
+    new.anulado_en := now();
+    new.anulado_por := auth.uid();
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_documentos_reglas on public.documentos_personal;
+create trigger trg_documentos_reglas
+  before insert or update on public.documentos_personal
+  for each row execute function public.fn_documentos_reglas();
+
 -- ============================================================ 7) RLS
 -- Cada uno ve lo suyo; ver lo ajeno exige RRHH "trabajar" (o ser aprobador, para lo que
 -- aprueba). No hay políticas de delete: nada de esto se borra desde la app.
@@ -829,8 +824,22 @@ drop policy if exists certificados_emitidos_insert on public.certificados_emitid
 create policy certificados_emitidos_insert on public.certificados_emitidos for insert to authenticated
   with check (fn_rrhh_ve_todo() and emitido_por = auth.uid());
 
+-- Documentos: el destinatario (mientras no esté anulado) y RRHH "trabajar". Nadie más.
+alter table public.documentos_personal enable row level security;
+drop policy if exists documentos_personal_select on public.documentos_personal;
+create policy documentos_personal_select on public.documentos_personal for select to authenticated
+  using ((persona_id = auth.uid() and anulado_en is null) or fn_rrhh_ve_todo());
+drop policy if exists documentos_personal_insert on public.documentos_personal;
+create policy documentos_personal_insert on public.documentos_personal for insert to authenticated
+  with check (fn_rrhh_ve_todo());
+drop policy if exists documentos_personal_update on public.documentos_personal;
+create policy documentos_personal_update on public.documentos_personal for update to authenticated
+  using ((persona_id = auth.uid() and anulado_en is null) or fn_rrhh_ve_todo())
+  with check ((persona_id = auth.uid()) or fn_rrhh_ve_todo());
+
 -- ============================================================ 8) Storage: soportes de RRHH
--- Bucket privado. Rutas: gastos/{gasto_id}/archivo y abonos/{abono_id}/archivo.
+-- Bucket privado. Rutas: gastos/{gasto_id}/archivo, abonos/{abono_id}/archivo y
+-- documentos/{persona_id}/archivo (firmas en documentos/{persona_id}/firmas/{documento_id}.png).
 -- Sin update ni delete: lo subido no se reemplaza ni se borra.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('rrhh-soportes', 'rrhh-soportes', false, 10485760,
@@ -852,6 +861,22 @@ exception when others then
 end;
 $$;
 
+-- documentos/{persona}/firmas/{documento_id}.png → documento_id
+create or replace function public.fn_rrhh_documento_de_firma(p_nombre text)
+returns uuid
+language plpgsql
+immutable
+as $$
+begin
+  if split_part(p_nombre, '/', 1) <> 'documentos' or split_part(p_nombre, '/', 3) <> 'firmas' then
+    return null;
+  end if;
+  return split_part(split_part(p_nombre, '/', 4), '.', 1)::uuid;
+exception when others then
+  return null;
+end;
+$$;
+
 create or replace function public.fn_rrhh_soporte_visible(p_nombre text)
 returns boolean
 language sql
@@ -864,6 +889,11 @@ as $$
                                and (g.persona_id = auth.uid() or fn_rrhh_ve_todo()))
     when 'abonos' then exists (select 1 from abonos a where a.id = fn_rrhh_id_de_ruta(p_nombre)
                                and (a.persona_id = auth.uid() or fn_rrhh_ve_todo() or fn_es_aprobador_rrhh('abonos')))
+    -- El destinatario solo abre archivos que estén registrados como suyos y sin anular.
+    when 'documentos' then fn_rrhh_ve_todo()
+                           or exists (select 1 from documentos_personal d
+                                      where d.persona_id = auth.uid() and d.anulado_en is null
+                                        and (d.storage_path = p_nombre or d.firma_path = p_nombre))
     else false
   end;
 $$;
@@ -883,6 +913,18 @@ as $$
     when 'abonos' then exists (select 1 from abonos a where a.id = fn_rrhh_id_de_ruta(p_nombre)
                                and a.estado in ('solicitado', 'aprobado') and a.persona_id <> auth.uid()
                                and fn_es_aprobador_rrhh('abonos'))
+    -- Documento: RRHH, en la carpeta de una persona que existe. Firma: el destinatario, en
+    -- su carpeta, de un documento suyo que la pide y aún no está firmado.
+    when 'documentos' then
+      case when split_part(p_nombre, '/', 3) = 'firmas' then
+             exists (select 1 from documentos_personal d
+                     where d.id = fn_rrhh_documento_de_firma(p_nombre)
+                       and d.persona_id = auth.uid()
+                       and split_part(p_nombre, '/', 2) = auth.uid()::text
+                       and d.requiere_firma and d.firma_path is null and d.anulado_en is null)
+           else fn_rrhh_ve_todo()
+                and exists (select 1 from perfiles pf where pf.id = fn_rrhh_id_de_ruta(p_nombre))
+      end
     else false
   end;
 $$;
@@ -899,12 +941,13 @@ do $$
 declare
   f text;
   usuario text[] := array[
-    'fn_rrhh_ve_todo()', 'fn_es_aprobador_rrhh(text)', 'fn_proyectos_del_tecnico()',
-    'fn_proyectos_para_rrhh()', 'fn_personas_rrhh()', 'fn_permiso_fecha_bloqueada(text, date)',
-    'fn_rrhh_id_de_ruta(text)', 'fn_rrhh_soporte_visible(text)', 'fn_rrhh_soporte_subible(text)'
+    'fn_rrhh_ve_todo()', 'fn_es_aprobador_rrhh(text)', 'fn_personas_rrhh()', 'fn_permiso_fecha_bloqueada(text, date)',
+    'fn_rrhh_id_de_ruta(text)', 'fn_rrhh_documento_de_firma(text)', 'fn_rrhh_soporte_visible(text)',
+    'fn_rrhh_soporte_subible(text)'
   ];
   disparadores text[] := array[
-    'fn_gastos_reglas()', 'fn_permisos_reglas()', 'fn_abonos_reglas()', 'fn_certificados_inmutable()'
+    'fn_gastos_reglas()', 'fn_permisos_reglas()', 'fn_abonos_reglas()', 'fn_certificados_inmutable()',
+    'fn_documentos_reglas()'
   ];
 begin
   foreach f in array usuario loop
