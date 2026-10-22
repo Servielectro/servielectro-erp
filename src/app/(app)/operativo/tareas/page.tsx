@@ -38,6 +38,7 @@ export default async function TareasPage() {
           modo="operativo"
           yo={user.id}
           puedeAsignar={puedeAsignar}
+          puedeEliminar={puedeAsignar}
           tareasIniciales={datos.tareas}
           archivadasIniciales={datos.archivadas}
           conResponsable={datos.conResponsable}

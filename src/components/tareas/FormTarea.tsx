@@ -24,6 +24,7 @@ import {
   type EventoTarea,
 } from "@/lib/tareas-guardar";
 import { ElegirParticipantes } from "./ElegirParticipantes";
+import { EliminarDefinitivo } from "@/components/eliminar/EliminarDefinitivo";
 
 const CAMPO = "mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base";
 const ETIQUETA = "text-sm font-semibold text-slate-700";
@@ -89,6 +90,8 @@ export function FormTarea({
   onCerrar,
   onGuardada,
   onArchivada,
+  puedeEliminar = false,
+  onEliminada,
   onRecuperada,
 }: {
   /** operativo: tarea de obra (equipo) · planificacion: interna o compartida. */
@@ -111,6 +114,9 @@ export function FormTarea({
   onCerrar: () => void;
   onGuardada: (t: Tarea, nueva: boolean) => void;
   onArchivada?: (id: string) => void;
+  /** operativo/trabajar: puede eliminar definitivamente (con contraseña). */
+  puedeEliminar?: boolean;
+  onEliminada?: (id: string) => void;
   onRecuperada?: (t: Tarea) => void;
 }) {
   const supabase = useMemo(() => createClient(), []);
@@ -182,13 +188,15 @@ export function FormTarea({
     }
   }
 
-  // "Eliminar" archiva, y la confirmación lo dice con todas las letras.
-  async function eliminar() {
+  // ARCHIVAR = guardar: reversible y sin contraseña. Eliminar de verdad es otro botón
+  // ("Eliminar definitivamente"), que pide la contraseña y no se recupera.
+  async function archivar(confirmar = true) {
     if (
       !original ||
-      !window.confirm(
-        "La tarea se archiva: deja de verse en el tablero y la agenda, queda en el historial y se puede recuperar desde el filtro “Archivadas”.\n\n¿Eliminarla?",
-      )
+      (confirmar &&
+        !window.confirm(
+          "La tarea se archiva: deja de verse en el tablero y la agenda, queda en el historial y se puede recuperar desde el filtro “Archivadas”.\n\n¿Archivarla?",
+        ))
     )
       return;
     const res = await archivarTarea(supabase, original.id);
@@ -567,17 +575,26 @@ export function FormTarea({
           )}
         </div>
 
-        {/* Eliminar · Cancelar · Guardar, en ese orden. */}
-        <div className="mt-5 flex flex-wrap gap-2">
+        {/* Archivar · Eliminar definitivamente · Cancelar · Guardar. */}
+        <div className="mt-5 flex flex-wrap items-center gap-2">
           {original && !soloMover && !archivada && (
             <button
               type="button"
-              onClick={eliminar}
+              onClick={() => archivar()}
               disabled={guardando}
-              className="min-h-12 rounded-lg border-2 border-red-200 px-4 text-base font-medium text-red-700"
+              className="min-h-12 rounded-lg border-2 border-slate-300 px-4 text-base font-medium text-slate-800"
             >
-              Eliminar
+              Archivar
             </button>
+          )}
+          {original && puedeEliminar && (
+            <EliminarDefinitivo
+              tipo="tarea"
+              id={original.id}
+              titulo={original.titulo}
+              onEliminado={() => onEliminada?.(original.id)}
+              onArchivar={archivada ? undefined : () => archivar(false)}
+            />
           )}
           {original && !soloMover && archivada && (
             <button

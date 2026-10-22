@@ -3,9 +3,10 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { cancelarVisita, reasignarVisita, recuperarVisita } from "../../actions";
+import { EliminarDefinitivo } from "@/components/eliminar/EliminarDefinitivo";
 
 /**
- * Cambiar el técnico y "Eliminar" (cancelar, se puede recuperar) una visita que todavía no
+ * Cambiar el técnico y "Archivar" (cancelar, se puede recuperar) una visita que todavía no
  * empezó. Ya empezada no se puede, y se dice por qué (no se apaga en silencio).
  */
 export function AccionesVisita({
@@ -13,8 +14,10 @@ export function AccionesVisita({
   estado,
   tecnicoId,
   tecnicos,
+  titulo,
 }: {
   visitaId: string;
+  titulo: string;
   estado: string;
   tecnicoId: string | null;
   tecnicos: { id: string; nombre: string }[];
@@ -24,6 +27,19 @@ export function AccionesVisita({
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [pendiente, empezar] = useTransition();
+
+  // Eliminar de verdad (contraseña cada vez): la visita ya no existe, se vuelve a la lista.
+  const eliminar = (
+    <EliminarDefinitivo
+      tipo="visita"
+      id={visitaId}
+      titulo={titulo}
+      onEliminado={(avisoArchivos) => {
+        if (avisoArchivos) window.alert(avisoArchivos);
+        router.push("/operativo");
+      }}
+    />
+  );
 
   const correr = (fn: () => Promise<{ ok: true } | { ok: false; error: string }>, ok: string) =>
     empezar(async () => {
@@ -38,7 +54,7 @@ export function AccionesVisita({
   if (estado === "cancelada") {
     return (
       <div className="space-y-2 rounded-lg border-2 border-slate-300 bg-slate-50 p-3 text-sm">
-        <p className="font-semibold text-slate-900">Visita eliminada (cancelada).</p>
+        <p className="font-semibold text-slate-900">Visita archivada (cancelada).</p>
         <p className="text-slate-600">El técnico no la ve. No se borró nada: con “Recuperar” vuelve a programada.</p>
         {error && <p className="rounded-md bg-red-100 px-2 py-1 text-red-800">{error}</p>}
         <button
@@ -49,15 +65,20 @@ export function AccionesVisita({
         >
           {pendiente ? "Recuperando…" : "Recuperar"}
         </button>
+        <div>{eliminar}</div>
       </div>
     );
   }
 
   if (estado !== "programada") {
     return (
-      <p className="text-sm text-slate-600">
-        La visita ya empezó: no se cambia el técnico ni se elimina (el técnico tiene evidencia en su celular).
-      </p>
+      <div className="space-y-1 text-sm">
+        <p className="text-slate-600">
+          La visita ya empezó: no se cambia el técnico ni se archiva (el técnico tiene evidencia en su celular). Si
+          era de prueba o de error, se puede eliminar definitivamente.
+        </p>
+        {eliminar}
+      </div>
     );
   }
 
@@ -96,16 +117,17 @@ export function AccionesVisita({
         onClick={() => {
           if (
             window.confirm(
-              "La visita se cancela: el técnico deja de verla, no se borra nada y se puede recuperar desde esta pantalla.\n\n¿Eliminarla?",
+              "La visita se archiva (cancela): el técnico deja de verla, no se borra nada y se puede recuperar desde esta pantalla.\n\n¿Archivarla?",
             )
           ) {
-            correr(() => cancelarVisita(visitaId), "Visita eliminada (cancelada). Se puede recuperar.");
+            correr(() => cancelarVisita(visitaId), "Visita archivada (cancelada). Se puede recuperar.");
           }
         }}
         className="min-h-11 rounded-lg border-2 border-red-300 px-4 font-semibold text-red-800 disabled:opacity-50"
       >
-        Eliminar
+        Archivar
       </button>
+      {eliminar}
       {aviso && <p className="rounded-md bg-green-100 px-2 py-1 text-green-900">{aviso}</p>}
       {error && <p className="rounded-md bg-red-100 px-2 py-1 text-red-800">{error}</p>}
     </div>

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { cargarDatosTareas } from "@/lib/supabase/tareas";
 import { TableroTareas } from "@/components/tareas/TableroTareas";
+import { tienePermiso } from "@/lib/permisos";
 
 // Tablero de Planificación (el layout ya exige planificacion/trabajar): las tareas
 // internas de cada uno y las compartidas con personas o grupos ("👥 Asignar al equipo").
@@ -33,6 +34,7 @@ export default async function PlanificacionPage() {
           modo="planificacion"
           yo={user.id}
           puedeAsignar
+          puedeEliminar={await tienePermiso("operativo", "trabajar")}
           tareasIniciales={datos.tareas}
           archivadasIniciales={datos.archivadas}
           obras={datos.obras}

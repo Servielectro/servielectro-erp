@@ -68,6 +68,7 @@ export function TableroTareas({
   modo = "operativo",
   yo,
   puedeAsignar,
+  puedeEliminar = false,
   tareasIniciales,
   archivadasIniciales = [],
   obras,
@@ -79,6 +80,8 @@ export function TableroTareas({
   modo?: ModoTareas;
   yo: string;
   puedeAsignar: boolean;
+  /** operativo/trabajar: eliminar definitivamente (con contraseña). */
+  puedeEliminar?: boolean;
   tareasIniciales: Tarea[];
   archivadasIniciales?: Tarea[];
   obras: Obra[];
@@ -760,6 +763,13 @@ export function TableroTareas({
           obraInicial={obra}
           yo={yo}
           puedeAsignar={puedeAsignar}
+          puedeEliminar={puedeEliminar}
+          onEliminada={(id) => {
+            setTareas((ts) => ts.filter((x) => x.id !== id));
+            setArchivadas((a) => a.filter((x) => x.id !== id));
+            setForm(null);
+            setFranja({ tipo: "ok", texto: "Tarea eliminada definitivamente" });
+          }}
           personas={personas}
           grupos={grupos}
           conResponsable={conResponsable}

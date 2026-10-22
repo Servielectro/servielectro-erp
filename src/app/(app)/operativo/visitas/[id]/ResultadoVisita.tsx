@@ -202,7 +202,7 @@ export function ResultadoVisita({
         </dl>
         {puedeCerrar && (v.estado === "programada" || v.estado === "cancelada" || v.estado === "en_curso") && (
           <div className="mt-2 border-t border-slate-100 pt-2">
-            <AccionesVisita visitaId={v.id} estado={v.estado} tecnicoId={v.tecnico.id} tecnicos={tecnicos} />
+            <AccionesVisita visitaId={v.id} titulo={v.titulo} estado={v.estado} tecnicoId={v.tecnico.id} tecnicos={tecnicos} />
           </div>
         )}
       </Seccion>
