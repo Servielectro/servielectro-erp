@@ -14,6 +14,8 @@ import type { Marcacion } from "@/lib/supabase/visita-detalle";
 import { GaleriaFotos } from "./GaleriaFotos";
 import { CierreVisita } from "./CierreVisita";
 import { AccionesVisita } from "./AccionesVisita";
+import { ProyectoVisita } from "./ProyectoVisita";
+import type { ProyectoNombre } from "@/lib/supabase/proyectos";
 
 // Resultado de una visita, dentro de Operativo (los datos los carga page.tsx). Va
 // aparte de la carga para poder medirla con datos de prueba.
@@ -124,11 +126,14 @@ export function ResultadoVisita({
   v,
   puedeCerrar,
   tecnicos = [],
+  proyecto,
 }: {
   v: VisitaDetalle;
   puedeCerrar: boolean;
   /** Para cambiar el técnico (solo con operativo/trabajar). */
   tecnicos?: { id: string; nombre: string }[];
+  /** Proyecto de la visita y las opciones (migración 63). Sin la migración: no se muestra. */
+  proyecto?: { id: string | null; opciones: ProyectoNombre[] };
 }) {
   const hitos = lineaDeTiempo(v.creadaEn, v.vistoEn, v.jornadas);
   const duracion = duracionMs(v.jornadas);
@@ -182,6 +187,16 @@ export function ResultadoVisita({
             {v.creadaPor} · {fechaHora(v.creadaEn)}
           </Dato>
           {v.clienteNombre && <Dato etiqueta="Cliente">{v.clienteNombre}</Dato>}
+          {proyecto && (
+            <Dato etiqueta="Proyecto">
+              <ProyectoVisita
+                visitaId={v.id}
+                proyectoId={proyecto.id}
+                opciones={proyecto.opciones}
+                puedeCambiar={puedeCerrar}
+              />
+            </Dato>
+          )}
           {(v.direccion || mapa) && (
             <Dato etiqueta="Dirección">
               {v.direccion ?? "—"}

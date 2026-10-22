@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso } from "@/lib/permisos";
 import { getVisitaDetalle } from "@/lib/supabase/visita-detalle";
+import { getProyectosNombres } from "@/lib/supabase/proyectos";
 import { ResultadoVisita } from "./ResultadoVisita";
 
 // Operativo: al abrir una visita de la lista, sus resultados (docs/operativo-detalle-visita.md).
@@ -13,5 +14,14 @@ export default async function VisitaDetallePage(props: PageProps<"/operativo/vis
   const tecnicos = puedeCerrar
     ? (((await supabase.rpc("fn_tecnicos_asignables")).data ?? []) as { id: string; nombre: string }[])
     : [];
-  return <ResultadoVisita v={v} puedeCerrar={puedeCerrar} tecnicos={tecnicos} />;
+  // Proyecto (migración 63): aparte del cargador, para que sin la migración la visita se vea igual.
+  const [proyectoRes, opciones] = await Promise.all([
+    supabase.from("visitas").select("proyecto_id").eq("id", id).maybeSingle(),
+    getProyectosNombres(supabase),
+  ]);
+  const proyecto =
+    !proyectoRes.error && opciones !== null
+      ? { id: (proyectoRes.data?.proyecto_id as string | null) ?? null, opciones }
+      : undefined;
+  return <ResultadoVisita v={v} puedeCerrar={puedeCerrar} tecnicos={tecnicos} proyecto={proyecto} />;
 }

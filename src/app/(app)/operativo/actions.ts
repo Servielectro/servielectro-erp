@@ -27,6 +27,8 @@ export interface NuevaVisita {
   descripcionTrabajo: string;
   /** Mínimo de fotos por día (texto del formulario; vacío = sin mínimo). */
   fotosMinimasDia: string;
+  /** Proyecto u obra (migración 63). Con esto el técnico lo ve para cargarle gastos. */
+  proyectoId: string | null;
 }
 
 export async function crearVisita(v: NuevaVisita): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -60,11 +62,15 @@ export async function crearVisita(v: NuevaVisita): Promise<{ ok: true } | { ok: 
     fecha_fin_estimada: v.tipo === "obra" && v.fechaFinEstimada ? v.fechaFinEstimada : null,
     descripcion_trabajo: v.descripcionTrabajo.trim() || null,
     fotos_minimas_dia: minimo,
+    // Solo si se eligió: sin la migración 63 la columna no existe y crear la visita no debe fallar.
+    ...(v.proyectoId ? { proyecto_id: v.proyectoId } : {}),
   });
   if (error) {
     return {
       ok: false,
-      error: /cliente_nombre|contacto_sitio|telefono_sitio/.test(error.message)
+      error: /proyecto_id/.test(error.message)
+        ? "Falta correr la migración 63 en la base."
+        : /cliente_nombre|contacto_sitio|telefono_sitio/.test(error.message)
         ? "Falta correr la migración 46 en la base."
         : /hora_programada/.test(error.message)
           ? "Falta correr la migración 59 en la base."
@@ -135,6 +141,24 @@ async function actualizarVisita(visitaId: string, cambios: Record<string, unknow
 export async function reasignarVisita(visitaId: string, tecnicoId: string): Promise<Resultado> {
   if (!tecnicoId) return { ok: false, error: "Elige el técnico." };
   return actualizarVisita(visitaId, { tecnico_id: tecnicoId }, ["programada"]);
+}
+
+/**
+ * Proyecto u obra de la visita (migración 63), en cualquier estado: es clasificación, no
+ * evidencia (la base lo deja pasar aunque esté firmada, y solo a Operativo).
+ */
+export async function cambiarProyectoVisita(visitaId: string, proyectoId: string | null): Promise<Resultado> {
+  if (!(await tienePermiso("operativo", "trabajar"))) {
+    return { ok: false, error: "Cambiar el proyecto requiere permiso de Operativo." };
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("visitas").update({ proyecto_id: proyectoId }).eq("id", visitaId).select("id");
+  if (error) {
+    return { ok: false, error: /proyecto_id/.test(error.message) ? "Falta correr la migración 63 en la base." : error.message };
+  }
+  if (!data?.length) return { ok: false, error: "No se encontró la visita o no tienes acceso a ella." };
+  revalidatePath(`/operativo/visitas/${visitaId}`);
+  return { ok: true };
 }
 
 /**

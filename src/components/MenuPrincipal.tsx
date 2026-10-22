@@ -223,6 +223,11 @@ export function MenuPrincipal({
               </Link>
             </>
           )}
+          {accesos.modulos.includes("proyectos") && (
+            <Link href="/proyectos" className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+              Proyectos
+            </Link>
+          )}
           {accesos.modulos.includes("operativo") && (
             <>
               <Link href="/operativo" className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">

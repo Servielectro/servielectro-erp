@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { ClienteCombobox } from "@/components/clientes/ClienteCombobox";
 import { NuevoClienteModal } from "@/components/clientes/NuevoClienteModal";
 import type { ClienteResumen } from "@/lib/supabase/clientes";
+import type { ProyectoNombre } from "@/lib/supabase/proyectos";
 import { hoyColombia } from "@/lib/crm";
 import { crearVisita, resolverUbicacionMaps, type NuevaVisita } from "./actions";
 
@@ -27,6 +28,7 @@ function vacia(): NuevaVisita {
     fechaFinEstimada: "",
     descripcionTrabajo: "",
     fotosMinimasDia: "",
+    proyectoId: null,
   };
 }
 
@@ -36,6 +38,7 @@ export function NuevaVisitaForm({
   errorTecnicos,
   veClientes,
   puedeCrearCliente,
+  proyectos,
 }: {
   tecnicos: { id: string; nombre: string }[];
   clientes: ClienteResumen[];
@@ -44,6 +47,8 @@ export function NuevaVisitaForm({
   veClientes: boolean;
   /** comercial/trabajar: puede crear clientes (el mismo alta del cotizador). */
   puedeCrearCliente: boolean;
+  /** Proyectos en ejecución (fn_proyectos_nombres). Null: la migración 63 no está corrida. */
+  proyectos: ProyectoNombre[] | null;
 }) {
   const [clientes, setClientes] = useState(clientesIniciales);
   const [nuevoCliente, setNuevoCliente] = useState<string | null>(null);
@@ -174,6 +179,29 @@ export function NuevaVisitaForm({
             setNuevoCliente(null);
           }}
         />
+      )}
+      {proyectos !== null && (
+        <div>
+          <label className="text-xs text-slate-600">Proyecto u obra (opcional)</label>
+          <select
+            value={v.proyectoId ?? ""}
+            onChange={(e) => cambiar("proyectoId", e.target.value || null)}
+            disabled={proyectos.length === 0}
+            className={`${CAMPO} disabled:bg-slate-50`}
+          >
+            <option value="">{proyectos.length === 0 ? "No hay proyectos en ejecución" : "Sin proyecto"}</option>
+            {proyectos.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nombre} ({p.codigo})
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-slate-500">
+            {proyectos.length === 0
+              ? "Los proyectos se crean en el módulo Proyectos."
+              : "Con el proyecto, el técnico lo puede elegir al cargar gastos de esta obra."}
+          </p>
+        </div>
       )}
       <div>
         <label className="text-xs text-slate-600">Dirección</label>

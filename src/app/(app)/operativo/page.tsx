@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso } from "@/lib/permisos";
 import { getClientesActivos, type ClienteResumen } from "@/lib/supabase/clientes";
+import { getProyectosNombres, type ProyectoNombre } from "@/lib/supabase/proyectos";
 import { NuevaVisitaForm } from "./NuevaVisitaForm";
 
 const ESTADO: Record<string, string> = {
@@ -18,7 +19,7 @@ export default async function OperativoPage() {
   const veComercial = await tienePermiso("comercial", "consultar");
   const creaClientes = await tienePermiso("comercial", "trabajar");
 
-  const [{ data: visitas, error }, tecnicosRes, clientes] = await Promise.all([
+  const [{ data: visitas, error }, tecnicosRes, clientes, proyectos] = await Promise.all([
     supabase
       .from("visitas")
       .select("id, titulo, cliente_nombre, direccion, estado, tipo, fecha_programada, tecnico_id")
@@ -27,6 +28,7 @@ export default async function OperativoPage() {
     puedeCrear ? supabase.rpc("fn_tecnicos_asignables") : Promise.resolve({ data: [], error: null }),
     // La lista de clientes exige Comercial; sin eso, el nombre del cliente se escribe a mano.
     veComercial ? getClientesActivos(supabase).catch(() => [] as ClienteResumen[]) : Promise.resolve([]),
+    puedeCrear ? getProyectosNombres(supabase) : Promise.resolve(null as ProyectoNombre[] | null),
   ]);
 
   const tecnicos = ((tecnicosRes.data ?? []) as { id: string; nombre: string }[]).map((t) => ({
@@ -60,6 +62,7 @@ export default async function OperativoPage() {
           clientes={clientes}
           veClientes={veComercial}
           puedeCrearCliente={creaClientes}
+          proyectos={proyectos ? proyectos.filter((p) => p.estado === "EN_EJECUCION") : null}
           errorTecnicos={tecnicosRes.error ? tecnicosRes.error.message : null}
         />
       )}
