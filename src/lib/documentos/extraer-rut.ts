@@ -6,18 +6,18 @@ import {
   type RutExtraido,
 } from "./rut-schema";
 import { validarNit } from "@/lib/nit";
-import { generarConGemini } from "@/lib/ia/gemini";
+import { generarConIA } from "@/lib/ia/ia";
 
-// Lectura del RUT con Google Gemini (antes OpenAI): mismo proveedor y misma clave que
-// la descripción de equipos (GEMINI_API_KEY), cubierto por la licencia de Google AI
-// Studio de Jhojan. Gemini lee PDF e imagen nativamente y devuelve JSON con el esquema
-// que se le pasa; igual se valida con Zod antes de usarlo.
+// Lectura del RUT con IA: primero OpenAI y, si falla, Gemini (src/lib/ia/ia.ts). Los dos leen
+// PDF e imagen y devuelven JSON con el esquema que se les pasa; igual se valida con Zod antes de
+// usarlo.
 //
-// Costo de referencia del modelo flash de Gemini por millón de tokens (precio de pago por uso
-// de Google; con la licencia de Jhojan se descuenta de sus créditos): entrada $0.30,
-// salida $2.50. Se guarda una estimación en documentos.costo_estimado_usd.
-const PRECIO_INPUT_POR_MILLON = 0.3;
-const PRECIO_OUTPUT_POR_MILLON = 2.5;
+// Costo de referencia por millón de tokens (entrada / salida), para la estimación que se guarda
+// en documentos.costo_estimado_usd. Con la licencia de Google, lo de Gemini sale de sus créditos.
+const PRECIOS_POR_MILLON = {
+  OpenAI: { entrada: 0.4, salida: 1.6 },
+  Gemini: { entrada: 0.3, salida: 2.5 },
+} as const;
 
 export interface ResultadoExtraccionRut {
   extraccion: RutExtraido;
@@ -39,7 +39,7 @@ function mimeDesdeNombre(nombreArchivo: string): string {
   return "application/octet-stream";
 }
 
-// El mismo esquema Zod de siempre, convertido a JSON Schema para pedirle a Gemini la
+// El mismo esquema Zod de siempre, convertido a JSON Schema para pedirle a la IA la
 // respuesta con esa forma exacta ($schema sobra para la API).
 const ESQUEMA_JSON = (() => {
   const { $schema: _omitido, ...resto } = z.toJSONSchema(RutExtraidoSchema) as Record<string, unknown>;
@@ -48,7 +48,7 @@ const ESQUEMA_JSON = (() => {
 })();
 
 /**
- * Extrae los datos de un RUT (PDF o foto) con Gemini, con salida estructurada y
+ * Extrae los datos de un RUT (PDF o foto) con IA, con salida estructurada y
  * verificada. NUNCA se llama desde el navegador — la API key vive solo acá. Lo que
  * devuelve se muestra campo por campo para confirmar antes de guardar.
  */
@@ -61,56 +61,38 @@ export async function extraerRut(
     throw new Error("Formato no soportado: sube el RUT en PDF o como foto (JPG, PNG o WEBP).");
   }
 
-  const archivo = { inline_data: { mime_type: mime, data: archivoBuffer.toString("base64") } };
-  const pedir = (conEsquemaEstructurado: boolean) =>
-    generarConGemini({
+  const respuesta = await generarConIA(
+    {
       para: "leer el RUT",
-      instrucciones: conEsquemaEstructurado
-        ? INSTRUCCIONES_EXTRACCION_RUT
-        : `${INSTRUCCIONES_EXTRACCION_RUT}\n\nRespondé SOLO con un objeto JSON que cumpla exactamente este JSON Schema:\n${JSON.stringify(ESQUEMA_JSON)}`,
-      partes: [archivo, { text: "Extraé los datos de este documento según el esquema." }],
-      configuracion: {
-        temperature: 0,
-        responseMimeType: "application/json",
-        ...(conEsquemaEstructurado ? { responseJsonSchema: ESQUEMA_JSON } : {}),
-      },
-      // Un PDF escaneado tarda más que una búsqueda corta; igual tiene tope por llamada
-      // y un tope total (reintentos por saturación incluidos) por debajo del límite de
-      // tiempo del servidor.
-      timeoutMs: 40_000,
-      presupuestoMs: 55_000,
-    });
-
-  // Plan B: si la API rechazara el esquema estructurado, se pide el JSON con el esquema
-  // en las instrucciones. En ambos casos lo valida el mismo esquema Zod de abajo.
-  let respuesta: Awaited<ReturnType<typeof pedir>>;
-  try {
-    respuesta = await pedir(true);
-  } catch (e) {
-    if (e instanceof Error && /schema|json_schema|Invalid JSON payload/i.test(e.message)) {
-      console.error("Gemini rechazó el esquema estructurado; reintento con el esquema en el prompt:", e.message);
-      respuesta = await pedir(false);
-    } else {
-      throw e;
-    }
-  }
+      instrucciones: INSTRUCCIONES_EXTRACCION_RUT,
+      partes: [
+        { archivo: { mime, base64: archivoBuffer.toString("base64"), nombre: nombreArchivo } },
+        { texto: "Extraé los datos de este documento según el esquema." },
+      ],
+      esquemaJson: ESQUEMA_JSON,
+      nombreEsquema: "rut",
+      temperatura: 0,
+    },
+    // Tope por proveedor. Con un cliente al frente: si no respondió en 20 s, se pasa al otro
+    // (y la pantalla deja cancelar y llenar a mano en cualquier momento).
+    20_000,
+  );
 
   let crudo: unknown;
   try {
     crudo = JSON.parse(respuesta.texto);
   } catch {
-    throw new Error("Gemini no devolvió una extracción válida para este documento.");
+    throw new Error("La IA no devolvió una extracción válida para este documento. Llena los datos a mano.");
   }
   const validado = RutExtraidoSchema.safeParse(crudo);
   if (!validado.success) {
-    throw new Error("Gemini devolvió datos que no cumplen el formato esperado del RUT.");
+    throw new Error("La IA devolvió datos que no cumplen el formato del RUT. Llena los datos a mano.");
   }
   const extraccion = validado.data;
 
   const { tokensEntrada, tokensSalida } = respuesta;
-  const costoEstimadoUsd =
-    (tokensEntrada / 1_000_000) * PRECIO_INPUT_POR_MILLON +
-    (tokensSalida / 1_000_000) * PRECIO_OUTPUT_POR_MILLON;
+  const precio = PRECIOS_POR_MILLON[respuesta.proveedor];
+  const costoEstimadoUsd = (tokensEntrada / 1_000_000) * precio.entrada + (tokensSalida / 1_000_000) * precio.salida;
 
   // Validación matemática del NIT — independiente de qué tan "segura" haya dicho
   // estar la IA. Es la red de seguridad barata contra un dígito mal leído.

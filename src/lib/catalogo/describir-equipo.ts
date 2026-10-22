@@ -1,5 +1,5 @@
 import "server-only";
-import { generarConGemini } from "@/lib/ia/gemini";
+import { generarConIA } from "@/lib/ia/ia";
 
 /**
  * Descripción automática de EQUIPOS para la cotización.
@@ -7,10 +7,8 @@ import { generarConGemini } from "@/lib/ia/gemini";
  * Jhojan hoy hace esto a mano con ChatGPT: escribe la referencia, pide un
  * resumen de características y lo pega en la cotización. Esto lo automatiza.
  *
- * Usa Google Gemini con *grounding* de búsqueda de Google, porque:
- *   1. Necesita buscar la referencia en la web, no inventarla de memoria.
- *   2. Jhojan tiene licencia de Google AI Studio (1050 créditos/mes por 18 meses),
- *      así que este camino no agrega costo.
+ * Usa IA con búsqueda web (primero OpenAI y, si falla, Gemini con la búsqueda de Google:
+ * src/lib/ia/ia.ts), porque necesita buscar la referencia en la web, no inventarla de memoria.
  *
  * SOLO para categoría EQUIPO. Para MATERIAL y MANO_DE_OBRA no aplica: no son
  * productos con ficha técnica y la IA terminaría inventando.
@@ -74,18 +72,18 @@ export async function describirEquipo(
     `REFERENCIA: ${referenciaLimpia}`,
   ].join("\n");
 
-  const { texto, fuentesWeb } = await generarConGemini({
-    para: "buscar la descripción",
-    instrucciones: INSTRUCCIONES,
-    partes: [{ text: consulta }],
-    herramientas: [{ google_search: {} }],
-    configuracion: { temperature: 0.2 },
-    // Esto corre mientras Jhojan está cotizando frente al cliente: si en 15
-    // segundos no hay respuesta, se corta y él escribe la descripción a mano.
-    timeoutMs: 15_000,
-    // Con reintentos por saturación de Google incluidos.
-    presupuestoMs: 25_000,
-  });
+  const { texto, fuentesWeb } = await generarConIA(
+    {
+      para: "buscar la descripción",
+      instrucciones: INSTRUCCIONES,
+      partes: [{ texto: consulta }],
+      busquedaWeb: true,
+      temperatura: 0.2,
+    },
+    // Corre mientras Jhojan cotiza frente al cliente: 12 s por proveedor, y la pantalla deja
+    // cancelar y escribirla a mano en cualquier momento.
+    12_000,
+  );
 
   if (!texto) {
     throw new Error(

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { crearItemCatalogo } from "@/app/(app)/comercial/cotizaciones/actions";
 import { describirEquipoConIA } from "@/app/(app)/comercial/cotizaciones/ia-actions";
 import {
@@ -61,6 +61,9 @@ export function NuevoItemModal({
     setVentanaIa(true);
   }
 
+  // Cada búsqueda tiene su número: si se canceló, la respuesta que llegue tarde se ignora.
+  const busqueda = useRef(0);
+
   async function buscarDescripcion() {
     const ref = referenciaIa.trim();
     if (!ref) {
@@ -70,11 +73,13 @@ export function NuevoItemModal({
     setBuscandoIa(true);
     setErrorIa(null);
 
+    const mia = ++busqueda.current;
     const res = await describirEquipoConIA({
       nombre: nombreCorto,
       referencia: ref,
       categoria,
     });
+    if (mia !== busqueda.current) return; // se canceló: se escribe a mano
 
     setBuscandoIa(false);
 
@@ -363,7 +368,15 @@ export function NuevoItemModal({
 
             {buscandoIa && (
               <p className="mt-3 text-sm text-slate-700">
-                <EsperaIA texto="Buscando la ficha del equipo…" />
+                <EsperaIA
+                  texto="Buscando la ficha del equipo…"
+                  onCancelar={() => {
+                    busqueda.current++;
+                    setBuscandoIa(false);
+                    setVentanaIa(false);
+                    setAvisoIa("Búsqueda cancelada: escribe la descripción a mano.");
+                  }}
+                />
               </p>
             )}
             {errorIa && !buscandoIa && (

@@ -1,43 +1,31 @@
 import "server-only";
+import { ErrorIA } from "./errores";
+import type { PeticionIA, RespuestaIA } from "./ia";
 
 /**
- * Único proveedor de IA del ERP: Google Gemini (licencia de Google AI Studio de Jhojan,
- * 1050 créditos/mes por 18 meses). Una sola clave, GEMINI_API_KEY, solo en el servidor
- * (sin prefijo NEXT_PUBLIC_). Lo usan la descripción de equipos y la lectura del RUT.
+ * Google Gemini: SEGUNDO proveedor desde el 2026-10-22 (primero va OpenAI; ver ia.ts). Clave
+ * GEMINI_API_KEY solo en el servidor (licencia de Google AI Studio de Jhojan).
  *
- * Resistencia a la saturación de Google (503 "high demand"): Jhojan lo usa parado
- * frente al cliente, así que "intenta más tarde" no sirve:
- *   1. Reintento con espera creciente (≈1 s, 3 s, 6 s) SOLO para saturación
- *      (503 / UNAVAILABLE / RESOURCE_EXHAUSTED). Nunca para clave inválida, modelo
- *      inexistente o petición mal formada.
- *   2. Si sigue saturado, un modelo de respaldo elegido de la lista REAL de modelos
- *      habilitados para la clave (no inventado).
- *   3. Si todo falla, un mensaje en español que dice qué hacer.
+ * Cada causa de error se trata distinto, y el mensaje dice la verdad (errores.ts):
+ *   - Saturación real (503 / UNAVAILABLE): reintento RÁPIDO (0,4 s y 1,2 s) dentro de un tope,
+ *     y si sigue, un modelo de respaldo real de la cuenta. Con un cliente al frente, esperar
+ *     1 + 3 + 6 s para fallar igual era lo peor de los dos mundos.
+ *   - 429 / RESOURCE_EXHAUSTED: NUNCA se reintenta. Google devuelve lo mismo para el límite por
+ *     minuto y para la cuota del día o del nivel gratuito; lo distingue el quotaId del detalle.
+ *     Antes se trataba como "saturado" y se reintentaba tres veces para fallar igual.
+ *   - Clave inválida, sin permiso, modelo inexistente: error de configuración, sin reintentos.
  *
  * NUNCA se llama desde el navegador.
  */
 
-// Único lugar donde se nombra el modelo principal (lo usan el RUT y la descripción de
-// equipos). Si Google lo retira, el error de abajo lista los modelos habilitados.
+// Único lugar donde se nombra el modelo principal. Si Google lo retira, el error lista los
+// modelos habilitados para la clave.
 export const MODELO_GEMINI = "gemini-3.8-flash";
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
 
-// Esperas entre intentos ante saturación (después del 1.º, 2.º y 3.º intento).
-const ESPERAS_REINTENTO_MS = [1_000, 3_000, 6_000];
-
-export const MENSAJE_SATURADO =
-  "El servicio de IA de Google está saturado en este momento. Puedes llenar los datos a mano o intentar de nuevo en un minuto.";
-
-/** Parte de entrada: texto, o un archivo (PDF / imagen) embebido en base64. */
-export type ParteGemini = { text: string } | { inline_data: { mime_type: string; data: string } };
-
-export interface RespuestaGemini {
-  texto: string;
-  fuentesWeb: string[]; // solo con la herramienta de búsqueda de Google
-  tokensEntrada: number;
-  tokensSalida: number;
-  modelo: string; // el que respondió (el principal o el de respaldo)
-}
+// Reintentos SOLO ante saturación real (503), rápidos y con tope total.
+const ESPERAS_REINTENTO_MS = [400, 1_200];
+const TOPE_REINTENTOS_MS = 6_000;
 
 interface CuerpoGemini {
   candidates?: Array<{
@@ -56,8 +44,6 @@ interface CuerpoGemini {
   };
 }
 
-class SaturadoError extends Error {}
-
 const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // ------------------------------------------------------------------ modelos habilitados
@@ -73,7 +59,7 @@ async function modelosHabilitados(apiKey: string): Promise<string[]> {
   if (cacheModelos && Date.now() - cacheModelos.cuando < 10 * 60_000) return cacheModelos.nombres;
   try {
     const r = await fetch(`${ENDPOINT}?pageSize=200&key=${encodeURIComponent(apiKey)}`, {
-      signal: AbortSignal.timeout(8_000),
+      signal: AbortSignal.timeout(5_000),
     });
     const j = (await r.json()) as { models?: ModeloApi[] };
     const nombres = (j.models ?? [])
@@ -89,20 +75,15 @@ async function modelosHabilitados(apiKey: string): Promise<string[]> {
 
 const versionDe = (nombre: string) => Number(/gemini-(\d+(?:\.\d+)?)/.exec(nombre)?.[1] ?? 0);
 
-/**
- * Modelos "flash" de uso general de la cuenta, del más nuevo al más viejo, sin el
- * principal. Se excluyen variantes especiales (imagen, audio, TTS, live, embeddings)
- * que no leen PDF ni dan salida estructurada.
- */
+/** Modelos "flash" de uso general de la cuenta, del más nuevo al más viejo, sin el principal. */
 async function modelosDeRespaldo(apiKey: string): Promise<string[]> {
   const todos = await modelosHabilitados(apiKey);
   return todos
     .filter((n) => n !== MODELO_GEMINI && /^gemini-[\d.]+-flash/.test(n))
     .filter((n) => !/image|audio|tts|live|embedding|thinking-exp/i.test(n))
     .sort((a, b) => {
-      // Primero los flash completos: un "lite" lee peor un RUT escaneado, así que solo
-      // se usa si no hay otro. Después, del más nuevo al más viejo, y a igual versión
-      // el estable antes que "preview"/"exp".
+      // Primero los flash completos (un "lite" lee peor un RUT escaneado), después del más
+      // nuevo al más viejo, y a igual versión el estable antes que "preview"/"exp".
       const lite = Number(/lite/.test(a)) - Number(/lite/.test(b));
       if (lite !== 0) return lite;
       const v = versionDe(b) - versionDe(a);
@@ -112,26 +93,18 @@ async function modelosDeRespaldo(apiKey: string): Promise<string[]> {
 }
 
 // ------------------------------------------------------------------ una llamada
-async function llamarUnaVez(
-  modelo: string,
-  apiKey: string,
-  cuerpoPeticion: string,
-  timeoutMs: number,
-): Promise<CuerpoGemini> {
+async function llamarUnaVez(modelo: string, apiKey: string, cuerpoPeticion: string, timeoutMs: number): Promise<CuerpoGemini> {
   let respuesta: Response;
   try {
     respuesta = await fetch(`${ENDPOINT}/${modelo}:generateContent?key=${encodeURIComponent(apiKey)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: cuerpoPeticion,
-      // Nunca dejar la pantalla colgada: si no responde a tiempo, se corta.
       signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (e) {
-    if (e instanceof Error && e.name === "TimeoutError") {
-      throw new Error("El servicio de IA tardó demasiado. Intenta de nuevo o hazlo a mano.");
-    }
-    throw new Error("No se pudo conectar con el servicio de IA (Gemini). Intenta de nuevo o hazlo a mano.");
+    if (e instanceof Error && e.name === "TimeoutError") throw new ErrorIA("Gemini", "tiempo", "no respondió a tiempo");
+    throw new ErrorIA("Gemini", "saturado", "no se pudo conectar");
   }
 
   const cuerpo = (await respuesta.json().catch(() => null)) as CuerpoGemini | null;
@@ -139,9 +112,9 @@ async function llamarUnaVez(
 
   const detalle = cuerpo?.error?.message ?? `HTTP ${respuesta.status}`;
   const estado = cuerpo?.error?.status ?? "";
-  // Diagnóstico (2026-10-22): qué responde Google de verdad cuando falla. Sin la clave (va en
-  // la URL, que no se registra). quotaId dice QUÉ cuota se agotó (por minuto, por día, nivel
-  // gratuito…) y retryDelay cuánto pide esperar Google.
+  const cuotas = (cuerpo?.error?.details ?? []).flatMap((d) => (d.violations ?? []).map((v) => v.quotaId ?? v.quotaMetric ?? ""));
+  // Diagnóstico: qué responde Google de verdad. Sin la clave (va en la URL, que no se
+  // registra). quotaId dice QUÉ cuota se agotó (por minuto, por día, nivel gratuito…).
   console.error(
     "[IA] Gemini falló",
     JSON.stringify({
@@ -149,135 +122,92 @@ async function llamarUnaVez(
       http: respuesta.status,
       status: estado,
       mensaje: detalle.slice(0, 300),
-      cuotas: (cuerpo?.error?.details ?? []).flatMap((d) => (d.violations ?? []).map((v) => v.quotaId ?? v.quotaMetric)),
+      cuotas,
       reintentarEn: (cuerpo?.error?.details ?? []).find((d) => d.retryDelay)?.retryDelay ?? null,
     }),
   );
-  if (
-    respuesta.status === 503 ||
-    respuesta.status === 429 ||
-    /UNAVAILABLE|RESOURCE_EXHAUSTED/.test(estado) ||
-    /high demand|overloaded|try again later/i.test(detalle)
-  ) {
-    throw new SaturadoError(detalle);
+
+  if (respuesta.status === 429 || estado === "RESOURCE_EXHAUSTED") {
+    // Por minuto → límite (pasa al otro proveedor). Por día / nivel gratuito / sin detalle →
+    // cuota: no se arregla reintentando.
+    const porMinuto = cuotas.length > 0 && cuotas.every((q) => /PerMinute/i.test(q));
+    throw new ErrorIA("Gemini", porMinuto ? "limite" : "cuota", porMinuto ? "límite por minuto" : "cuota agotada");
   }
-  if (respuesta.status === 404 || /not found|no longer available|not supported/i.test(detalle)) {
-    const disponibles = (await modelosHabilitados(apiKey)).filter((n) => n.includes("flash")).slice(0, 15);
-    throw new Error(
-      `Gemini rechazó el modelo "${modelo}": ${detalle}` +
-        (disponibles.length ? ` — Modelos flash habilitados para esta clave: ${disponibles.join(", ")}` : ""),
-    );
+  if (respuesta.status === 503 || estado === "UNAVAILABLE" || /high demand|overloaded/i.test(detalle)) {
+    throw new ErrorIA("Gemini", "saturado", "saturado");
   }
-  // Clave inválida, petición mal formada, etc.: no se reintenta. Se dice en español qué
-  // falló; el detalle técnico de Google (en inglés) va al final para diagnosticar.
   if (/API_KEY_INVALID|API key not valid/i.test(detalle) || estado === "UNAUTHENTICATED") {
-    throw new Error(
-      `La clave de IA (GEMINI_API_KEY) no es válida o venció: hay que renovarla en Vercel. Mientras tanto, hazlo a mano. (Detalle: ${detalle})`,
-    );
+    throw new ErrorIA("Gemini", "config", "la clave (GEMINI_API_KEY) no es válida o venció");
   }
   if (respuesta.status === 403 || estado === "PERMISSION_DENIED") {
-    throw new Error(
-      `La clave de IA no tiene permiso para usar Gemini (cuenta, facturación o API sin habilitar en Google). Mientras tanto, hazlo a mano. (Detalle: ${detalle})`,
+    throw new ErrorIA("Gemini", "config", "la clave no tiene permiso (cuenta, facturación o API sin habilitar)");
+  }
+  if (respuesta.status === 404 || /not found|no longer available|not supported/i.test(detalle)) {
+    const disponibles = (await modelosHabilitados(apiKey)).filter((n) => n.includes("flash")).slice(0, 10);
+    throw new ErrorIA(
+      "Gemini",
+      "config",
+      `el modelo "${modelo}" no está disponible` + (disponibles.length ? ` (habilitados: ${disponibles.join(", ")})` : ""),
     );
   }
-  if (respuesta.status === 400 || estado === "INVALID_ARGUMENT") {
-    throw new Error(
-      `Gemini no aceptó la consulta tal como se envió (modelo "${modelo}"). Hazlo a mano y avisa para revisarlo. (Detalle: ${detalle})`,
-    );
-  }
-  throw new Error(`Gemini rechazó la consulta (HTTP ${respuesta.status}). Hazlo a mano. (Detalle: ${detalle})`);
+  if (respuesta.status >= 500) throw new ErrorIA("Gemini", "saturado", "error del servicio");
+  throw new ErrorIA("Gemini", "otro", detalle);
 }
 
-/** Hasta 4 intentos del mismo modelo (esperas ≈1 s, 3 s, 6 s) mientras esté saturado. */
-async function llamarConReintentos(
-  modelo: string,
-  apiKey: string,
-  cuerpoPeticion: string,
-  timeoutMs: number,
-  limite: number,
-): Promise<CuerpoGemini> {
+/** Reintento rápido SOLO ante saturación real, dentro del tope. */
+async function llamarConReintentos(modelo: string, apiKey: string, cuerpo: string, timeoutMs: number, limite: number) {
   for (let intento = 0; ; intento++) {
     try {
-      return await llamarUnaVez(modelo, apiKey, cuerpoPeticion, timeoutMs);
+      return await llamarUnaVez(modelo, apiKey, cuerpo, Math.min(timeoutMs, Math.max(1_000, limite - Date.now())));
     } catch (e) {
       const espera = ESPERAS_REINTENTO_MS[intento];
-      // Solo saturación se reintenta, y sin pasarse del tiempo total disponible.
-      if (!(e instanceof SaturadoError) || espera === undefined || Date.now() + espera > limite) throw e;
-      console.warn(`Gemini saturado (${modelo}), reintento en ${espera} ms:`, e.message);
+      if (!(e instanceof ErrorIA) || e.causa !== "saturado" || espera === undefined || Date.now() + espera > limite) throw e;
       await esperar(espera);
     }
   }
 }
 
-// ------------------------------------------------------------------ API pública
-/**
- * Llama a Gemini y devuelve el texto de la respuesta. Los mensajes de error están
- * pensados para mostrarse tal cual en pantalla: dicen qué pasó y qué hacer.
- *
- * @param para          para qué se usa ("leer el RUT", "buscar la descripción").
- * @param timeoutMs     tope por cada llamada.
- * @param presupuestoMs tope total, contando reintentos y modelo de respaldo.
- */
-export async function generarConGemini(opciones: {
-  para: string;
-  instrucciones: string;
-  partes: ParteGemini[];
-  herramientas?: unknown[];
-  configuracion?: Record<string, unknown>;
-  timeoutMs: number;
-  presupuestoMs: number;
-}): Promise<RespuestaGemini> {
+// ------------------------------------------------------------------ API
+export async function generarConGemini(p: PeticionIA, timeoutMs: number): Promise<RespuestaIA> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error(
-      `GEMINI_API_KEY no está configurada en el servidor (Vercel → proyecto servielectro-erp → Settings → Environment Variables). No se puede ${opciones.para} automáticamente.`,
-    );
-  }
+  if (!apiKey) throw new ErrorIA("Gemini", "config", "falta la clave (GEMINI_API_KEY) en Vercel");
 
-  const cuerpoPeticion = JSON.stringify({
-    systemInstruction: { parts: [{ text: opciones.instrucciones }] },
-    contents: [{ role: "user", parts: opciones.partes }],
-    ...(opciones.herramientas ? { tools: opciones.herramientas } : {}),
-    generationConfig: opciones.configuracion ?? {},
-  });
-  const limite = Date.now() + opciones.presupuestoMs;
-
-  let cuerpo: CuerpoGemini | null = null;
-  let modeloUsado = MODELO_GEMINI;
-  try {
-    cuerpo = await llamarConReintentos(MODELO_GEMINI, apiKey, cuerpoPeticion, opciones.timeoutMs, limite);
-  } catch (e) {
-    if (!(e instanceof SaturadoError)) throw e;
-    // Sigue saturado: un modelo de respaldo real de la cuenta (uno solo, para no
-    // alargar la espera frente al cliente).
-    const [respaldo] = await modelosDeRespaldo(apiKey);
-    if (!respaldo || Date.now() >= limite) throw new Error(MENSAJE_SATURADO);
-    console.warn(`Gemini: ${MODELO_GEMINI} saturado, se usa el respaldo ${respaldo}`);
-    try {
-      cuerpo = await llamarConReintentos(respaldo, apiKey, cuerpoPeticion, opciones.timeoutMs, limite);
-      modeloUsado = respaldo;
-    } catch (e2) {
-      if (e2 instanceof SaturadoError) throw new Error(MENSAJE_SATURADO);
-      throw e2;
-    }
-  }
-
-  if (!cuerpo) throw new Error(MENSAJE_SATURADO);
-  const candidato = cuerpo.candidates?.[0];
-  const texto = (candidato?.content?.parts ?? []).map((p) => p.text ?? "").join("").trim();
-  const fuentesWeb = Array.from(
-    new Set(
-      (candidato?.groundingMetadata?.groundingChunks ?? [])
-        .map((c) => c.web?.uri)
-        .filter((u): u is string => Boolean(u)),
-    ),
+  const partes = p.partes.map((parte) =>
+    "texto" in parte ? { text: parte.texto } : { inline_data: { mime_type: parte.archivo.mime, data: parte.archivo.base64 } },
   );
+  const cuerpo = JSON.stringify({
+    systemInstruction: { parts: [{ text: p.instrucciones }] },
+    contents: [{ role: "user", parts: partes }],
+    ...(p.busquedaWeb ? { tools: [{ google_search: {} }] } : {}),
+    generationConfig: {
+      temperature: p.temperatura ?? 0,
+      ...(p.esquemaJson ? { responseMimeType: "application/json", responseJsonSchema: p.esquemaJson } : {}),
+    },
+  });
+  const limite = Date.now() + timeoutMs + TOPE_REINTENTOS_MS;
 
+  let respuesta: CuerpoGemini;
+  let modelo = MODELO_GEMINI;
+  try {
+    respuesta = await llamarConReintentos(MODELO_GEMINI, apiKey, cuerpo, timeoutMs, limite);
+  } catch (e) {
+    // Solo la saturación real justifica probar otro modelo, y solo si queda tiempo.
+    if (!(e instanceof ErrorIA) || e.causa !== "saturado" || Date.now() >= limite) throw e;
+    const [respaldo] = await modelosDeRespaldo(apiKey);
+    if (!respaldo) throw e;
+    respuesta = await llamarConReintentos(respaldo, apiKey, cuerpo, timeoutMs, limite);
+    modelo = respaldo;
+  }
+
+  const candidato = respuesta.candidates?.[0];
   return {
-    texto,
-    fuentesWeb,
-    tokensEntrada: cuerpo.usageMetadata?.promptTokenCount ?? 0,
-    tokensSalida: cuerpo.usageMetadata?.candidatesTokenCount ?? 0,
-    modelo: modeloUsado,
+    texto: (candidato?.content?.parts ?? []).map((x) => x.text ?? "").join("").trim(),
+    fuentesWeb: Array.from(
+      new Set((candidato?.groundingMetadata?.groundingChunks ?? []).map((c) => c.web?.uri).filter((u): u is string => Boolean(u))),
+    ),
+    tokensEntrada: respuesta.usageMetadata?.promptTokenCount ?? 0,
+    tokensSalida: respuesta.usageMetadata?.candidatesTokenCount ?? 0,
+    proveedor: "Gemini",
+    modelo,
   };
 }

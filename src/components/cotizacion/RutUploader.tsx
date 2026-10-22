@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   subirYLeerRut,
   confirmarRut,
@@ -55,6 +55,8 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado, onLeidoClie
   const clienteNuevo = Boolean(onLeidoClienteNuevo);
   const [estado, setEstado] = useState<Estado>({ paso: "elegir_archivo" });
   const [error, setError] = useState<string | null>(null);
+  // Cada lectura tiene su número: si se canceló, la respuesta que llegue tarde se ignora.
+  const lectura = useRef(0);
 
   async function onArchivoSeleccionado(file: File) {
     if (!clienteNuevo && !clienteNombre.trim()) {
@@ -68,7 +70,9 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado, onLeidoClie
     formData.append("archivo", file);
     formData.append("clienteNombre", clienteNombre);
 
+    const mia = ++lectura.current;
     const res = clienteNuevo ? await leerRutClienteNuevo(formData) : await subirYLeerRut(formData);
+    if (mia !== lectura.current) return; // se canceló: se sigue a mano
 
     if (!res.ok) {
       setError(res.error);
@@ -189,7 +193,13 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado, onLeidoClie
         {estado.paso === "leyendo" && (
           <div className="py-10 text-center">
             <p className="text-sm text-slate-600">
-              <EsperaIA texto="Leyendo el RUT con IA…" />
+              <EsperaIA
+                texto="Leyendo el RUT con IA…"
+                onCancelar={() => {
+                  lectura.current++;
+                  onCerrar();
+                }}
+              />
             </p>
           </div>
         )}
