@@ -5,7 +5,7 @@ import { ClienteCombobox } from "@/components/clientes/ClienteCombobox";
 import { NuevoClienteModal } from "@/components/clientes/NuevoClienteModal";
 import type { ClienteResumen } from "@/lib/supabase/clientes";
 import { hoyColombia } from "@/lib/crm";
-import { crearVisita, type NuevaVisita } from "./actions";
+import { crearVisita, resolverUbicacionMaps, type NuevaVisita } from "./actions";
 
 const CAMPO = "mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm";
 
@@ -21,6 +21,9 @@ function vacia(): NuevaVisita {
     tecnicoId: null,
     fechaProgramada: hoyColombia(),
     horaProgramada: "",
+    sitioLat: null,
+    sitioLng: null,
+    sitioUrlMaps: null,
     fechaFinEstimada: "",
     descripcionTrabajo: "",
     fotosMinimasDia: "",
@@ -45,6 +48,30 @@ export function NuevaVisitaForm({
   const [clientes, setClientes] = useState(clientesIniciales);
   const [nuevoCliente, setNuevoCliente] = useState<string | null>(null);
   const [avisoCliente, setAvisoCliente] = useState<string | null>(null);
+  // Ubicación del sitio desde Google Maps: lo pegado, y qué se sacó de ahí.
+  const [enlaceMaps, setEnlaceMaps] = useState("");
+  const [ubicacion, setUbicacion] = useState<
+    { tipo: "lugar" | "punto" | "centro"; aviso: string | null; nombre: string | null } | null
+  >(null);
+  const [errorUbicacion, setErrorUbicacion] = useState<string | null>(null);
+  const [extrayendo, setExtrayendo] = useState(false);
+
+  async function extraerUbicacion() {
+    setExtrayendo(true);
+    setErrorUbicacion(null);
+    try {
+      const r = await resolverUbicacionMaps(enlaceMaps);
+      if (!r.ok) {
+        setUbicacion(null);
+        setV((p) => ({ ...p, sitioLat: null, sitioLng: null, sitioUrlMaps: null }));
+        return setErrorUbicacion(r.error);
+      }
+      setUbicacion({ tipo: r.tipo, aviso: r.aviso, nombre: r.nombre });
+      setV((p) => ({ ...p, sitioLat: r.lat, sitioLng: r.lng, sitioUrlMaps: r.urlMaps ?? enlaceMaps.trim() }));
+    } finally {
+      setExtrayendo(false);
+    }
+  }
   const [abierto, setAbierto] = useState(false);
   const [v, setV] = useState<NuevaVisita>(vacia);
   const [error, setError] = useState<string | null>(null);
@@ -151,6 +178,64 @@ export function NuevaVisitaForm({
       <div>
         <label className="text-xs text-slate-600">Dirección</label>
         <input value={v.direccion} onChange={(e) => cambiar("direccion", e.target.value)} className={CAMPO} />
+      </div>
+      <div>
+        {/* Ubicación del sitio: pegando el enlace de Google Maps. La dirección de arriba sigue
+            siendo la que se escribe: del enlace solo salen las coordenadas. */}
+        <label className="text-xs text-slate-600">Ubicación del sitio (enlace de Google Maps, opcional)</label>
+        <div className="mt-0.5 flex gap-2">
+          <input
+            value={enlaceMaps}
+            onChange={(e) => setEnlaceMaps(e.target.value)}
+            inputMode="url"
+            placeholder="Pega el enlace de Google Maps"
+            className={`${CAMPO} mt-0 min-w-0 flex-1`}
+          />
+          <button
+            type="button"
+            onClick={extraerUbicacion}
+            disabled={extrayendo || !enlaceMaps.trim()}
+            className="min-h-11 shrink-0 rounded-md border border-slate-900 px-3 text-sm font-semibold disabled:opacity-40"
+          >
+            {extrayendo ? "…" : "Extraer"}
+          </button>
+        </div>
+        {!enlaceMaps.trim() && !ubicacion && (
+          <p className="mt-1 text-xs text-slate-500">
+            En Google Maps marca el sitio (o amplía al máximo sobre él), copia el enlace y pégalo.
+          </p>
+        )}
+        {errorUbicacion && <p className="mt-1 rounded-md bg-red-50 px-2 py-1 text-xs text-red-800">{errorUbicacion}</p>}
+        {ubicacion && v.sitioLat !== null && v.sitioLng !== null && (
+          <div className="mt-1 space-y-0.5 text-xs">
+            <p className="text-slate-700">
+              {ubicacion.tipo === "lugar" ? "Lugar marcado" : ubicacion.tipo === "punto" ? "Punto" : "Centro del mapa"}:{" "}
+              {v.sitioLat.toFixed(6)}, {v.sitioLng.toFixed(6)}
+              {ubicacion.nombre ? ` · ${ubicacion.nombre}` : ""} ·{" "}
+              <a
+                href={`https://www.google.com/maps?q=${v.sitioLat},${v.sitioLng}`}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-[#A82323] underline"
+              >
+                Ver en el mapa
+              </a>{" "}
+              ·{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setUbicacion(null);
+                  setEnlaceMaps("");
+                  setV((p) => ({ ...p, sitioLat: null, sitioLng: null, sitioUrlMaps: null }));
+                }}
+                className="font-semibold underline"
+              >
+                Quitar
+              </button>
+            </p>
+            {ubicacion.aviso && <p className="rounded-md bg-amber-50 px-2 py-1 text-amber-900">{ubicacion.aviso}</p>}
+          </div>
+        )}
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso } from "@/lib/permisos";
+import { esEnlaceCorto, esHostDeGoogleMaps, interpretarUrlMaps, type ResultadoMaps } from "@/lib/ubicacion/google-maps";
 
 // Crear y asignar visitas: Operativo/trabajar. La RLS lo exige igual (visitas_insert).
 
@@ -18,6 +19,10 @@ export interface NuevaVisita {
   fechaProgramada: string;
   /** HH:MM, opcional: con ella se calcula el retraso. */
   horaProgramada: string;
+  /** Ubicación del sitio sacada de un enlace de Google Maps (migración 59). No es el GPS del técnico. */
+  sitioLat: number | null;
+  sitioLng: number | null;
+  sitioUrlMaps: string | null;
   fechaFinEstimada: string;
   descripcionTrabajo: string;
   /** Mínimo de fotos por día (texto del formulario; vacío = sin mínimo). */
@@ -49,6 +54,9 @@ export async function crearVisita(v: NuevaVisita): Promise<{ ok: true } | { ok: 
     tecnico_id: v.tecnicoId,
     fecha_programada: v.fechaProgramada,
     hora_programada: v.horaProgramada || null,
+    sitio_lat: v.sitioLat,
+    sitio_lng: v.sitioLng,
+    sitio_url_maps: v.sitioUrlMaps,
     fecha_fin_estimada: v.tipo === "obra" && v.fechaFinEstimada ? v.fechaFinEstimada : null,
     descripcion_trabajo: v.descripcionTrabajo.trim() || null,
     fotos_minimas_dia: minimo,
@@ -139,4 +147,51 @@ export async function cancelarVisita(visitaId: string): Promise<Resultado> {
 
 export async function recuperarVisita(visitaId: string): Promise<Resultado> {
   return actualizarVisita(visitaId, { estado: "programada" }, ["cancelada"]);
+}
+
+/**
+ * Ubicación del sitio desde un enlace de Google Maps (src/lib/ubicacion/google-maps.ts). Los
+ * enlaces cortos (maps.app.goo.gl) no traen coordenadas: se abren ACÁ, en el servidor,
+ * siguiendo las redirecciones de a una y SOLO hacia hosts de Google, para que esto no sirva
+ * para pedir cualquier dirección desde el servidor. Si Google manda a su página de
+ * consentimiento, se dice y se pide el enlace largo: nunca se inventa un punto.
+ */
+export async function resolverUbicacionMaps(texto: string): Promise<ResultadoMaps & { urlMaps?: string }> {
+  if (!(await tienePermiso("operativo", "trabajar"))) {
+    return { ok: false, error: "Fijar la ubicación requiere permiso de Operativo." };
+  }
+  let url: URL;
+  try {
+    url = new URL(texto.trim());
+  } catch {
+    return { ok: false, error: "Eso no es un enlace. Copia la dirección completa desde Google Maps." };
+  }
+  if (url.protocol !== "https:" || !esHostDeGoogleMaps(url.hostname)) {
+    return { ok: false, error: "El enlace tiene que ser de Google Maps." };
+  }
+  for (let salto = 0; esEnlaceCorto(url) || salto === 0; salto++) {
+    if (!esEnlaceCorto(url)) break;
+    if (salto >= 5) return { ok: false, error: "El enlace corto da demasiadas vueltas. Pega el enlace largo de la barra del navegador." };
+    let r: Response;
+    try {
+      r = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(5_000) });
+    } catch {
+      return { ok: false, error: "No se pudo abrir el enlace corto. Pega el enlace largo de la barra del navegador." };
+    }
+    const destino = r.headers.get("location");
+    if (!destino) return { ok: false, error: "El enlace corto no lleva a ningún lado. Revísalo." };
+    const siguiente = new URL(destino, url);
+    if (siguiente.hostname === "consent.google.com") {
+      return {
+        ok: false,
+        error: "Google pidió aceptar cookies y no entregó el punto. Abre el enlace en tu celular, copia la dirección larga de la barra y pégala acá.",
+      };
+    }
+    if (siguiente.protocol !== "https:" || !esHostDeGoogleMaps(siguiente.hostname)) {
+      return { ok: false, error: "El enlace corto lleva fuera de Google Maps: no se usa." };
+    }
+    url = siguiente;
+  }
+  const resultado = interpretarUrlMaps(url.href);
+  return resultado.ok ? { ...resultado, urlMaps: url.href } : resultado;
 }
