@@ -88,7 +88,15 @@ function FilaAbono({ a, persona, yo, hoy, aprueba }: { a: Abono; persona: string
           <p className="text-xs font-semibold text-slate-500">{ESTADO_ABONO[a.estado]}</p>
         </div>
       </div>
-      <p className="mt-1 text-slate-700">{a.motivo}</p>
+      <p className={`mt-1 ${abierto && a.fecha_requerida <= hoy ? "font-semibold text-red-800" : "text-slate-700"}`}>
+        Lo requiere para el {fechaCorta(a.fecha_requerida)}
+        {a.fecha_requerida === hoy ? " (hoy)" : abierto && a.fecha_requerida < hoy ? " (ya pasó)" : ""}
+      </p>
+      {a.urgencia_calamidad && (
+        <p className="mt-1 rounded-md border border-amber-400 bg-amber-50 px-2 py-1 text-xs text-amber-900">
+          <span className="font-semibold">⚠ Calamidad doméstica (urgencia):</span> {a.justificacion}
+        </p>
+      )}
       {a.estado === "desembolsado" && (
         <div className="mt-1 text-xs text-slate-700">
           <p>

@@ -151,7 +151,10 @@ export interface Abono {
   id: string;
   persona_id: string;
   monto: number;
-  motivo: string;
+  /** Migración 68: para qué fecha lo requiere, y si es calamidad (con su justificación). */
+  fecha_requerida: string;
+  urgencia_calamidad: boolean;
+  justificacion: string | null;
   fecha_solicitud: string;
   estado: EstadoAbono;
   decidido_en: string | null;
@@ -161,7 +164,21 @@ export interface Abono {
   quincena_descuento: string | null;
 }
 export const COLUMNAS_ABONO =
-  "id, persona_id, monto, motivo, fecha_solicitud, estado, decidido_en, motivo_rechazo, fecha_desembolso, pantallazo_path, quincena_descuento";
+  "id, persona_id, monto, fecha_requerida, urgencia_calamidad, justificacion, fecha_solicitud, estado, decidido_en, motivo_rechazo, fecha_desembolso, pantallazo_path, quincena_descuento";
+
+/** Por qué los abonos no se piden para el mismo día (Jhojan). Se muestra siempre en el formulario. */
+export const REGLA_ABONO_FECHA =
+  "Los abonos están sujetos al flujo de caja de la compañía: no se pueden pedir para el mismo día. Se piden desde mañana, a menos que sea una calamidad doméstica urgente (con su justificación).";
+
+/**
+ * La regla de la fecha del abono, con la misma frase que devuelve la base
+ * (fn_abono_fecha_bloqueada, migración 68). Null si la fecha sirve.
+ */
+export function motivoAbonoBloqueado(urgencia: boolean, fecha: string, hoy: string): string | null {
+  if (!fecha) return "Indica para qué fecha necesitas el abono.";
+  if (urgencia) return fecha < hoy ? "La calamidad doméstica se acepta para el mismo día en que se pide, no para días anteriores." : null;
+  return fecha <= hoy ? REGLA_ABONO_FECHA : null;
+}
 
 /** "1.ª quincena de octubre 2026" a partir del primer día de la quincena (1 o 16). */
 export function nombreQuincena(inicio: string | null): string {

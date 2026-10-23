@@ -5,28 +5,45 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AbrirArchivo } from "@/components/rrhh/archivos";
 import { CAMPO, ETIQUETA, TARJETA } from "@/components/rrhh/PantallaPerfil";
-import { ESTADO_ABONO, fechaCorta, leerMonto, nombreQuincena, pesos, type Abono } from "@/lib/rrhh-registros";
+import { ESTADO_ABONO, REGLA_ABONO_FECHA, fechaCorta, leerMonto, motivoAbonoBloqueado, nombreQuincena, pesos, type Abono } from "@/lib/rrhh-registros";
+import { sumarDias } from "@/lib/tareas";
 
-export function AbonosTecnico({ yo, abonos }: { yo: string; abonos: Abono[] }) {
+export function AbonosTecnico({ yo, hoy, abonos }: { yo: string; hoy: string; abonos: Abono[] }) {
   const router = useRouter();
+  const manana = sumarDias(hoy, 1);
   const [abierto, setAbierto] = useState(false);
   const [monto, setMonto] = useState("");
-  const [motivo, setMotivo] = useState("");
+  const [fecha, setFecha] = useState(manana);
+  const [calamidad, setCalamidad] = useState(false);
+  const [justificacion, setJustificacion] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [pendiente, empezar] = useTransition();
   const valor = leerMonto(monto);
-  const falta = valor === null ? "Falta el valor." : !motivo.trim() ? "Falta para qué lo necesitas." : null;
+  // La misma regla que exige la base (fn_abono_fecha_bloqueada): se dice antes de enviar.
+  const bloqueo = motivoAbonoBloqueado(calamidad, fecha, hoy);
+  const falta =
+    valor === null
+      ? "Falta el valor."
+      : bloqueo
+        ? bloqueo
+        : calamidad && !justificacion.trim()
+          ? "Con calamidad doméstica hay que justificarlo."
+          : null;
 
   function enviar() {
     if (falta) return;
     setError(null);
     empezar(async () => {
-      const { error: e } = await createClient().from("abonos").insert({ persona_id: yo, monto: valor, motivo: motivo.trim() });
+      const { error: e } = await createClient()
+        .from("abonos")
+        .insert({ persona_id: yo, monto: valor, fecha_requerida: fecha, urgencia_calamidad: calamidad, justificacion: calamidad ? justificacion.trim() : null });
       if (e) return setError(e.message);
       setAbierto(false);
       setMonto("");
-      setMotivo("");
+      setFecha(manana);
+      setCalamidad(false);
+      setJustificacion("");
       setAviso("Abono solicitado. Te aparece acá cuando Jhojan lo decida.");
       router.refresh();
     });
@@ -42,9 +59,32 @@ export function AbonosTecnico({ yo, abonos }: { yo: string; abonos: Abono[] }) {
             {valor !== null && <p className="text-xs text-slate-500">{pesos(valor)}</p>}
           </div>
           <div>
-            <label className={ETIQUETA}>Para qué *</label>
-            <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} className={CAMPO} />
+            <label className={ETIQUETA}>Para qué fecha lo requieres *</label>
+            <input type="date" value={fecha} min={calamidad ? hoy : manana} onChange={(e) => setFecha(e.target.value)} className={CAMPO} />
+            <p className="mt-1 text-xs text-slate-600">{REGLA_ABONO_FECHA}</p>
           </div>
+          <label className="flex min-h-11 items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={calamidad}
+              onChange={(e) => {
+                setCalamidad(e.target.checked);
+                // Sin calamidad, la fecha mínima vuelve a ser mañana.
+                if (!e.target.checked && fecha <= hoy) setFecha(manana);
+              }}
+              className="mt-0.5 h-5 w-5"
+            />
+            <span>
+              Es una <span className="font-semibold">calamidad doméstica</span> y lo necesito con urgencia (se acepta para hoy, no para días anteriores)
+            </span>
+          </label>
+          {calamidad && (
+            <div>
+              <label className={ETIQUETA}>Justificación de la calamidad *</label>
+              <textarea value={justificacion} onChange={(e) => setJustificacion(e.target.value)} rows={2} placeholder="Qué pasó" className={CAMPO} />
+            </div>
+          )}
+          {bloqueo && <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{bloqueo}</p>}
           {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
           <div className="grid grid-cols-2 gap-2">
             <button type="button" onClick={() => setAbierto(false)} className="min-h-11 rounded-lg border-2 border-slate-300 text-sm font-semibold">
@@ -59,7 +99,7 @@ export function AbonosTecnico({ yo, abonos }: { yo: string; abonos: Abono[] }) {
               {pendiente ? "Enviando…" : "Solicitar abono"}
             </button>
           </div>
-          {falta && !pendiente && <p className="text-center text-xs text-slate-500">{falta}</p>}
+          {falta && !bloqueo && !pendiente && <p className="text-center text-xs text-slate-500">{falta}</p>}
         </div>
       ) : (
         <button
@@ -98,7 +138,12 @@ export function AbonosTecnico({ yo, abonos }: { yo: string; abonos: Abono[] }) {
                   {ESTADO_ABONO[a.estado]}
                 </span>
               </div>
-              <p className="mt-1 text-sm text-slate-700">{a.motivo}</p>
+              <p className="mt-1 text-sm text-slate-700">Para el {fechaCorta(a.fecha_requerida)}</p>
+              {a.urgencia_calamidad && (
+                <p className="mt-1 rounded-lg bg-amber-50 px-3 py-1.5 text-sm text-amber-900">
+                  <span className="font-semibold">Calamidad doméstica:</span> {a.justificacion}
+                </p>
+              )}
               {a.estado === "desembolsado" && (
                 <div className="mt-1 text-sm text-slate-700">
                   <p>
