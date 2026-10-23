@@ -1,6 +1,9 @@
 import Link from "next/link";
 
 const SECCIONES = [
+  { href: "/rrhh/personal", icono: "🪪", nombre: "Personal", ayuda: "Ficha de cada colaborador: datos, hoja de vida, dotación, liquidaciones, desprendibles, caja menor" },
+  { href: "/rrhh/contratos", icono: "✍️", nombre: "Contratos laborales", ayuda: "Plantillas con cláusulas, pólizas y cronograma; generar, renovar y otro sí" },
+  { href: "/rrhh/parametros", icono: "⚖️", nombre: "Parámetros de liquidación", ayuda: "Valores de ley de la empresa con su fecha de vigencia" },
   { href: "/rrhh/gastos", icono: "🧾", nombre: "Gastos del personal", ayuda: "Compras en sitio y transportes: asignar proyecto, observar, reembolsos" },
   { href: "/rrhh/permisos", icono: "🗓️", nombre: "Permisos", ayuda: "Solicitudes, aprobación de Jhojan y permisos gozados" },
   { href: "/rrhh/abonos", icono: "💵", nombre: "Abonos de nómina", ayuda: "Adelantos: aprobación, transferencia y quincena del descuento" },

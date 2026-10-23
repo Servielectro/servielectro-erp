@@ -6,12 +6,20 @@ import { comprimirFoto } from "@/lib/tecnico/captura";
 import { nombreSeguro } from "@/lib/rrhh";
 import { BUCKET_SOPORTES, MAX_BYTES_SOPORTE, MIME_SOPORTE } from "@/lib/rrhh-registros";
 
+/** Archivo de personal (migración 66): hoja de vida, foto, dotación, liquidaciones, caja menor, contratos. Solo RRHH. */
+export const BUCKET_PERSONAL = "rrhh-personal";
+const MIME_WORD = ["application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+
 /**
  * Sube un archivo al bucket privado de RRHH. Las fotos se comprimen igual que las de las
  * visitas (lado mayor 1280 px, sin EXIF). Quién puede subir a qué carpeta lo decide la base
  * (fn_rrhh_soporte_subible): si no puede, Storage lo rechaza. Nunca reemplaza (upsert: false).
  */
-export async function subirSoporte(carpeta: string, archivo: File): Promise<{ path: string; mime: string; bytes: number; nombre: string }> {
+export async function subirSoporte(
+  carpeta: string,
+  archivo: File,
+  bucket: string = BUCKET_SOPORTES,
+): Promise<{ path: string; mime: string; bytes: number; nombre: string }> {
   const esImagen = archivo.type.startsWith("image/") && archivo.type !== "image/heic";
   let cuerpo: Blob = archivo;
   let mime = archivo.type || "application/octet-stream";
@@ -19,12 +27,16 @@ export async function subirSoporte(carpeta: string, archivo: File): Promise<{ pa
     cuerpo = await comprimirFoto(archivo);
     mime = "image/jpeg";
   }
-  if (!MIME_SOPORTE.includes(mime)) throw new Error("Ese tipo de archivo no se acepta: sube una foto o un PDF.");
+  const aceptados = bucket === BUCKET_PERSONAL ? [...MIME_SOPORTE, ...MIME_WORD] : MIME_SOPORTE;
+  if (!aceptados.includes(mime)) {
+    throw new Error(bucket === BUCKET_PERSONAL ? "Ese tipo de archivo no se acepta: PDF, Word o imagen." : "Ese tipo de archivo no se acepta: sube una foto o un PDF.");
+  }
   if (cuerpo.size > MAX_BYTES_SOPORTE) throw new Error("El archivo pesa más de 10 MB.");
   const base = nombreSeguro(archivo.name.replace(/\.[^.]+$/, "")) || "archivo";
-  const extension = mime === "application/pdf" ? "pdf" : mime === "image/jpeg" ? "jpg" : (mime.split("/")[1] ?? "bin");
+  const extension =
+    mime === "application/pdf" ? "pdf" : mime === "image/jpeg" ? "jpg" : MIME_WORD.includes(mime) ? (mime.endsWith("document") ? "docx" : "doc") : (mime.split("/")[1] ?? "bin");
   const path = `${carpeta}/${Date.now()}-${base}.${extension}`;
-  const { error } = await createClient().storage.from(BUCKET_SOPORTES).upload(path, cuerpo, { contentType: mime, upsert: false });
+  const { error } = await createClient().storage.from(bucket).upload(path, cuerpo, { contentType: mime, upsert: false });
   if (error) throw new Error(`No se pudo subir el archivo: ${error.message}`);
   return { path, mime, bytes: cuerpo.size, nombre: archivo.name };
 }
@@ -36,7 +48,9 @@ export function AbrirArchivo({
   className,
   descargar,
   onAbierto,
+  bucket = BUCKET_SOPORTES,
 }: {
+  bucket?: string;
   path: string;
   children: React.ReactNode;
   className?: string;
@@ -58,7 +72,7 @@ export function AbrirArchivo({
           const ventana = descargar ? null : window.open("", "_blank");
           try {
             const { data, error: e } = await createClient()
-              .storage.from(BUCKET_SOPORTES)
+              .storage.from(bucket)
               .createSignedUrl(path, 300, descargar ? { download: descargar } : undefined);
             if (e || !data) throw new Error(e?.message ?? "sin enlace");
             if (ventana) ventana.location.href = data.signedUrl;
@@ -87,7 +101,10 @@ export function ElegirArchivo({
   textoFoto = "📷 Tomar foto",
   textoArchivo = "Elegir archivo",
   soloPdf,
+  conWord,
 }: {
+  /** Acepta también Word (hoja de vida, en el archivo de personal). */
+  conWord?: boolean;
   onElegido: (archivo: File) => void;
   deshabilitado?: boolean;
   textoFoto?: string;
@@ -111,7 +128,12 @@ export function ElegirArchivo({
       )}
       <label className={clase}>
         {textoArchivo}
-        <input type="file" accept={soloPdf ? "application/pdf,image/*" : "image/*,application/pdf"} className="hidden" onChange={al} />
+        <input
+          type="file"
+          accept={`${soloPdf ? "application/pdf,image/*" : "image/*,application/pdf"}${conWord ? ",.doc,.docx," + MIME_WORD.join(",") : ""}`}
+          className="hidden"
+          onChange={al}
+        />
       </label>
     </div>
   );

@@ -207,6 +207,15 @@ export function MenuPrincipal({
               <Link href="/rrhh" className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
                 RRHH
               </Link>
+              <Link href="/rrhh/personal" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+                Personal
+              </Link>
+              <Link href="/rrhh/contratos" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+                Contratos laborales
+              </Link>
+              <Link href="/rrhh/parametros" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
+                Parámetros de liquidación
+              </Link>
               <Link href="/rrhh/gastos" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
                 Gastos del personal
               </Link>
