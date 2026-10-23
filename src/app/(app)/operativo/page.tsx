@@ -38,10 +38,10 @@ export default async function OperativoPage() {
   const nombreTecnico = new Map(tecnicos.map((t) => [t.id, t.nombre]));
 
   return (
-    <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6">
+    <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6 lg:max-w-6xl">
       <h1 className="mb-4 text-center text-sm font-bold text-slate-900">Operativo — visitas técnicas</h1>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         <Link href="/operativo/tareas" className="rounded-lg border border-slate-300 bg-white p-4 text-center shadow-sm active:bg-slate-50">
           <span className="block text-2xl">🗂️</span>
           <span className="text-sm font-semibold text-slate-900">Tablero de tareas</span>

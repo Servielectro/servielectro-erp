@@ -6,12 +6,12 @@ export default async function ConfiguracionPage() {
   // Grupos y transferir: solo configuracion/responsable (sus páginas lo exigen igual).
   const responsable = await tienePermiso("configuracion", "responsable");
   return (
-    <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6">
+    <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6 lg:max-w-6xl">
       <h1 className="mb-4 text-center text-sm font-bold text-slate-900">
         Configuración
       </h1>
 
-      <div className="space-y-3">
+      <div className="space-y-3 lg:grid lg:grid-cols-3 lg:gap-3 lg:space-y-0">
         <Link
           href="/configuracion/usuarios"
           className="flex items-center gap-3 rounded-lg border border-slate-300 bg-white p-4 shadow-sm active:bg-slate-50"

@@ -4,12 +4,12 @@ import Link from "next/link";
 // porque es su insumo) y CRM (por ahora, la cartera de clientes).
 export default function ComercialPage() {
   return (
-    <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6">
+    <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6 lg:max-w-6xl">
       <h1 className="mb-4 text-center text-sm font-bold text-slate-900">
         Comercial
       </h1>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <div className="flex flex-col rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <Link href="/comercial/cotizaciones" className="flex items-center gap-3">
             <span className="text-3xl">🧾</span>

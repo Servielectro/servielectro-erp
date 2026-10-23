@@ -42,8 +42,8 @@ export default async function Home() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6">
-      <div className="mb-4 flex items-center justify-between">
+    <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6 lg:max-w-6xl">
+      <div className="mb-4 flex items-center justify-between lg:hidden">
         <p className="text-sm text-slate-600">
           Sesión iniciada como <span className="font-medium">{user?.email}</span>
         </p>
@@ -66,7 +66,7 @@ export default async function Home() {
           asigne un rol en Configuración → Usuarios y permisos.
         </p>
       )}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {visibles.map((m) =>
           m.activo ? (
             <Link

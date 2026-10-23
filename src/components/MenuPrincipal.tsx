@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { Fragment, useRef, useState } from "react";
+import { seccionesMenu } from "@/lib/menu";
 import Link from "next/link";
 import {
   aplicarContenido,
@@ -30,13 +31,14 @@ export interface AccesosMenu {
 export function MenuPrincipal({
   onCerrar,
   accesos,
+  abrirEn,
 }: {
   onCerrar: () => void;
   accesos: AccesosMenu;
+  /** En pantalla ancha (sin hamburguesa) se abre directo en "Base de datos". */
+  abrirEn?: "basedatos";
 }) {
-  const [seccionAbierta, setSeccionAbierta] = useState<"basedatos" | null>(
-    null,
-  );
+  const [seccionAbierta, setSeccionAbierta] = useState<"basedatos" | null>(abrirEn ?? null);
   const [vista, setVista] = useState<VistaBaseDatos>("inicio");
   const [cargando, setCargando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -186,115 +188,28 @@ export function MenuPrincipal({
           <Link href="/" className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
             Inicio (módulos)
           </Link>
-          {accesos.modulos.includes("comercial") && (
-            <>
-              <Link href="/comercial" className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
-                Comercial
+          {/* La misma lista que la barra de pantalla ancha (src/lib/menu.ts). */}
+          {seccionesMenu(accesos).map((sec) => (
+            <Fragment key={sec.id}>
+              <Link href={sec.href} className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
+                {sec.nombreLargo ?? sec.nombre}
+                {sec.nota && <span className="ml-1 text-xs font-normal text-amber-700">({sec.nota})</span>}
               </Link>
-              <Link href="/comercial/cotizaciones" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
-                Cotizaciones
-              </Link>
-              <Link href="/comercial/catalogo" className="flex min-h-11 items-center rounded-md py-1.5 pl-10 text-xs text-slate-500 hover:bg-slate-50">
-                Catálogo de ítems
-              </Link>
-              <Link href="/comercial/crm" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
-                CRM
-              </Link>
-            </>
-          )}
-          {accesos.modulos.includes("rrhh") && (
-            <>
-              <Link href="/rrhh" className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
-                RRHH
-              </Link>
-              <Link href="/rrhh/personal" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
-                Personal
-              </Link>
-              <Link href="/rrhh/contratos" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
-                Contratos laborales
-              </Link>
-              <Link href="/rrhh/parametros" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
-                Parámetros de liquidación
-              </Link>
-              <Link href="/rrhh/gastos" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
-                Gastos del personal
-              </Link>
-              <Link href="/rrhh/permisos" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
-                Permisos
-              </Link>
-              <Link href="/rrhh/abonos" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
-                Abonos de nómina
-              </Link>
-              <Link href="/rrhh/documentos" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
-                Documentos del personal
-              </Link>
-              <Link href="/rrhh/plantillas" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
-                Plantillas de documentos
-              </Link>
-            </>
-          )}
-          {/* Planificación y la Agenda: solo con planificacion/trabajar (el técnico no la ve). */}
-          {accesos.planificacion && (
-            <>
-              <Link href="/planificacion" className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
-                Planificación
-              </Link>
-              <Link href="/planificacion/agenda" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
-                📅 Agenda
-              </Link>
-            </>
-          )}
-          {accesos.modulos.includes("proyectos") && (
-            <Link href="/proyectos" className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
-              Proyectos
-            </Link>
-          )}
-          {accesos.modulos.includes("operativo") && (
-            <>
-              <Link href="/operativo" className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
-                Operativo — visitas técnicas
-              </Link>
-              <Link href="/operativo/tareas" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
-                Tablero de tareas
-              </Link>
-              <Link href="/operativo/sugerencias" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
-                Sugerencias de los técnicos
-              </Link>
-              <Link href="/operativo/agenda" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
-                Agenda del equipo
-              </Link>
-            </>
-          )}
-          {accesos.campoTecnico && (
-            <Link href="/tecnico" className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
-              Técnico — mis visitas
-            </Link>
-          )}
-          {accesos.modulos.includes("licitaciones") && (
-            <Link href="/licitaciones" className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
-              Licitaciones <span className="text-xs font-normal text-amber-700">(en construcción)</span>
-            </Link>
-          )}
-          {accesos.modulos.includes("configuracion") && (
-            <>
-              <Link href="/configuracion" className="flex min-h-11 items-center rounded-md px-3 py-2.5 font-medium text-slate-700 hover:bg-slate-50">
-                Configuración
-              </Link>
-              <Link href="/configuracion/usuarios" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
-                🔐 Usuarios y permisos
-              </Link>
-              {accesos.configResponsable && (
-                <>
-                  <Link href="/configuracion/grupos" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
-                    👥 Grupos
-                  </Link>
-                  <Link href="/configuracion/transferir" className="flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50">
-                    🔁 Transferir tareas
-                  </Link>
-                </>
-              )}
-            </>
-          )}
+              {sec.hijos.map((h) => (
+                <Link
+                  key={h.href}
+                  href={h.href}
+                  className={
+                    h.nivel === 2
+                      ? "flex min-h-11 items-center rounded-md py-1.5 pl-10 text-xs text-slate-500 hover:bg-slate-50"
+                      : "flex min-h-11 items-center rounded-md py-2 pl-6 text-sm text-slate-600 hover:bg-slate-50"
+                  }
+                >
+                  {h.nombre}
+                </Link>
+              ))}
+            </Fragment>
+          ))}
         </nav>
 
         {accesos.baseDatos && (

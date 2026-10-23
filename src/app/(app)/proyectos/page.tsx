@@ -36,7 +36,7 @@ export default async function ProyectosPage({ searchParams }: { searchParams: Pr
   }[];
 
   return (
-    <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6">
+    <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6 lg:max-w-5xl">
       <h1 className="mb-1 text-center text-sm font-bold text-slate-900">Proyectos</h1>
       <p className="mb-4 text-center text-xs text-slate-600">
         El nombre de cada proyecto es lo que ven los técnicos, Operativo y RRHH.

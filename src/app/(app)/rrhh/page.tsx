@@ -13,9 +13,9 @@ const SECCIONES = [
 
 export default function RrhhPage() {
   return (
-    <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6">
+    <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6 lg:max-w-6xl">
       <h1 className="mb-4 text-center text-sm font-bold text-slate-900">RRHH</h1>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {SECCIONES.map((s) => (
           <Link
             key={s.href}

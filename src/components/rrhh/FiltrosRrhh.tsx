@@ -62,7 +62,7 @@ export function FiltrosRrhh({
 /** Marco común de las pantallas de RRHH. */
 export function MarcoRrhh({ titulo, ayuda, children }: { titulo: string; ayuda?: string; children: React.ReactNode }) {
   return (
-    <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6">
+    <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6 lg:max-w-5xl">
       <a href="/rrhh" className="mb-1 inline-flex min-h-9 items-center text-xs font-semibold text-slate-600">
         ← RRHH
       </a>
