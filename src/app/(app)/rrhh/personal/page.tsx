@@ -56,7 +56,17 @@ export default async function PersonalPage({ searchParams }: { searchParams: Pro
           {/empleados/.test(error.message) ? "Falta correr la migración 66 en la base." : error.message}
         </p>
       ) : lista.length === 0 ? (
-        <p className="text-sm text-slate-500">{todos.length === 0 ? "Todavía no hay fichas. Crea la primera." : "Nadie en este filtro."}</p>
+        todos.length === 0 ? (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-3 text-blue-900">
+          <p className="text-sm font-semibold">Todavía no hay fichas.</p>
+          <p className="text-sm">
+            Crea la primera con “Nuevo empleado”: llenas los datos, guardas, y ahí se habilitan las demás pestañas (hoja de vida, contrato, dotación,
+            liquidaciones, desprendibles, caja menor).
+          </p>
+        </div>
+      ) : (
+        <p className="text-sm text-slate-500">Nadie en este filtro.</p>
+      )
       ) : (
         <ul className="divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-300 bg-white lg:grid lg:grid-cols-3 lg:gap-px lg:divide-y-0 lg:bg-slate-200">
           {lista.map((e) => (
