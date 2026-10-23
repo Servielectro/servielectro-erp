@@ -31,8 +31,8 @@ function useAccion() {
     });
   const mensajes = (
     <>
-      {error && <p className="rounded-md bg-red-50 px-2 py-1 text-xs text-red-800">{error}</p>}
-      {aviso && <p className="rounded-md bg-green-50 px-2 py-1 text-xs text-green-800">{aviso}</p>}
+      {error && <p className="rounded-md bg-red-50 px-2 py-1 text-xs text-red-800 lg:col-span-2">{error}</p>}
+      {aviso && <p className="rounded-md bg-green-50 px-2 py-1 text-xs text-green-800 lg:col-span-2">{aviso}</p>}
     </>
   );
   return { correr, pendiente, mensajes };
@@ -59,8 +59,8 @@ export function TabHojaVida({ empleadoId, notas: notasIniciales, archivos }: { e
   const [tipo, setTipo] = useState("hoja_de_vida");
   const [archivo, setArchivo] = useState<File | null>(null);
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-slate-600">Hoja de vida, certificaciones y documentos del colaborador. Se guardan en el archivo de la empresa (no en el listado).</p>
+    <div className="space-y-3 lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 lg:space-y-0">
+      <p className="text-xs text-slate-600 lg:col-span-2">Hoja de vida, certificaciones y documentos del colaborador. Se guardan en el archivo de la empresa (no en el listado).</p>
       <Bloque titulo="Notas / información relevante">
         <textarea value={notas} onChange={(e) => setNotas(e.target.value)} rows={4} placeholder="Perfil, estudios, observaciones de selección…" className={C} />
         <button
@@ -157,7 +157,7 @@ export function TabAccesos({
   const actual = personas.find((p) => p.id === perfilId);
   const libres = personas.filter((p) => p.id === perfilId || !enlazados.includes(p.id));
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 lg:space-y-0">
       <Bloque titulo="Usuario del ERP">
         <p className="text-sm">
           {actual ? (
@@ -263,7 +263,7 @@ export function TabDotacion({
   const faltaEntrega = !herramientaId && !nombre.trim() ? "Elige una herramienta del inventario o escribe el nombre." : !fecha ? "Falta la fecha de entrega." : null;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 lg:space-y-0">
       <Bloque titulo="Tallas de dotación">
         <p className="mb-2 text-xs text-slate-600">Camisa, pantalón y botas del colaborador. Se guardan con la ficha y sirven para pedidos de uniforme y EPP.</p>
         <div className="grid grid-cols-3 gap-2">

@@ -18,7 +18,7 @@ export default async function NuevoEmpleadoPage() {
   }
   const auxilio = ((vigentes.data ?? []) as { clave: string; valor: number | null }[]).find((p) => p.clave === "auxilio_transporte")?.valor ?? null;
   return (
-    <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6">
+    <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6 lg:max-w-6xl">
       <Link href="/rrhh/personal" className="mb-1 inline-flex min-h-9 items-center text-xs font-semibold text-slate-600">
         ← Personal
       </Link>

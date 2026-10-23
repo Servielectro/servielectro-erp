@@ -162,7 +162,7 @@ export function DocumentosRrhh({
       {documentos.length === 0 ? (
         <p className="text-sm text-slate-500">No hay documentos{personaFiltro ? " de esta persona" : ""}.</p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-2 lg:grid lg:grid-cols-2 lg:items-start lg:gap-2 lg:space-y-0">
           {documentos.map((d) => (
             <FilaDocumento key={d.id} d={d} persona={nombre[d.persona_id] ?? "—"} />
           ))}

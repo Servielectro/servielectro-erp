@@ -32,7 +32,7 @@ export default async function FichaPage({
   const titulo = abreviaturaTitulacion(e.titulacion);
 
   return (
-    <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6">
+    <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6 lg:max-w-6xl">
       <Link href="/rrhh/personal" className="mb-1 inline-flex min-h-9 items-center text-xs font-semibold text-slate-600">
         ← Personal
       </Link>

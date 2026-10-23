@@ -30,7 +30,7 @@ export function PermisosRrhh({
 }) {
   if (permisos.length === 0) return <p className="text-sm text-slate-500">No hay permisos en este filtro.</p>;
   return (
-    <ul className="space-y-2">
+    <ul className="space-y-2 lg:grid lg:grid-cols-2 lg:items-start lg:gap-2 lg:space-y-0">
       {permisos.map((p) => (
         <FilaPermiso key={p.id} p={p} persona={personas[p.persona_id] ?? "—"} yo={yo} hoy={hoy} aprueba={aprueba} marcaGozado={marcaGozado} />
       ))}

@@ -58,9 +58,9 @@ export default async function PersonalPage({ searchParams }: { searchParams: Pro
       ) : lista.length === 0 ? (
         <p className="text-sm text-slate-500">{todos.length === 0 ? "Todavía no hay fichas. Crea la primera." : "Nadie en este filtro."}</p>
       ) : (
-        <ul className="divide-y divide-slate-200 rounded-lg border border-slate-300 bg-white">
+        <ul className="divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-300 bg-white lg:grid lg:grid-cols-3 lg:gap-px lg:divide-y-0 lg:bg-slate-200">
           {lista.map((e) => (
-            <li key={e.id}>
+            <li key={e.id} className="bg-white">
               <Link href={`/rrhh/personal/${e.id}`} className="block p-3 active:bg-slate-50">
                 <p className="text-sm font-semibold text-slate-900">{nombreCompleto(e)}</p>
                 <p className="text-xs text-slate-600">

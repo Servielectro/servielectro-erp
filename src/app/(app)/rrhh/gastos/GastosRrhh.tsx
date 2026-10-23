@@ -21,7 +21,7 @@ export function GastosRrhh({
   if (gastos.length === 0) return <p className="text-sm text-slate-500">No hay gastos en este filtro.</p>;
   const nombreProyecto = new Map(proyectos.map((p) => [p.id, `${p.nombre} (${p.codigo})`]));
   return (
-    <ul className="space-y-2">
+    <ul className="space-y-2 lg:grid lg:grid-cols-2 lg:items-start lg:gap-2 lg:space-y-0">
       {gastos.map((g) => (
         <FilaGasto key={g.id} g={g} persona={personas[g.persona_id] ?? "—"} proyectos={proyectos} nombreProyecto={nombreProyecto} />
       ))}

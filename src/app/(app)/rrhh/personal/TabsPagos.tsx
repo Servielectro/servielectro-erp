@@ -77,15 +77,15 @@ function useAccion() {
     });
   const mensajes = (
     <>
-      {error && <p className="rounded-md bg-red-50 px-2 py-1 text-xs text-red-800">{error}</p>}
-      {aviso && <p className="rounded-md bg-green-50 px-2 py-1 text-xs text-green-800">{aviso}</p>}
+      {error && <p className="rounded-md bg-red-50 px-2 py-1 text-xs text-red-800 lg:col-span-2">{error}</p>}
+      {aviso && <p className="rounded-md bg-green-50 px-2 py-1 text-xs text-green-800 lg:col-span-2">{aviso}</p>}
     </>
   );
   return { correr, pendiente, mensajes };
 }
 
 const AvisoCaptura = () => (
-  <p className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-900">
+  <p className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-900 lg:col-span-2">
     El sistema no calcula la nómina ni la liquidación: escribe los valores de la liquidación que hiciste y sube el archivo. Queda en el historial.
   </p>
 );
@@ -207,7 +207,7 @@ export function TabSueldo({ empleadoId, perfilId, liquidaciones, salario }: { em
   const falta = !inicio || !corte ? "Elige la fecha de inicio y la de corte." : corte < inicio ? "El corte no puede ser antes del inicio." : null;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 lg:space-y-0">
       <AvisoCaptura />
       <Bloque titulo="Liquidar periodo / retiro">
         <p className="mb-2 text-xs text-slate-500">Salario base en la ficha: {pesos(Number(salario))}.</p>
@@ -412,7 +412,7 @@ export function TabDesprendible({ empleadoId, perfilId, desprendibles, hoy }: { 
   const [publicar, setPublicar] = useState(!!perfilId);
   const falta = !f.pago ? "Falta la fecha de pago." : !f.inicio || !f.fin ? "Falta el periodo." : f.fin < f.inicio ? "El periodo termina antes de empezar." : null;
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 lg:space-y-0">
       <AvisoCaptura />
       <Bloque titulo="Nuevo desprendible">
         <div className="grid grid-cols-2 gap-2">
@@ -589,8 +589,8 @@ export function TabCajaMenor({
   const nombreProyecto = new Map(proyectos.map((p) => [p.id, `${p.nombre} (${p.codigo})`]));
 
   return (
-    <div className="space-y-3">
-      <p className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-900">
+    <div className="space-y-3 lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 lg:space-y-0">
+      <p className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-900 lg:col-span-2">
         Caja menor = viáticos para obra fuera de la ciudad (estadía, alimentación…). Las compras de material en la ciudad van por Gastos, no por acá.
       </p>
       <Bloque titulo="Nuevo recibo de caja menor">

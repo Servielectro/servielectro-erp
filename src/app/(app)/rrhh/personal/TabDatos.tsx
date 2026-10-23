@@ -173,6 +173,7 @@ export function TabDatos({
 
   return (
     <div className="space-y-3">
+      <div className="space-y-3 lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 lg:space-y-0">
       <Bloque titulo="Identificación">
         <div className="grid grid-cols-2 gap-2">
           {texto("primer_nombre", "Primer nombre *")}
@@ -310,6 +311,7 @@ export function TabDatos({
           </p>
         </div>
       </Bloque>
+      </div>
 
       {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
       {guardado && <p className="text-xs text-green-700">Ficha guardada.</p>}

@@ -22,7 +22,7 @@ export function AbonosRrhh({
 }) {
   if (abonos.length === 0) return <p className="text-sm text-slate-500">No hay abonos en este filtro.</p>;
   return (
-    <ul className="space-y-2">
+    <ul className="space-y-2 lg:grid lg:grid-cols-2 lg:items-start lg:gap-2 lg:space-y-0">
       {abonos.map((a) => (
         <FilaAbono key={a.id} a={a} persona={personas[a.persona_id] ?? "—"} yo={yo} hoy={hoy} aprueba={aprueba} />
       ))}
