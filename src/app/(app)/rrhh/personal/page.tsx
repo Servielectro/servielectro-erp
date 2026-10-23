@@ -60,8 +60,8 @@ export default async function PersonalPage({ searchParams }: { searchParams: Pro
         <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-3 text-blue-900">
           <p className="text-sm font-semibold">Todavía no hay fichas.</p>
           <p className="text-sm">
-            Crea la primera con “Nuevo empleado”: llenas los datos, guardas, y ahí se habilitan las demás pestañas (hoja de vida, contrato, dotación,
-            liquidaciones, desprendibles, caja menor).
+            Crea la primera con “Nuevo empleado”. Ahí puedes recorrer las 8 pestañas (datos, hoja de vida, contrato, accesos, dotación, sueldo,
+            desprendible y caja menor); al guardar los datos se habilita guardar en las demás.
           </p>
         </div>
       ) : (

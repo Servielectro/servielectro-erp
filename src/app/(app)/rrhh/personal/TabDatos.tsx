@@ -74,7 +74,10 @@ export function TabDatos({
   inicial,
   auxilioEmpresa,
   auxilioPropio,
+  onCreado,
 }: {
+  /** Nuevo empleado: al crear la ficha se avisa acá y se sigue en la misma pantalla. */
+  onCreado?: (id: string) => void;
   id?: string;
   inicial: Campos;
   /** Auxilio vigente en Parámetros de liquidación (null si no está cargado). */
@@ -165,7 +168,10 @@ export function TabDatos({
         const { error: e } = await supabase.from("empleado_parametros").delete().eq("empleado_id", empleadoId).eq("clave", "auxilio_transporte");
         if (e) return setError(e.message);
       }
-      if (!id) return router.push(`/rrhh/personal/${empleadoId}?creado=1`);
+      if (!id) {
+        if (onCreado) return onCreado(empleadoId!);
+        return router.push(`/rrhh/personal/${empleadoId}?creado=1`);
+      }
       setGuardado(true);
       router.refresh();
     });
@@ -334,6 +340,11 @@ function traducir(m: string): string {
   if (/empleados_tipo_documento_numero_documento_key|duplicate key.*numero/.test(m)) return "Ya hay una ficha con ese documento.";
   if (/empleados_retiro/.test(m)) return "La fecha de retiro no puede ser antes de la de ingreso.";
   return m;
+}
+
+/** Junto a un botón apagado en la vista previa de "Nuevo empleado": dice por qué, en texto visible. */
+export function AvisoPrevia() {
+  return <span className="ml-2 inline-block text-xs font-semibold text-amber-800">Se habilita al guardar los datos.</span>;
 }
 
 export function Bloque({ titulo, children }: { titulo: string; children: React.ReactNode }) {

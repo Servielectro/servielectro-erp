@@ -21,7 +21,19 @@ export default async function PlantillasContratoPage({ searchParams }: { searchP
       </MarcoRrhh>
     );
   }
-  const { data: plantilla } = await supabase.from("contrato_plantillas").select("id, nombre").eq("tipo", tipo).eq("activa", true).order("created_at").limit(1).maybeSingle();
+  const [{ data: plantilla }, todas] = await Promise.all([
+    supabase.from("contrato_plantillas").select("id, nombre").eq("tipo", tipo).eq("activa", true).order("created_at").limit(1).maybeSingle(),
+    supabase.from("contrato_plantillas").select("tipo, contrato_plantilla_clausulas(texto)").eq("activa", true),
+  ]);
+  // Por tipo: cuántas cláusulas faltan por escribir (para ver de un vistazo qué falta).
+  const faltan = new Map<string, { total: number; vacias: number }>();
+  for (const p of (todas.data ?? []) as { tipo: string; contrato_plantilla_clausulas: { texto: string }[] }[]) {
+    const prev = faltan.get(p.tipo) ?? { total: 0, vacias: 0 };
+    faltan.set(p.tipo, {
+      total: prev.total + p.contrato_plantilla_clausulas.length,
+      vacias: prev.vacias + p.contrato_plantilla_clausulas.filter((c) => !c.texto.trim()).length,
+    });
+  }
   const [cl, po, cr] = plantilla
     ? await Promise.all([
         supabase.from("contrato_plantilla_clausulas").select("id, orden, titulo, texto").eq("plantilla_id", plantilla.id).order("orden"),
@@ -31,7 +43,10 @@ export default async function PlantillasContratoPage({ searchParams }: { searchP
     : [{ data: [] }, { data: [] }, { data: [] }];
 
   return (
-    <MarcoRrhh titulo="Plantillas de contrato" ayuda="Solo valores base · no es el contrato. Lo que cambie acá lo toman los contratos que se generen después.">
+    <MarcoRrhh
+      titulo="Plantillas y cláusulas de contrato"
+      ayuda="Elija el tipo de contrato y escriba o pegue el texto de cada cláusula; las que faltan están en amarillo. Solo valores base: lo que cambie acá lo toman los contratos que se generen después."
+    >
       <Link href="/rrhh/contratos" className="mb-2 inline-flex min-h-9 items-center text-xs font-semibold text-slate-600">
         ← Contratos
       </Link>
@@ -40,11 +55,14 @@ export default async function PlantillasContratoPage({ searchParams }: { searchP
           <Link
             key={t}
             href={`/rrhh/contratos/plantillas?tipo=${t}`}
-            className={`flex min-h-9 items-center justify-center rounded-md border px-2 text-center text-xs font-semibold ${
+            className={`flex min-h-11 flex-col items-center justify-center rounded-md border px-2 text-center text-xs font-semibold ${
               t === tipo ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white text-slate-700"
             }`}
           >
             {TIPO_CONTRATO[t]}
+            <span className={`font-normal ${t === tipo ? "text-slate-200" : (faltan.get(t)?.vacias ?? 0) > 0 ? "text-amber-700" : "text-green-700"}`}>
+              {(faltan.get(t)?.vacias ?? 0) > 0 ? `faltan ${faltan.get(t)?.vacias} de ${faltan.get(t)?.total}` : "completa"}
+            </span>
           </Link>
         ))}
       </div>

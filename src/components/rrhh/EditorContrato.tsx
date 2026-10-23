@@ -33,13 +33,17 @@ export function EditorContrato({
 }) {
   const t = TABLAS[de];
   const vacias = clausulas.filter((c) => !c.texto.trim()).length;
+  const conTexto = clausulas.length - vacias;
   return (
     <div className="space-y-4">
       {!editable && motivoNoEditable && <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">{motivoNoEditable}</p>}
 
       <section>
         <h2 className="mb-1 text-sm font-semibold text-slate-900">
-          Cláusulas <span className="font-normal text-slate-500">({clausulas.length}{vacias ? `, ${vacias} sin texto` : ""})</span>
+          Cláusulas{" "}
+          <span className={`font-normal ${vacias ? "text-amber-700" : "text-green-700"}`}>
+            ({conTexto} de {clausulas.length} con texto{vacias ? ` · faltan ${vacias}` : ""})
+          </span>
         </h2>
         {de === "plantilla" && (
           <p className="mb-2 text-xs text-slate-500">
@@ -146,53 +150,70 @@ function useFila(tabla: string, id: string) {
   return { guardar, eliminar, pendiente, error };
 }
 
+/**
+ * Una cláusula. Editable: el título y el campo de texto se ven siempre (para pegar el texto
+ * revisado sin tener que buscar un botón); "Guardar" aparece cuando hay cambios. Las vacías se
+ * resaltan. No editable (contrato firmado): solo se lee.
+ */
 function FilaClausula({ tabla, c, numero, editable }: { tabla: string; c: Clausula; numero: number; editable: boolean }) {
   const { guardar, eliminar, pendiente, error } = useFila(tabla, c.id);
-  const [editando, setEditando] = useState(false);
   const [titulo, setTitulo] = useState(c.titulo);
   const [texto, setTexto] = useState(c.texto);
+  const cambio = titulo !== c.titulo || texto !== c.texto;
+  const vacia = !c.texto.trim();
+
+  if (!editable) {
+    return (
+      <li className="rounded-lg border border-slate-300 bg-white p-3">
+        <p className="text-sm font-semibold">
+          {numero}. {c.titulo}
+        </p>
+        {vacia ? <p className="mt-1 text-xs italic text-amber-700">Sin texto.</p> : <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{c.texto}</p>}
+      </li>
+    );
+  }
   return (
-    <li className="rounded-lg border border-slate-300 bg-white p-3">
-      {editando ? (
-        <div className="space-y-1">
-          <input value={titulo} onChange={(e) => setTitulo(e.target.value)} className={`${C} font-semibold`} />
-          <textarea value={texto} onChange={(e) => setTexto(e.target.value)} rows={8} placeholder="Pegar aquí el texto de la cláusula" className={C} />
-          <div className="flex gap-2">
+    <li className={`rounded-lg border bg-white p-3 ${vacia ? "border-amber-400" : "border-slate-300"}`}>
+      <div className="flex items-center gap-2">
+        <span className="shrink-0 text-sm font-semibold text-slate-500">{numero}.</span>
+        <input value={titulo} onChange={(e) => setTitulo(e.target.value)} aria-label="Título de la cláusula" className={`${C} font-semibold`} />
+      </div>
+      <textarea
+        value={texto}
+        onChange={(e) => setTexto(e.target.value)}
+        rows={vacia && !texto ? 3 : 6}
+        placeholder="Pegar o escribir aquí el texto de la cláusula"
+        aria-label={`Texto de la cláusula ${c.titulo}`}
+        className={`${C} mt-2 ${vacia && !texto ? "bg-amber-50" : ""}`}
+      />
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {cambio ? (
+          <>
+            <button type="button" disabled={pendiente || !titulo.trim()} onClick={() => guardar({ titulo: titulo.trim(), texto })} className={BOTON}>
+              {pendiente ? "Guardando…" : "Guardar cláusula"}
+            </button>
             <button
               type="button"
               onClick={() => {
                 setTitulo(c.titulo);
                 setTexto(c.texto);
-                setEditando(false);
               }}
-              className={`${BOTON2} flex-1`}
+              className={BOTON2}
             >
-              Cancelar
+              Deshacer
             </button>
-            <button type="button" disabled={pendiente || !titulo.trim()} onClick={() => guardar({ titulo: titulo.trim(), texto }, () => setEditando(false))} className={`${BOTON} flex-1`}>
-              Guardar
+            {!titulo.trim() && <span className="text-xs text-slate-500">El título no puede quedar vacío.</span>}
+            <span className="text-xs font-semibold text-amber-800">Sin guardar.</span>
+          </>
+        ) : (
+          <>
+            <span className={`text-xs ${vacia ? "font-semibold text-amber-700" : "text-slate-500"}`}>{vacia ? "Sin texto todavía." : "Guardada."}</span>
+            <button type="button" disabled={pendiente} onClick={() => eliminar(`¿Eliminar la cláusula «${c.titulo}»?`)} className={`${BOTON2} text-red-800`}>
+              Eliminar
             </button>
-          </div>
-          {!titulo.trim() && <p className="text-xs text-slate-500">El título no puede quedar vacío.</p>}
-        </div>
-      ) : (
-        <>
-          <p className="text-sm font-semibold">
-            {numero}. {c.titulo}
-          </p>
-          {c.texto.trim() ? <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{c.texto}</p> : <p className="mt-1 text-xs italic text-amber-700">Sin texto todavía.</p>}
-          {editable && (
-            <div className="mt-2 flex gap-2">
-              <button type="button" onClick={() => setEditando(true)} className={BOTON2}>
-                Editar
-              </button>
-              <button type="button" disabled={pendiente} onClick={() => eliminar(`¿Eliminar la cláusula «${c.titulo}»?`)} className={`${BOTON2} text-red-800`}>
-                Eliminar
-              </button>
-            </div>
-          )}
-        </>
-      )}
+          </>
+        )}
+      </div>
       {error && <p className="mt-1 rounded-md bg-red-50 px-2 py-1 text-xs text-red-800">{error}</p>}
     </li>
   );

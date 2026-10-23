@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AbrirArchivo, BUCKET_PERSONAL, ElegirArchivo, subirSoporte } from "@/components/rrhh/archivos";
 import { fechaCorta } from "@/lib/rrhh-registros";
-import { Bloque } from "./TabDatos";
+import { AvisoPrevia, Bloque } from "./TabDatos";
 
 const C = "mt-0.5 block w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm";
 const L = "block text-xs text-slate-600";
@@ -53,7 +53,18 @@ export interface ArchivoEmpleado {
 }
 const TIPO_ARCHIVO: Record<string, string> = { hoja_de_vida: "Hoja de vida", certificacion: "Certificación", otro: "Otro" };
 
-export function TabHojaVida({ empleadoId, notas: notasIniciales, archivos }: { empleadoId: string; notas: string; archivos: ArchivoEmpleado[] }) {
+export function TabHojaVida({
+  empleadoId,
+  notas: notasIniciales,
+  archivos,
+  previa,
+}: {
+  empleadoId: string;
+  notas: string;
+  archivos: ArchivoEmpleado[];
+  /** Vista previa de un empleado sin guardar: se ve y se llena, no se guarda. */
+  previa?: boolean;
+}) {
   const { correr, pendiente, mensajes } = useAccion();
   const [notas, setNotas] = useState(notasIniciales);
   const [tipo, setTipo] = useState("hoja_de_vida");
@@ -65,13 +76,13 @@ export function TabHojaVida({ empleadoId, notas: notasIniciales, archivos }: { e
         <textarea value={notas} onChange={(e) => setNotas(e.target.value)} rows={4} placeholder="Perfil, estudios, observaciones de selección…" className={C} />
         <button
           type="button"
-          disabled={pendiente || notas === notasIniciales}
+          disabled={pendiente || previa || notas === notasIniciales}
           onClick={() => correr(async () => (await ok(createClient().from("empleados").update({ notas_hoja_vida: notas.trim() || null }).eq("id", empleadoId)), "Notas guardadas."))}
           className={`${BOTON} mt-2`}
         >
           Guardar notas
         </button>
-        {notas === notasIniciales && <span className="ml-2 text-xs text-slate-500">Sin cambios por guardar.</span>}
+        {previa ? <AvisoPrevia /> : notas === notasIniciales && <span className="ml-2 text-xs text-slate-500">Sin cambios por guardar.</span>}
       </Bloque>
       <Bloque titulo="Archivos">
         <div className="grid grid-cols-2 gap-2">
@@ -103,7 +114,7 @@ export function TabHojaVida({ empleadoId, notas: notasIniciales, archivos }: { e
         </div>
         <button
           type="button"
-          disabled={pendiente || !archivo}
+          disabled={pendiente || previa || !archivo}
           onClick={() =>
             correr(async () => {
               const s = await subirSoporte(`personal/${empleadoId}/hoja-de-vida`, archivo!, BUCKET_PERSONAL);
@@ -120,7 +131,7 @@ export function TabHojaVida({ empleadoId, notas: notasIniciales, archivos }: { e
         >
           Subir archivos
         </button>
-        {!archivo && <span className="ml-2 text-xs text-slate-500">Elige un archivo primero.</span>}
+        {previa ? <AvisoPrevia /> : !archivo && <span className="ml-2 text-xs text-slate-500">Elige un archivo primero.</span>}
         <ul className="mt-2 space-y-1 text-sm">
           {archivos.length === 0 && <li className="text-xs text-slate-500">Sin archivos todavía.</li>}
           {archivos.map((a) => (
@@ -145,7 +156,9 @@ export function TabAccesos({
   perfilId,
   personas,
   enlazados,
+  previa,
 }: {
+  previa?: boolean;
   empleadoId: string;
   perfilId: string | null;
   personas: { id: string; nombre: string }[];
@@ -183,7 +196,7 @@ export function TabAccesos({
           {elegido !== (perfilId ?? "") && (
             <button
               type="button"
-              disabled={pendiente}
+              disabled={pendiente || previa}
               onClick={() =>
                 correr(async () => (await ok(createClient().from("empleados").update({ perfil_id: elegido || null }).eq("id", empleadoId)), "Enlace guardado."))
               }
@@ -193,6 +206,7 @@ export function TabAccesos({
             </button>
           )}
         </div>
+        {previa && elegido !== (perfilId ?? "") && <AvisoPrevia />}
       </Bloque>
       <Bloque titulo="Contraseña y rol de menú">
         <p className="text-sm text-slate-700">
@@ -239,7 +253,9 @@ export function TabDotacion({
   entregas,
   herramientas,
   hoy,
+  previa,
 }: {
+  previa?: boolean;
   empleadoId: string;
   tallas: { talla_camisa: string; talla_pantalon: string; talla_botas: string };
   entregas: Entrega[];
@@ -284,7 +300,7 @@ export function TabDotacion({
           {cambioTallas && (
             <button
               type="button"
-              disabled={pendiente}
+              disabled={pendiente || previa}
               onClick={() =>
                 correr(async () => {
                   await ok(
@@ -301,9 +317,14 @@ export function TabDotacion({
               Guardar tallas
             </button>
           )}
-          <a href={`/rrhh/personal/${empleadoId}/imprimir?doc=acta`} target="_blank" rel="noreferrer" className={`${BOTON2} inline-flex items-center`}>
-            Acta de entrega (PDF)
-          </a>
+          {previa ? (
+            <span className={`${BOTON2} inline-flex items-center text-slate-400`}>Acta de entrega (PDF)</span>
+          ) : (
+            <a href={`/rrhh/personal/${empleadoId}/imprimir?doc=acta`} target="_blank" rel="noreferrer" className={`${BOTON2} inline-flex items-center`}>
+              Acta de entrega (PDF)
+            </a>
+          )}
+          {previa && <AvisoPrevia />}
         </div>
       </Bloque>
 
@@ -431,7 +452,7 @@ export function TabDotacion({
               </button>
               <button
                 type="button"
-                disabled={pendiente || faltaEntrega !== null}
+                disabled={pendiente || previa || faltaEntrega !== null}
                 onClick={() =>
                   correr(async () => {
                     const s = foto ? await subirSoporte(`personal/${empleadoId}/dotacion`, foto, BUCKET_PERSONAL) : null;
@@ -464,7 +485,7 @@ export function TabDotacion({
                 Registrar entrega
               </button>
             </div>
-            {faltaEntrega && <p className="text-xs text-slate-500">{faltaEntrega}</p>}
+            {previa ? <AvisoPrevia /> : faltaEntrega && <p className="text-xs text-slate-500">{faltaEntrega}</p>}
           </div>
         ) : (
           <button type="button" onClick={() => setNueva(true)} className={`${BOTON} mt-3`}>

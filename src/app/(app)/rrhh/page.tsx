@@ -3,12 +3,13 @@ import Link from "next/link";
 const SECCIONES = [
   { href: "/rrhh/personal", icono: "🪪", nombre: "Personal", ayuda: "Ficha de cada colaborador: datos, hoja de vida, dotación, liquidaciones, desprendibles, caja menor" },
   { href: "/rrhh/contratos", icono: "✍️", nombre: "Contratos laborales", ayuda: "Plantillas con cláusulas, pólizas y cronograma; generar, renovar y otro sí" },
+  { href: "/rrhh/contratos/plantillas", icono: "📑", nombre: "Plantillas y cláusulas de contrato", ayuda: "El texto de cada cláusula por tipo de contrato, para escribir o pegar" },
   { href: "/rrhh/parametros", icono: "⚖️", nombre: "Parámetros de liquidación", ayuda: "Valores de ley de la empresa con su fecha de vigencia" },
   { href: "/rrhh/gastos", icono: "🧾", nombre: "Gastos del personal", ayuda: "Compras en sitio y transportes: asignar proyecto, observar, reembolsos" },
   { href: "/rrhh/permisos", icono: "🗓️", nombre: "Permisos", ayuda: "Solicitudes, aprobación de Jhojan y permisos gozados" },
   { href: "/rrhh/abonos", icono: "💵", nombre: "Abonos de nómina", ayuda: "Adelantos: aprobación, transferencia y quincena del descuento" },
   { href: "/rrhh/documentos", icono: "📄", nombre: "Documentos del personal", ayuda: "Desprendibles, liquidaciones y contratos por persona" },
-  { href: "/rrhh/plantillas", icono: "📝", nombre: "Plantillas de documentos", ayuda: "Modelos de contrato laboral, con historial de versiones" },
+  { href: "/rrhh/plantillas", icono: "📝", nombre: "Plantillas Word (contrato)", ayuda: "Archivos .docx del modelo de contrato, con historial de versiones" },
 ];
 
 export default function RrhhPage() {

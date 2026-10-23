@@ -45,12 +45,13 @@ export function seccionesMenu(a: AccesosMenu): SeccionMenu[] {
       hijos: [
         { nombre: "Personal", href: "/rrhh/personal" },
         { nombre: "Contratos laborales", href: "/rrhh/contratos" },
+        { nombre: "Plantillas y cláusulas de contrato", href: "/rrhh/contratos/plantillas", nivel: 2 },
         { nombre: "Parámetros de liquidación", href: "/rrhh/parametros" },
         { nombre: "Gastos del personal", href: "/rrhh/gastos" },
         { nombre: "Permisos", href: "/rrhh/permisos" },
         { nombre: "Abonos de nómina", href: "/rrhh/abonos" },
         { nombre: "Documentos del personal", href: "/rrhh/documentos" },
-        { nombre: "Plantillas de documentos", href: "/rrhh/plantillas" },
+        { nombre: "Plantillas Word (contrato)", href: "/rrhh/plantillas" },
       ],
     });
   }

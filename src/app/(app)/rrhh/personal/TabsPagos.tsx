@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AbrirArchivo, BUCKET_PERSONAL, ElegirArchivo, subirSoporte } from "@/components/rrhh/archivos";
 import { BUCKET_SOPORTES, fechaCorta, leerMonto, pesos } from "@/lib/rrhh-registros";
-import { Bloque } from "./TabDatos";
+import { AvisoPrevia, Bloque } from "./TabDatos";
 
 const C = "mt-0.5 block w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm";
 const L = "block text-xs text-slate-600";
@@ -191,7 +191,19 @@ const SECCIONES: { id: Linea["seccion"]; nombre: string; ejemplo: string }[] = [
   { id: "extra_no_salarial", nombre: "Valor extra no salarial", ejemplo: "Auxilio de alimentación" },
 ];
 
-export function TabSueldo({ empleadoId, perfilId, liquidaciones, salario }: { empleadoId: string; perfilId: string | null; liquidaciones: Liquidacion[]; salario: number }) {
+export function TabSueldo({
+  empleadoId,
+  perfilId,
+  liquidaciones,
+  salario,
+  previa,
+}: {
+  empleadoId: string;
+  perfilId: string | null;
+  liquidaciones: Liquidacion[];
+  salario: number;
+  previa?: boolean;
+}) {
   const { correr, pendiente, mensajes } = useAccion();
   const [tipo, setTipo] = useState("periodo");
   const [inicio, setInicio] = useState("");
@@ -294,7 +306,7 @@ export function TabSueldo({ empleadoId, perfilId, liquidaciones, salario }: { em
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <button
             type="button"
-            disabled={pendiente || falta !== null}
+            disabled={pendiente || previa || falta !== null}
             onClick={() =>
               correr(async () => {
                 const subida = archivo
@@ -351,7 +363,7 @@ export function TabSueldo({ empleadoId, perfilId, liquidaciones, salario }: { em
           </button>
           <EnviarCorreo />
         </div>
-        {falta && <p className="mt-1 text-xs text-slate-500">{falta}</p>}
+        {previa ? <p className="mt-1"><AvisoPrevia /></p> : falta && <p className="mt-1 text-xs text-slate-500">{falta}</p>}
       </Bloque>
 
       <Bloque titulo="Historial de liquidaciones">
@@ -404,7 +416,19 @@ export interface Desprendible {
   motivo_anulacion: string | null;
 }
 
-export function TabDesprendible({ empleadoId, perfilId, desprendibles, hoy }: { empleadoId: string; perfilId: string | null; desprendibles: Desprendible[]; hoy: string }) {
+export function TabDesprendible({
+  empleadoId,
+  perfilId,
+  desprendibles,
+  hoy,
+  previa,
+}: {
+  empleadoId: string;
+  perfilId: string | null;
+  desprendibles: Desprendible[];
+  hoy: string;
+  previa?: boolean;
+}) {
   const { correr, pendiente, mensajes } = useAccion();
   const [f, setF] = useState({ pago: hoy, medio: "Transferencia", cuenta: "", inicio: "", fin: "", dias: "" });
   const [v, setV] = useState({ sueldo: "", auxilio: "", devengado: "", neto: "" });
@@ -465,7 +489,7 @@ export function TabDesprendible({ empleadoId, perfilId, desprendibles, hoy }: { 
         </div>
         <button
           type="button"
-          disabled={pendiente || falta !== null}
+          disabled={pendiente || previa || falta !== null}
           onClick={() =>
             correr(async () => {
               const subida = archivo
@@ -504,7 +528,7 @@ export function TabDesprendible({ empleadoId, perfilId, desprendibles, hoy }: { 
         >
           Registrar desprendible
         </button>
-        {falta && <p className="mt-1 text-xs text-slate-500">{falta}</p>}
+        {previa ? <p className="mt-1"><AvisoPrevia /></p> : falta && <p className="mt-1 text-xs text-slate-500">{falta}</p>}
       </Bloque>
       <Bloque titulo="Historial de desprendibles">
         <ul className="space-y-2">
@@ -564,6 +588,7 @@ export interface SoporteCaja {
 
 export function TabCajaMenor({
   empleadoId,
+  previa,
   recibos,
   lineas,
   soportes,
@@ -571,6 +596,7 @@ export function TabCajaMenor({
   hoy,
 }: {
   empleadoId: string;
+  previa?: boolean;
   recibos: ReciboCaja[];
   lineas: LineaCaja[];
   soportes: SoporteCaja[];
@@ -652,7 +678,7 @@ export function TabCajaMenor({
         <p className="text-xs text-slate-500">No constituye salario ni entra al desprendible de nómina.</p>
         <button
           type="button"
-          disabled={pendiente || falta !== null}
+          disabled={pendiente || previa || falta !== null}
           onClick={() =>
             correr(async () => {
               const r = await ok<{ id: string }>(
@@ -681,7 +707,7 @@ export function TabCajaMenor({
         >
           Registrar recibo
         </button>
-        {falta && <p className="mt-1 text-xs text-slate-500">{falta}</p>}
+        {previa ? <p className="mt-1"><AvisoPrevia /></p> : falta && <p className="mt-1 text-xs text-slate-500">{falta}</p>}
       </Bloque>
       <Bloque titulo="Historial de recibos de caja menor">
         <ul className="space-y-2">
