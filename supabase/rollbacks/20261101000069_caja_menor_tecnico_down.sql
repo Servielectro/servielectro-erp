@@ -118,5 +118,6 @@ select r.*, coalesce((select sum(l.valor) from caja_menor_lineas l where l.recib
 from caja_menor_recibos r;
 revoke all on public.v_caja_menor_recibos from anon;
 
+drop function if exists public.fn_mis_cajas_menores();
 drop function if exists public.fn_caja_menor_abierta(uuid);
 drop function if exists public.fn_caja_menor_es_mia(uuid);

@@ -66,6 +66,20 @@ as $$
   );
 $$;
 
+-- Las cajas de quien abre la app: SOLO las de su ficha enlazada, aunque tenga RRHH (que por la
+-- RLS ve todas). Con esto la app del técnico decide si muestra el módulo.
+create or replace function public.fn_mis_cajas_menores()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select r.id from caja_menor_recibos r
+  join empleados e on e.id = r.empleado_id
+  where e.perfil_id = auth.uid();
+$$;
+
 -- Abierta y sin anular: lo único en lo que se agregan o anulan líneas y fotos.
 create or replace function public.fn_caja_menor_abierta(p_recibo uuid)
 returns boolean
@@ -329,6 +343,8 @@ $$;
 -- ============================================================ 8) privilegios
 revoke all on function public.fn_caja_menor_es_mia(uuid) from public, anon;
 grant execute on function public.fn_caja_menor_es_mia(uuid) to authenticated, service_role;
+revoke all on function public.fn_mis_cajas_menores() from public, anon;
+grant execute on function public.fn_mis_cajas_menores() to authenticated, service_role;
 revoke all on function public.fn_caja_menor_abierta(uuid) from public, anon;
 grant execute on function public.fn_caja_menor_abierta(uuid) to authenticated, service_role;
 revoke all on function public.fn_caja_menor_recibo_reglas() from public, anon, authenticated;

@@ -91,11 +91,18 @@ insert into resultado (prueba, esperado, resultado)
 select '2a T ve solo su caja (no la de T2 ni la de la ficha sin usuario)', '1 / Viáticos obra Villavicencio',
   pg_temp.valor($q$select count(*)::text || ' / ' || max(concepto) from v_caja_menor_recibos$q$);
 insert into resultado (prueba, esperado, resultado)
+select '2a2 sus cajas, para decidir si la app le muestra el módulo', '1',
+  pg_temp.valor($q$select count(*)::text from fn_mis_cajas_menores()$q$);
+insert into resultado (prueba, esperado, resultado)
 select '2b T no lee la ficha (salario) aunque vea su caja', '0',
   pg_temp.valor($q$select count(*)::text from empleados$q$);
 select pg_temp.como('00000000-0000-0000-0000-0000000069b0');
 insert into resultado (prueba, esperado, resultado)
 select '2c RRHH "consultar" (chuleo): ninguna caja', '0', pg_temp.valor($q$select count(*)::text from v_caja_menor_recibos$q$);
+select pg_temp.como('00000000-0000-0000-0000-0000000069a0');
+insert into resultado (prueba, esperado, resultado)
+select '2d RRHH ve todas las cajas, pero "sus" cajas son 0 (no tiene ficha enlazada): en su app no aparece el módulo', '3 / 0',
+  pg_temp.valor($q$select count(*)::text from v_caja_menor_recibos$q$) || ' / ' || pg_temp.valor($q$select count(*)::text from fn_mis_cajas_menores()$q$);
 
 -- ============================================================ 3) el técnico registra sus gastos
 select pg_temp.como('00000000-0000-0000-0000-0000000069c0');
@@ -219,7 +226,8 @@ insert into resultado (prueba, esperado, resultado)
 select '7b funciones de trigger: authenticated no las ejecuta; anon no ejecuta las de consulta', '0',
   (select count(*)::text from pg_proc p where p.proname in ('fn_caja_menor_recibo_reglas', 'fn_caja_menor_linea_reglas', 'fn_caja_menor_soporte_reglas')
      and has_function_privilege('authenticated', p.oid, 'EXECUTE'))
-  || case when has_function_privilege('anon', 'public.fn_caja_menor_es_mia(uuid)', 'EXECUTE') or has_function_privilege('anon', 'public.fn_caja_menor_abierta(uuid)', 'EXECUTE') then ' (anon sí)' else '' end;
+  || case when has_function_privilege('anon', 'public.fn_caja_menor_es_mia(uuid)', 'EXECUTE') or has_function_privilege('anon', 'public.fn_caja_menor_abierta(uuid)', 'EXECUTE')
+               or has_function_privilege('anon', 'public.fn_mis_cajas_menores()', 'EXECUTE') then ' (anon sí)' else '' end;
 insert into resultado (prueba, esperado, resultado)
 select '7c las reglas genéricas de liquidaciones y desprendibles no cambiaron', 'trg_desprendibles_anulable, trg_liquidaciones_anulable',
   (select string_agg(tgname, ', ' order by tgname) from pg_trigger where tgname in ('trg_liquidaciones_anulable', 'trg_desprendibles_anulable') and not tgisinternal);
