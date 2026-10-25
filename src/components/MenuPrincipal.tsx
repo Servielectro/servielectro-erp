@@ -2,6 +2,7 @@
 
 import { Fragment, useRef, useState } from "react";
 import { seccionesMenu } from "@/lib/menu";
+import { VentanaBuscador } from "@/components/BuscadorSecciones";
 import Link from "next/link";
 import {
   aplicarContenido,
@@ -39,6 +40,7 @@ export function MenuPrincipal({
   abrirEn?: "basedatos";
 }) {
   const [seccionAbierta, setSeccionAbierta] = useState<"basedatos" | null>(abrirEn ?? null);
+  const [buscando, setBuscando] = useState(false);
   const [vista, setVista] = useState<VistaBaseDatos>("inicio");
   const [cargando, setCargando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -180,6 +182,25 @@ export function MenuPrincipal({
             ✕
           </button>
         </div>
+        {/* El mismo buscador de la barra, para no tener que recorrer la lista con el dedo. */}
+        <button
+          type="button"
+          onClick={() => setBuscando(true)}
+          className="mb-3 flex min-h-11 w-full items-center gap-2 rounded-lg border border-slate-300 px-3 text-left text-sm text-slate-500"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5" aria-hidden>
+            <circle cx="11" cy="11" r="7" />
+            <path strokeLinecap="round" d="m20 20-3.5-3.5" />
+          </svg>
+          Buscar una sección…
+        </button>
+        {buscando && (
+          <VentanaBuscador
+            secciones={seccionesMenu(accesos)}
+            onCerrar={() => setBuscando(false)}
+            alElegir={onCerrar}
+          />
+        )}
 
         {/* Cualquier opción elegida cierra el menú (el nav solo contiene enlaces). */}
         <nav className="space-y-1 text-sm" onClick={(e) => {

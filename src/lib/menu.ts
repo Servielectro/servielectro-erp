@@ -1,16 +1,21 @@
 import type { AccesosMenu } from "@/components/MenuPrincipal";
 
-// Las secciones de la navegación global, UNA sola lista para la barra (pantalla ancha) y la
-// hamburguesa (pantalla angosta): así nunca muestran cosas distintas. Cada sección aparece
-// solo si el usuario tiene ese módulo habilitado (regla de Jhojan: si a Alejandra solo se le
-// habilita RRHH y Licitaciones, solo ve eso). Ocultar es comodidad: las rutas igual se
-// protegen en el servidor (requierePermiso) y los datos en la base (RLS).
+// Las secciones de la navegación global, UNA sola lista para la barra (pantalla ancha), la
+// hamburguesa (pantalla angosta) y el buscador de secciones: así nunca muestran cosas distintas.
+// Cada sección aparece solo si el usuario tiene ese módulo habilitado (regla de Jhojan: si a
+// Alejandra solo se le habilita RRHH y Licitaciones, solo ve eso, también al buscar). Ocultar es
+// comodidad: las rutas igual se protegen en el servidor (requierePermiso) y los datos en la base.
+//
+// `palabras`: lo que alguien escribiría para llegar ahí aunque no sea el nombre ("desprendible"
+// lleva a Documentos del personal). Solo para el buscador; no se muestran.
 
 export interface EnlaceMenu {
   nombre: string;
   href: string;
   /** 2 = va debajo de otro hijo (Catálogo, dentro de Cotizaciones). */
   nivel?: 2;
+  /** Para el buscador: qué hay ahí, en palabras de quien lo busca. */
+  palabras?: string;
 }
 export interface SeccionMenu {
   id: string;
@@ -20,6 +25,7 @@ export interface SeccionMenu {
   nombreLargo?: string;
   nota?: string;
   href: string;
+  palabras?: string;
   hijos: EnlaceMenu[];
 }
 
@@ -30,10 +36,12 @@ export function seccionesMenu(a: AccesosMenu): SeccionMenu[] {
       id: "comercial",
       nombre: "Comercial",
       href: "/comercial",
+      palabras: "ventas oferta propuesta",
       hijos: [
-        { nombre: "Cotizaciones", href: "/comercial/cotizaciones" },
-        { nombre: "Catálogo de ítems", href: "/comercial/catalogo", nivel: 2 },
-        { nombre: "CRM", href: "/comercial/crm" },
+        { nombre: "Cotizaciones", href: "/comercial/cotizaciones", palabras: "cotización cotizar oferta propuesta presupuesto precio imprimir pdf aiu iva" },
+        { nombre: "Catálogo de ítems", href: "/comercial/catalogo", nivel: 2, palabras: "ítems items productos materiales equipos mano de obra precios proveedor lista" },
+        { nombre: "CRM", href: "/comercial/crm", palabras: "oportunidades negocios prospectos leads embudo pipeline seguimiento renovación" },
+        { nombre: "Clientes", href: "/comercial/crm/clientes", palabras: "cliente nit empresa contacto sedes siigo importar excel rut dian dirección" },
       ],
     });
   }
@@ -42,26 +50,33 @@ export function seccionesMenu(a: AccesosMenu): SeccionMenu[] {
       id: "rrhh",
       nombre: "RRHH",
       href: "/rrhh",
+      palabras: "recursos humanos talento humano nómina empleados",
       hijos: [
-        { nombre: "Personal", href: "/rrhh/personal" },
-        { nombre: "Contratos laborales", href: "/rrhh/contratos" },
-        { nombre: "Plantillas y cláusulas de contrato", href: "/rrhh/contratos/plantillas", nivel: 2 },
-        { nombre: "Parámetros de liquidación", href: "/rrhh/parametros" },
-        { nombre: "Caja menor (viáticos)", href: "/rrhh/caja-menor" },
-        { nombre: "Gastos del personal", href: "/rrhh/gastos" },
-        { nombre: "Permisos", href: "/rrhh/permisos" },
-        { nombre: "Abonos de nómina", href: "/rrhh/abonos" },
-        { nombre: "Documentos del personal", href: "/rrhh/documentos" },
-        { nombre: "Plantillas Word (contrato)", href: "/rrhh/plantillas" },
+        { nombre: "Personal", href: "/rrhh/personal", palabras: "empleado colaborador ficha hoja de vida dotación tallas carnet eps arl pensión salario liquidación" },
+        { nombre: "Contratos laborales", href: "/rrhh/contratos", palabras: "contrato término fijo indefinido obra labor prestación de servicios renovar otro sí pólizas cronograma" },
+        { nombre: "Plantillas y cláusulas de contrato", href: "/rrhh/contratos/plantillas", nivel: 2, palabras: "cláusulas plantilla texto legal abogado" },
+        { nombre: "Parámetros de liquidación", href: "/rrhh/parametros", palabras: "salario mínimo smmlv auxilio de transporte ley porcentajes aportes prestaciones arl recargos" },
+        { nombre: "Caja menor (viáticos)", href: "/rrhh/caja-menor", palabras: "viáticos viaje fuera de la ciudad hotel alimentación saldo legalizar" },
+        { nombre: "Gastos del personal", href: "/rrhh/gastos", palabras: "gastos compras facturas transportes reembolso materiales" },
+        { nombre: "Permisos", href: "/rrhh/permisos", palabras: "permiso calamidad cita médica licencia ausencia aprobar gozado" },
+        { nombre: "Abonos de nómina", href: "/rrhh/abonos", palabras: "abono adelanto préstamo anticipo nómina quincena descuento transferencia" },
+        { nombre: "Documentos del personal", href: "/rrhh/documentos", palabras: "desprendible desprendibles colilla de pago liquidación certificado firmar" },
+        { nombre: "Plantillas Word (contrato)", href: "/rrhh/plantillas", palabras: "word docx modelo plantilla" },
       ],
     });
   }
   // Planificación: solo con planificacion/trabajar (lo que exige su pantalla; el técnico no).
   if (a.planificacion) {
-    s.push({ id: "planificacion", nombre: "Planificación", href: "/planificacion", hijos: [{ nombre: "📅 Agenda", href: "/planificacion/agenda" }] });
+    s.push({
+      id: "planificacion",
+      nombre: "Planificación",
+      href: "/planificacion",
+      palabras: "tareas pendientes administrativo",
+      hijos: [{ nombre: "📅 Agenda", href: "/planificacion/agenda", palabras: "agenda calendario eventos reuniones" }],
+    });
   }
   if (a.modulos.includes("proyectos")) {
-    s.push({ id: "proyectos", nombre: "Proyectos", href: "/proyectos", hijos: [] });
+    s.push({ id: "proyectos", nombre: "Proyectos", href: "/proyectos", palabras: "proyecto obra obras", hijos: [] });
   }
   if (a.modulos.includes("operativo")) {
     s.push({
@@ -69,35 +84,91 @@ export function seccionesMenu(a: AccesosMenu): SeccionMenu[] {
       nombre: "Operativo",
       nombreLargo: "Operativo — visitas técnicas",
       href: "/operativo",
+      palabras: "visitas técnicas mantenimiento orden de servicio asignar técnico",
       hijos: [
-        { nombre: "Tablero de tareas", href: "/operativo/tareas" },
-        { nombre: "Sugerencias de los técnicos", href: "/operativo/sugerencias" },
-        { nombre: "Agenda del equipo", href: "/operativo/agenda" },
+        { nombre: "Tablero de tareas", href: "/operativo/tareas", palabras: "tareas kanban pendientes" },
+        { nombre: "Sugerencias de los técnicos", href: "/operativo/sugerencias", palabras: "sugerencias hallazgos recomendaciones" },
+        { nombre: "Agenda del equipo", href: "/operativo/agenda", palabras: "agenda calendario programación" },
       ],
     });
   }
   // Técnico: tecnico/trabajar (con solo "consultar", /tecnico lo devolvería al inicio).
   if (a.campoTecnico) {
-    s.push({ id: "tecnico", nombre: "Técnico", nombreLargo: "Técnico — mis visitas", href: "/tecnico", hijos: [] });
+    s.push({
+      id: "tecnico",
+      nombre: "Técnico",
+      nombreLargo: "Técnico — mis visitas",
+      href: "/tecnico",
+      palabras: "mis visitas firma fotos entrada salida",
+      hijos: [
+        { nombre: "Mis gastos y transportes", href: "/tecnico/gastos", palabras: "gasto compra factura transporte taxi" },
+        { nombre: "Mis permisos", href: "/tecnico/permisos", palabras: "permiso calamidad cita" },
+        { nombre: "Mis abonos de nómina", href: "/tecnico/abonos", palabras: "abono adelanto" },
+        { nombre: "Mis documentos y certificados", href: "/tecnico/documentos", palabras: "desprendible certificado firmar" },
+      ],
+    });
   }
   if (a.modulos.includes("licitaciones")) {
-    s.push({ id: "licitaciones", nombre: "Licitaciones", nota: "en construcción", href: "/licitaciones", hijos: [] });
+    s.push({ id: "licitaciones", nombre: "Licitaciones", nota: "en construcción", href: "/licitaciones", palabras: "licitación secop pliegos", hijos: [] });
   }
   if (a.modulos.includes("configuracion")) {
     s.push({
       id: "configuracion",
       nombre: "Configuración",
       href: "/configuracion",
+      palabras: "ajustes",
       hijos: [
-        { nombre: "🔐 Usuarios y permisos", href: "/configuracion/usuarios" },
+        { nombre: "🔐 Usuarios y permisos", href: "/configuracion/usuarios", palabras: "usuarios roles permisos acceso contraseña" },
         ...(a.configResponsable
           ? [
-              { nombre: "👥 Grupos", href: "/configuracion/grupos" },
-              { nombre: "🔁 Transferir tareas", href: "/configuracion/transferir" },
+              { nombre: "👥 Grupos", href: "/configuracion/grupos", palabras: "grupos equipos" },
+              { nombre: "🔁 Transferir tareas", href: "/configuracion/transferir", palabras: "transferir reasignar tareas" },
             ]
           : []),
       ],
     });
   }
   return s;
+}
+
+export interface ResultadoBusqueda {
+  nombre: string;
+  /** Dónde está ("RRHH"), para no confundir dos con el mismo nombre. */
+  donde: string | null;
+  href: string;
+}
+
+const normalizar = (t: string) =>
+  t
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9ñ ]+/g, " ");
+
+/**
+ * Busca entre las secciones que el usuario tiene (las que ya filtró seccionesMenu). Cada palabra
+ * escrita tiene que aparecer, al comienzo de una palabra, en el nombre, en `palabras` o en el
+ * nombre de la sección a la que pertenece. Primero las que coinciden por nombre.
+ */
+export function buscarSecciones(secciones: SeccionMenu[], texto: string): ResultadoBusqueda[] {
+  const terminos = normalizar(texto).split(" ").filter(Boolean);
+  if (!terminos.length) return [];
+  const contiene = (fuente: string, t: string) => (" " + normalizar(fuente)).includes(" " + t);
+  const puntos: { r: ResultadoBusqueda; p: number }[] = [];
+  for (const s of secciones) {
+    const candidatos: { r: ResultadoBusqueda; nombre: string; extra: string }[] = [
+      { r: { nombre: s.nombreLargo ?? s.nombre, donde: null, href: s.href }, nombre: `${s.nombre} ${s.nombreLargo ?? ""}`, extra: s.palabras ?? "" },
+      ...s.hijos.map((h) => ({
+        r: { nombre: h.nombre.replace(/^\p{Extended_Pictographic}\s*/u, ""), donde: s.nombre, href: h.href },
+        nombre: h.nombre,
+        extra: `${h.palabras ?? ""} ${s.nombre} ${s.palabras ?? ""}`,
+      })),
+    ];
+    for (const c of candidatos) {
+      if (!terminos.every((t) => contiene(c.nombre, t) || contiene(c.extra, t))) continue;
+      const enNombre = terminos.filter((t) => contiene(c.nombre, t)).length;
+      puntos.push({ r: c.r, p: enNombre * 10 + (c.r.donde ? 0 : 1) });
+    }
+  }
+  return puntos.sort((a, b) => b.p - a.p).map((x) => x.r).slice(0, 12);
 }

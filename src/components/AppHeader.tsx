@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { MenuPrincipal, type AccesosMenu } from "@/components/MenuPrincipal";
 import { seccionesMenu } from "@/lib/menu";
 import { logout } from "@/app/logout/actions";
+import { BotonBuscador } from "@/components/BuscadorSecciones";
 
 /**
  * Barra superior global — presente en todas las pantallas de la app (menos /login).
@@ -57,6 +58,8 @@ export function AppHeader({ accesos, usuario }: { accesos: AccesosMenu; usuario?
           <Link href="/" className="flex min-h-11 items-center shrink-0">
             <Image src="/logo-servielectro.png" alt="Servielectro SAS" width={120} height={30} className="h-6 w-auto sm:h-7" priority />
           </Link>
+          {/* Buscador de secciones: junto al logo, en los dos modos (con el dedo, Ctrl+K o /). */}
+          <BotonBuscador secciones={secciones} />
 
           {/* Pantalla ancha: los módulos en la barra. */}
           <nav className="ml-4 hidden min-w-0 flex-1 items-center gap-0.5 lg:flex" aria-label="Módulos">
