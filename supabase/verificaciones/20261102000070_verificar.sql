@@ -1,6 +1,8 @@
 -- Verificación de la migración 70 (clientes: datos DIAN, sedes, importación de SIIGO). Correr
 -- DESPUÉS de la migración, todo junto.
--- Prueba: el DV se separa, se calcula y se rechaza si no corresponde; el código DANE son 5 dígitos;
+-- Prueba: Clientes vive en Administrativo: alguien con SOLO Administrativo ve y mantiene clientes
+-- y sedes e importa, pero no ve cotizaciones ni oportunidades; Comercial sigue creando clientes
+-- pero no importa. El DV se separa, se calcula y se rechaza si no corresponde; el código DANE son 5 dígitos;
 -- las sedes siguen los permisos de Comercial; importar exige "trabajar", crea los nuevos y al
 -- actualizar NO borra lo que el ERP tiene (correo, ubicación GPS, sedes); no acepta campos fuera
 -- de la lista; queda registro de la importación.
@@ -38,20 +40,26 @@ returns void language sql as $$
 $$;
 
 -- ============================================================ personas de prueba (admin)
--- C = Comercial "trabajar". K = Comercial "consultar". T = técnico (sin Comercial).
+-- A = SOLO Administrativo "trabajar". C = Comercial "trabajar". K = Comercial "consultar".
+-- T = técnico (sin Comercial ni Administrativo).
 insert into auth.users (id, aud, role, email) values
+  ('00000000-0000-0000-0000-0000000070f0', 'authenticated', 'authenticated', 'administrativo.70@invalid.local'),
   ('00000000-0000-0000-0000-0000000070a0', 'authenticated', 'authenticated', 'comercial.70@invalid.local'),
   ('00000000-0000-0000-0000-0000000070b0', 'authenticated', 'authenticated', 'consulta.70@invalid.local'),
   ('00000000-0000-0000-0000-0000000070c0', 'authenticated', 'authenticated', 'tecnico.70@invalid.local')
 on conflict (id) do nothing;
-insert into roles (nombre) values ('__Comercial prueba 70__'), ('__consulta prueba 70__') on conflict (nombre) do nothing;
+insert into roles (nombre) values ('__Comercial prueba 70__'), ('__consulta prueba 70__'), ('__Administrativo prueba 70__') on conflict (nombre) do nothing;
 insert into permisos_rol (rol_id, modulo_id, nivel, ve_datos_sensibles)
 select r.id, 'comercial', case r.nombre when '__Comercial prueba 70__' then 'trabajar' else 'consultar' end::nivel_permiso, false
 from roles r where r.nombre in ('__Comercial prueba 70__', '__consulta prueba 70__')
 on conflict (rol_id, modulo_id) do nothing;
+insert into permisos_rol (rol_id, modulo_id, nivel, ve_datos_sensibles)
+select r.id, 'administrativo', 'trabajar', false from roles r where r.nombre = '__Administrativo prueba 70__'
+on conflict (rol_id, modulo_id) do nothing;
 insert into perfiles (id, rol_id, nombre)
 select v.id::uuid, r.id, v.nombre
 from (values
+  ('00000000-0000-0000-0000-0000000070f0', '__Administrativo prueba 70__', '__A 70__'),
   ('00000000-0000-0000-0000-0000000070a0', '__Comercial prueba 70__', '__C 70__'),
   ('00000000-0000-0000-0000-0000000070b0', '__consulta prueba 70__', '__K 70__'),
   ('00000000-0000-0000-0000-0000000070c0', 'Técnicos', '__T 70__')
@@ -64,6 +72,15 @@ insert into clientes (id, nombre, nit, email, contacto, latitud, longitud, ubica
 values ('00000000-0000-0000-0000-0000000070d1', '__Cliente existente 70__', '999000701', 'existe@invalid.local', 'Pedro', 4.6, -74.08, now());
 insert into cliente_sedes (id, cliente_id, nombre, latitud, longitud)
 values ('00000000-0000-0000-0000-0000000070e1', '00000000-0000-0000-0000-0000000070d1', 'Sede norte', 4.7, -74.05);
+-- ... y una oportunidad (lo de Comercial, que Administrativo no debe ver).
+insert into oportunidades (id, nombre, cliente_id, etapa_id)
+select '00000000-0000-0000-0000-0000000070c1', '__Oportunidad 70__', '00000000-0000-0000-0000-0000000070d1', id from etapas_config limit 1;
+
+-- ============================================================ 0) el módulo
+insert into resultado (prueba, esperado, resultado)
+select '0a el rol Administrador tiene Administrativo', 'sí',
+  pg_temp.valor($q$select case when exists (select 1 from permisos_rol pr join roles r on r.id = pr.rol_id
+                  where r.nombre = 'Administrador' and pr.modulo_id = 'administrativo') then 'sí' else 'no' end$q$);
 
 -- ============================================================ 1) NIT y DV
 insert into resultado (prueba, esperado, resultado)
@@ -121,9 +138,15 @@ select '2f nadie borra sedes (se desactivan)', 'aceptado (0 filas)', pg_temp.int
 -- ============================================================ 3) importación
 select pg_temp.como('00000000-0000-0000-0000-0000000070b0');
 insert into resultado (prueba, esperado, resultado)
-select '3a Comercial "consultar" no importa', 'contiene: requiere Comercial', pg_temp.intentar($q$
+select '3a Comercial "consultar" no importa', 'contiene: requiere Administrativo', pg_temp.intentar($q$
   select fn_importar_clientes('[{"nit": "999000705", "nombre": "x"}]', 'siigo.xlsx', '{}')$q$);
+insert into resultado (prueba, esperado, resultado)
+select '3a2 Comercial "consultar" no ve el registro de importaciones', '0', pg_temp.valor($q$select count(*)::text from importaciones_clientes$q$);
 select pg_temp.como('00000000-0000-0000-0000-0000000070a0');
+insert into resultado (prueba, esperado, resultado)
+select '3a3 Comercial "trabajar" tampoco importa (es de Administrativo)', 'contiene: requiere Administrativo', pg_temp.intentar($q$
+  select fn_importar_clientes('[{"nit": "999000705", "nombre": "x"}]', 'siigo.xlsx', '{}')$q$);
+select pg_temp.como('00000000-0000-0000-0000-0000000070f0');
 insert into resultado (prueba, esperado, resultado)
 select '3b un campo que no es importable (la ubicación): se rechaza', 'contiene: no es un campo importable', pg_temp.intentar($q$
   select fn_importar_clientes('[{"nit": "999000701", "latitud": "1"}]', 'siigo.xlsx', '{}')$q$);
@@ -153,9 +176,9 @@ select '3h el nuevo queda con DV calculado y lista RUT vacía sin inventar', '99
   pg_temp.valor($q$select nit || ' / ' || dv || ' / ' || municipio_dane || ' / ' || coalesce(responsabilidades_rut::text, '(sin)')
                   from clientes where nit = '999000705'$q$);
 insert into resultado (prueba, esperado, resultado)
-select '3i queda registro de quién importó qué', 'clientes_siigo.xlsx / 2 / 1 / 1 / C / nit',
+select '3i queda registro de quién importó qué', 'clientes_siigo.xlsx / 2 / 1 / 1 / A / nit',
   pg_temp.valor($q$select archivo_nombre || ' / ' || filas || ' / ' || creados || ' / ' || actualizados || ' / '
-                  || case when importado_por = '00000000-0000-0000-0000-0000000070a0' then 'C' else '?' end || ' / ' || (mapeo ->> 'Identificación')
+                  || case when importado_por = '00000000-0000-0000-0000-0000000070f0' then 'A' else '?' end || ' / ' || (mapeo ->> 'Identificación')
                   from importaciones_clientes where archivo_nombre = 'clientes_siigo.xlsx'$q$);
 insert into resultado (prueba, esperado, resultado)
 select '3j el registro no se cambia', 'aceptado (0 filas)', pg_temp.intentar($q$
@@ -167,18 +190,40 @@ insert into resultado (prueba, esperado, resultado)
 select '3l ... y la primera fila no quedó escrita', '(vacío) / 0',
   pg_temp.valor($q$select coalesce(telefono, '(vacío)') || ' / ' || (select count(*) from importaciones_clientes where archivo_nombre = 'malo.xlsx')
                   from clientes where id = '00000000-0000-0000-0000-0000000070d3'$q$);
+
+-- ============================================================ 4) Administrativo sin la plata
+insert into resultado (prueba, esperado, resultado)
+select '4a solo Administrativo: ve los clientes', '5', pg_temp.valor($q$select count(*)::text from clientes where nit like '99900070%'$q$);
+insert into resultado (prueba, esperado, resultado)
+select '4b solo Administrativo: corrige un cliente y agrega una sede', 'aceptado (1 filas) / aceptado (1 filas)',
+  pg_temp.intentar($q$update clientes set telefono = '3001112233' where id = '00000000-0000-0000-0000-0000000070d4'$q$) || ' / ' ||
+  pg_temp.intentar($q$insert into cliente_sedes (cliente_id, nombre) values ('00000000-0000-0000-0000-0000000070d4', 'Casa')$q$);
+insert into resultado (prueba, esperado, resultado)
+select '4c solo Administrativo: NO ve cotizaciones ni la oportunidad del cliente', '0 / 0',
+  pg_temp.valor($q$select (select count(*) from cotizaciones)::text || ' / ' || (select count(*) from oportunidades where id = '00000000-0000-0000-0000-0000000070c1')::text$q$);
+insert into resultado (prueba, esperado, resultado)
+select '4d solo Administrativo no borra clientes (hace falta "responsable")', 'aceptado (0 filas)', pg_temp.intentar($q$
+  delete from clientes where id = '00000000-0000-0000-0000-0000000070d4'$q$);
+select pg_temp.como('00000000-0000-0000-0000-0000000070a0');
+insert into resultado (prueba, esperado, resultado)
+select '4e Comercial "trabajar" ve los clientes y la oportunidad como antes, pero no el registro de importaciones', '5 / 1 / 0',
+  pg_temp.valor($q$select (select count(*) from clientes where nit like '99900070%')::text || ' / '
+                  || (select count(*) from oportunidades where id = '00000000-0000-0000-0000-0000000070c1')::text || ' / '
+                  || (select count(*) from importaciones_clientes)::text$q$);
 reset role;
 insert into resultado (prueba, esperado, resultado)
 select '3m anónimo no ejecuta la importación', 'false',
   pg_temp.valor($q$select has_function_privilege('anon', 'fn_importar_clientes(jsonb, text, jsonb)', 'execute')::text$q$);
 
 -- ============================================================ limpieza (admin)
-delete from importaciones_clientes where importado_por = '00000000-0000-0000-0000-0000000070a0';
+delete from oportunidad_etapas_historial where oportunidad_id = '00000000-0000-0000-0000-0000000070c1';
+delete from oportunidades where id = '00000000-0000-0000-0000-0000000070c1';
+delete from importaciones_clientes where importado_por = '00000000-0000-0000-0000-0000000070f0';
 delete from cliente_sedes where cliente_id::text like '00000000-0000-0000-0000-0000000070d%';
 delete from clientes where id::text like '00000000-0000-0000-0000-0000000070d%' or nit like '99900070%';
 delete from perfiles where id::text like '00000000-0000-0000-0000-0000000070_0';
-delete from permisos_rol where rol_id in (select id from roles where nombre in ('__Comercial prueba 70__', '__consulta prueba 70__'));
-delete from roles where nombre in ('__Comercial prueba 70__', '__consulta prueba 70__');
+delete from permisos_rol where rol_id in (select id from roles where nombre in ('__Comercial prueba 70__', '__consulta prueba 70__', '__Administrativo prueba 70__'));
+delete from roles where nombre in ('__Comercial prueba 70__', '__consulta prueba 70__', '__Administrativo prueba 70__');
 delete from auth.users where id::text like '00000000-0000-0000-0000-0000000070_0';
 
 select prueba, esperado, resultado,

@@ -19,7 +19,16 @@
 --    El mapeo concreto lo define Jhojan con un archivo de ejemplo; la base solo acepta la lista
 --    fija de campos de abajo.
 --
--- Permisos: los de clientes (Comercial). Leer = consultar; crear, editar e importar = trabajar.
+-- Dónde vive: en ADMINISTRATIVO (decisión del 2026-10-25). Clientes, sedes y proveedores son los
+-- maestros ("quién es y cómo lo contacto"); Financiero es la plata ("cuánto me debe"). Así alguien
+-- puede mantener clientes —corregir un NIT, agregar una sede, subir el Excel de SIIGO— sin ver
+-- cartera ni márgenes. Permisos:
+--   clientes y sedes: leer = Comercial o Administrativo "consultar"; crear y editar = Comercial o
+--     Administrativo "trabajar" (Comercial sigue creando el cliente desde la cotización);
+--     borrar clientes = "responsable" de cualquiera de los dos. Las sedes no se borran.
+--   importar de SIIGO y su registro: solo Administrativo ("trabajar" importa, "consultar" ve).
+-- El rol Administrador recibe Administrativo "responsable" solo si no lo tiene; a los demás roles
+-- no se les cambia nada.
 --
 -- Verificación: supabase/verificaciones/20261102000070_verificar.sql
 -- Rollback:     supabase/rollbacks/20261102000070_clientes_dian_sedes_importacion_down.sql
@@ -139,8 +148,8 @@ create table if not exists public.importaciones_clientes (
 );
 
 -- Filas: [{ "nit": "...", "nombre": "...", ... }] con SOLO los campos importables. Un campo
--- ausente o vacío no cambia nada en un cliente existente. Invoker: la RLS de clientes exige
--- Comercial "trabajar" para crear y actualizar.
+-- ausente o vacío no cambia nada en un cliente existente. Invoker: además de esta revisión, la RLS
+-- de clientes vuelve a exigir permiso para crear y actualizar.
 create or replace function public.fn_importar_clientes(p_filas jsonb, p_archivo text, p_mapeo jsonb)
 returns jsonb
 language plpgsql
@@ -160,8 +169,8 @@ declare
   v_actualizados int := 0;
   v_n int := 0;
 begin
-  if not fn_tiene_permiso('comercial', 'trabajar') then
-    raise exception 'Importar clientes requiere Comercial en nivel "trabajar".';
+  if not fn_tiene_permiso('administrativo', 'trabajar') then
+    raise exception 'Importar clientes requiere Administrativo en nivel "trabajar".';
   end if;
   if jsonb_typeof(p_filas) is distinct from 'array' then
     raise exception 'Las filas tienen que venir como una lista.';
@@ -247,23 +256,54 @@ begin
 end;
 $$;
 
--- ============================================================ 5) RLS: las de clientes (Comercial)
-do $$
-declare t text;
-begin
-  foreach t in array array['cliente_sedes', 'importaciones_clientes'] loop
-    execute format('alter table public.%I enable row level security', t);
-    execute format('revoke all on table public.%I from anon', t);
-    execute format('drop policy if exists %I on public.%I', t || '_select', t);
-    execute format('create policy %I on public.%I for select to authenticated using (fn_tiene_permiso(''comercial'', ''consultar''))', t || '_select', t);
-    execute format('drop policy if exists %I on public.%I', t || '_insert', t);
-    execute format('create policy %I on public.%I for insert to authenticated with check (fn_tiene_permiso(''comercial'', ''trabajar''))', t || '_insert', t);
-  end loop;
-end $$;
+-- ============================================================ 5) permisos: Administrativo
+insert into public.permisos_rol (rol_id, modulo_id, nivel, ve_datos_sensibles)
+select r.id, 'administrativo', 'responsable', true
+from public.roles r
+where r.nombre = 'Administrador'
+on conflict (rol_id, modulo_id) do nothing;
+
+-- Comercial o Administrativo, al nivel pedido.
+create or replace function public.fn_clientes_permiso(p_nivel nivel_permiso)
+returns boolean
+language sql
+stable
+set search_path = public
+as $$
+  select fn_tiene_permiso('comercial', p_nivel) or fn_tiene_permiso('administrativo', p_nivel)
+$$;
+
+-- clientes: las políticas de la 38 (solo Comercial) pasan a Comercial o Administrativo.
+drop policy if exists clientes_select on public.clientes;
+create policy clientes_select on public.clientes for select to authenticated using (fn_clientes_permiso('consultar'));
+drop policy if exists clientes_insert on public.clientes;
+create policy clientes_insert on public.clientes for insert to authenticated with check (fn_clientes_permiso('trabajar'));
+drop policy if exists clientes_update on public.clientes;
+create policy clientes_update on public.clientes for update to authenticated
+  using (fn_clientes_permiso('trabajar')) with check (fn_clientes_permiso('trabajar'));
+drop policy if exists clientes_delete on public.clientes;
+create policy clientes_delete on public.clientes for delete to authenticated using (fn_clientes_permiso('responsable'));
+
+alter table public.cliente_sedes enable row level security;
+revoke all on table public.cliente_sedes from anon;
+drop policy if exists cliente_sedes_select on public.cliente_sedes;
+create policy cliente_sedes_select on public.cliente_sedes for select to authenticated using (fn_clientes_permiso('consultar'));
+drop policy if exists cliente_sedes_insert on public.cliente_sedes;
+create policy cliente_sedes_insert on public.cliente_sedes for insert to authenticated with check (fn_clientes_permiso('trabajar'));
 drop policy if exists cliente_sedes_update on public.cliente_sedes;
 create policy cliente_sedes_update on public.cliente_sedes for update to authenticated
-  using (fn_tiene_permiso('comercial', 'trabajar')) with check (fn_tiene_permiso('comercial', 'trabajar'));
--- Sin delete: una sede se desactiva. El registro de importaciones no se cambia ni se borra.
+  using (fn_clientes_permiso('trabajar')) with check (fn_clientes_permiso('trabajar'));
+-- Sin delete: una sede se desactiva.
+
+alter table public.importaciones_clientes enable row level security;
+revoke all on table public.importaciones_clientes from anon;
+drop policy if exists importaciones_clientes_select on public.importaciones_clientes;
+create policy importaciones_clientes_select on public.importaciones_clientes for select to authenticated
+  using (fn_tiene_permiso('administrativo', 'consultar'));
+drop policy if exists importaciones_clientes_insert on public.importaciones_clientes;
+create policy importaciones_clientes_insert on public.importaciones_clientes for insert to authenticated
+  with check (fn_tiene_permiso('administrativo', 'trabajar') and importado_por = auth.uid());
+-- Sin update ni delete: el registro de importaciones no se cambia ni se borra.
 
 -- ============================================================ 6) privilegios
 revoke all on function public.fn_importar_clientes(jsonb, text, jsonb) from public, anon;
@@ -271,3 +311,5 @@ grant execute on function public.fn_importar_clientes(jsonb, text, jsonb) to aut
 revoke all on function public.fn_dv_nit(text) from public, anon;
 grant execute on function public.fn_dv_nit(text) to authenticated, service_role;
 revoke all on function public.fn_clientes_nit() from public, anon, authenticated;
+revoke all on function public.fn_clientes_permiso(nivel_permiso) from public, anon;
+grant execute on function public.fn_clientes_permiso(nivel_permiso) to authenticated, service_role;
