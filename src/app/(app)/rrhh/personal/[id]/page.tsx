@@ -8,7 +8,9 @@ import { fechaCorta } from "@/lib/rrhh-registros";
 import { BUCKET_PERSONAL } from "@/components/rrhh/archivos";
 import { TabDatos, camposDe } from "../TabDatos";
 import { TabAccesos, TabDotacion, TabHojaVida, type ArchivoEmpleado, type Entrega, type Herramienta } from "../TabsFicha";
-import { TabCajaMenor, TabDesprendible, TabSueldo, type Desprendible, type LineaCaja, type Liquidacion, type ReciboCaja, type SoporteCaja } from "../TabsPagos";
+import { TabDesprendible, TabSueldo, type Desprendible, type Liquidacion } from "../TabsPagos";
+import { TabCajaMenor } from "../TabCajaMenor";
+import { COLUMNAS_CAJA, COLUMNAS_FOTO_CAJA, COLUMNAS_GASTO_CAJA, type CajaMenor, type FotoCaja, type GastoCaja } from "@/lib/caja-menor";
 import { FotoEmpleado } from "../FotoEmpleado";
 
 // La ficha del empleado con sus ocho pestañas (docs/nexgo-personal-ficha-empleado.md). Cada
@@ -194,19 +196,20 @@ async function Desprendibles({ e, hoy }: { e: Empleado; hoy: string }) {
 
 async function Caja({ e, hoy }: { e: Empleado; hoy: string }) {
   const supabase = await createClient();
-  const { data: recibos } = await supabase.from("v_caja_menor_recibos").select("id, concepto, proyecto_id, fecha_entrega, total, anulado_en, motivo_anulacion").eq("empleado_id", e.id).order("fecha_entrega", { ascending: false });
-  const ids = ((recibos ?? []) as ReciboCaja[]).map((r) => r.id);
-  const [lineas, soportes, proyectos] = await Promise.all([
-    ids.length ? supabase.from("caja_menor_lineas").select("recibo_id, concepto, documento_soporte, valor").in("recibo_id", ids).order("orden") : Promise.resolve({ data: [] }),
-    ids.length ? supabase.from("caja_menor_soportes").select("recibo_id, storage_path, nombre_archivo").in("recibo_id", ids) : Promise.resolve({ data: [] }),
+  const { data: cajas } = await supabase.from("v_caja_menor_recibos").select(COLUMNAS_CAJA).eq("empleado_id", e.id).order("fecha_entrega", { ascending: false });
+  const ids = ((cajas ?? []) as CajaMenor[]).map((r) => r.id);
+  const [gastos, fotos, proyectos] = await Promise.all([
+    ids.length ? supabase.from("caja_menor_lineas").select(COLUMNAS_GASTO_CAJA).in("recibo_id", ids).order("registrado_en", { ascending: false }) : Promise.resolve({ data: [] }),
+    ids.length ? supabase.from("caja_menor_soportes").select(COLUMNAS_FOTO_CAJA).in("recibo_id", ids) : Promise.resolve({ data: [] }),
     getProyectosNombres(supabase),
   ]);
   return (
     <TabCajaMenor
       empleadoId={e.id}
-      recibos={(recibos ?? []) as ReciboCaja[]}
-      lineas={(lineas.data ?? []) as LineaCaja[]}
-      soportes={(soportes.data ?? []) as SoporteCaja[]}
+      perfilId={e.perfil_id}
+      cajas={(cajas ?? []) as CajaMenor[]}
+      gastos={(gastos.data ?? []) as GastoCaja[]}
+      fotos={(fotos.data ?? []) as FotoCaja[]}
       proyectos={(proyectos ?? []).filter((p) => p.estado === "EN_EJECUCION")}
       hoy={hoy}
     />

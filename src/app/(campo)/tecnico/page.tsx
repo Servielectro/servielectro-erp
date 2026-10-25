@@ -22,6 +22,13 @@ export default async function TecnicoPage() {
     .eq("id", user.id)
     .maybeSingle();
 
+  // Caja menor abierta a su nombre (su ficha enlazada). Si la migración 69 no está, no hay módulo.
+  const { data: mias } = await supabase.rpc("fn_mis_cajas_menores");
+  const idsCajas = ((mias ?? []) as string[]).filter(Boolean);
+  const tieneCajaMenor = idsCajas.length
+    ? ((await supabase.from("v_caja_menor_recibos").select("id", { count: "exact", head: true }).in("id", idsCajas).eq("estado", "abierta").is("anulado_en", null)).count ?? 0) > 0
+    : false;
+
   return (
     <AppTecnico
       tecnico={{
@@ -29,6 +36,7 @@ export default async function TecnicoPage() {
         nombre: perfil?.nombre ?? user.email ?? "",
         cedula: perfil?.cedula ?? "",
         puedeEditarPerfil: await tienePermiso("configuracion", "responsable"),
+        tieneCajaMenor,
       }}
     />
   );

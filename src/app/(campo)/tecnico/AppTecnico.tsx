@@ -41,6 +41,8 @@ interface Tecnico {
   cedula: string;
   /** Puede editar perfiles (responsable de Configuración): la cédula la carga él mismo. */
   puedeEditarPerfil?: boolean;
+  /** Tiene una caja menor abierta a su nombre (migración 69). Sin ella, el módulo no aparece. */
+  tieneCajaMenor?: boolean;
 }
 
 // Avisos de espacio: con tiempo, no cuando ya no cabe.
@@ -280,7 +282,7 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
             }}
           />
           <ListaVisitas visitas={visitas} enLinea={enLinea} onAbrir={setAbierta} />
-          <MiPerfil enLinea={enLinea} />
+          <MiPerfil enLinea={enLinea} tieneCajaMenor={!!tecnico.tieneCajaMenor} />
         </>
       )}
     </div>
@@ -1502,8 +1504,10 @@ function Firmas({
  * Mi perfil (RRHH, migración 64): gastos, permisos, abonos y documentos. Son pantallas aparte
  * que necesitan señal (no se guardan en el celular como las visitas); sin señal se dice.
  */
-function MiPerfil({ enLinea }: { enLinea: boolean }) {
+function MiPerfil({ enLinea, tieneCajaMenor }: { enLinea: boolean; tieneCajaMenor: boolean }) {
   const enlaces = [
+    // Solo si RRHH le asignó una caja menor abierta (viáticos de obra fuera de la ciudad).
+    ...(tieneCajaMenor ? [{ href: "/tecnico/caja-menor", icono: "🧳", nombre: "Caja menor (viáticos)" }] : []),
     { href: "/tecnico/gastos", icono: "🧾", nombre: "Gastos y transportes" },
     { href: "/tecnico/permisos", icono: "🗓️", nombre: "Permisos" },
     { href: "/tecnico/abonos", icono: "💵", nombre: "Abonos de nómina" },

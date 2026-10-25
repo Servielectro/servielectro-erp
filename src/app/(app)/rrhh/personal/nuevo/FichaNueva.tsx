@@ -7,7 +7,9 @@ import { PESTANAS, TIPO_CONTRATO, type Pestana } from "@/lib/personal";
 import { fechaCorta } from "@/lib/rrhh-registros";
 import { AvisoPrevia, FICHA_VACIA, TabDatos } from "../TabDatos";
 import { TabAccesos, TabDotacion, TabHojaVida, type ArchivoEmpleado, type Entrega, type Herramienta } from "../TabsFicha";
-import { TabCajaMenor, TabDesprendible, TabSueldo, type Desprendible, type LineaCaja, type Liquidacion, type ReciboCaja, type SoporteCaja } from "../TabsPagos";
+import { TabDesprendible, TabSueldo, type Desprendible, type Liquidacion } from "../TabsPagos";
+import { TabCajaMenor } from "../TabCajaMenor";
+import type { CajaMenor, FotoCaja, GastoCaja } from "@/lib/caja-menor";
 
 export interface DatosFichaNueva {
   personas: { id: string; nombre: string }[];
@@ -21,9 +23,9 @@ export interface DatosFichaNueva {
   entregas: Entrega[];
   liquidaciones: Liquidacion[];
   desprendibles: Desprendible[];
-  recibos: ReciboCaja[];
-  lineas: LineaCaja[];
-  soportes: SoporteCaja[];
+  cajas: CajaMenor[];
+  gastos: GastoCaja[];
+  fotos: FotoCaja[];
   contratos: { id: string; tipo: string; clase: string; estado: string; fecha_inicio: string | null; fecha_fin: string | null }[];
 }
 
@@ -153,9 +155,10 @@ export function FichaNueva({ id, hoy, datos, salario }: { id: string | null; hoy
       <div hidden={tab !== "caja"}>
         <TabCajaMenor
           empleadoId={e}
-          recibos={datos.recibos}
-          lineas={datos.lineas}
-          soportes={datos.soportes}
+          perfilId={datos.perfilId}
+          cajas={datos.cajas}
+          gastos={datos.gastos}
+          fotos={datos.fotos}
           proyectos={datos.proyectos}
           hoy={hoy}
           previa={previa}

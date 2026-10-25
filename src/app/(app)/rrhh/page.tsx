@@ -5,6 +5,7 @@ const SECCIONES = [
   { href: "/rrhh/contratos", icono: "✍️", nombre: "Contratos laborales", ayuda: "Plantillas con cláusulas, pólizas y cronograma; generar, renovar y otro sí" },
   { href: "/rrhh/contratos/plantillas", icono: "📑", nombre: "Plantillas y cláusulas de contrato", ayuda: "El texto de cada cláusula por tipo de contrato, para escribir o pegar" },
   { href: "/rrhh/parametros", icono: "⚖️", nombre: "Parámetros de liquidación", ayuda: "Valores de ley de la empresa con su fecha de vigencia" },
+  { href: "/rrhh/caja-menor", icono: "🧳", nombre: "Caja menor (viáticos)", ayuda: "Viáticos de obra fuera de la ciudad: asignado, gastado y saldo de cada técnico" },
   { href: "/rrhh/gastos", icono: "🧾", nombre: "Gastos del personal", ayuda: "Compras en sitio y transportes: asignar proyecto, observar, reembolsos" },
   { href: "/rrhh/permisos", icono: "🗓️", nombre: "Permisos", ayuda: "Solicitudes, aprobación de Jhojan y permisos gozados" },
   { href: "/rrhh/abonos", icono: "💵", nombre: "Abonos de nómina", ayuda: "Adelantos: aprobación, transferencia y quincena del descuento" },

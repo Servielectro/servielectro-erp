@@ -47,6 +47,7 @@ export function seccionesMenu(a: AccesosMenu): SeccionMenu[] {
         { nombre: "Contratos laborales", href: "/rrhh/contratos" },
         { nombre: "Plantillas y cláusulas de contrato", href: "/rrhh/contratos/plantillas", nivel: 2 },
         { nombre: "Parámetros de liquidación", href: "/rrhh/parametros" },
+        { nombre: "Caja menor (viáticos)", href: "/rrhh/caja-menor" },
         { nombre: "Gastos del personal", href: "/rrhh/gastos" },
         { nombre: "Permisos", href: "/rrhh/permisos" },
         { nombre: "Abonos de nómina", href: "/rrhh/abonos" },

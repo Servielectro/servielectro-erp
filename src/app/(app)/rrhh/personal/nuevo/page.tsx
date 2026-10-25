@@ -4,6 +4,7 @@ import { MarcoRrhh } from "@/components/rrhh/FiltrosRrhh";
 import { getProyectosNombres } from "@/lib/supabase/proyectos";
 import { hoyColombia } from "@/lib/crm";
 import { FichaNueva, type DatosFichaNueva } from "./FichaNueva";
+import { COLUMNAS_CAJA, COLUMNAS_FOTO_CAJA, COLUMNAS_GASTO_CAJA } from "@/lib/caja-menor";
 
 // Nuevo empleado. Las 8 pestañas se ven y se llenan desde el principio (Jhojan quiere mostrarle
 // a RRHH el panel completo); solo guardar en las otras pestañas espera a crear la ficha. Al
@@ -43,15 +44,15 @@ export default async function NuevoEmpleadoPage({ searchParams }: { searchParams
         supabase.from("dotacion_entregas").select("id, categoria, herramienta_id, nombre, cantidad, talla, fecha_entrega, foto_path, observacion, devuelta_en").eq("empleado_id", id).order("fecha_entrega", { ascending: false }),
         supabase.from("liquidaciones").select("*, liquidacion_lineas(seccion, concepto, cantidad, valor)").eq("empleado_id", id).order("fecha_corte", { ascending: false }),
         supabase.from("desprendibles").select("*").eq("empleado_id", id).order("periodo_fin", { ascending: false }),
-        supabase.from("v_caja_menor_recibos").select("id, concepto, proyecto_id, fecha_entrega, total, anulado_en, motivo_anulacion").eq("empleado_id", id).order("fecha_entrega", { ascending: false }),
+        supabase.from("v_caja_menor_recibos").select(COLUMNAS_CAJA).eq("empleado_id", id).order("fecha_entrega", { ascending: false }),
         supabase.from("contratos_laborales").select("id, tipo, clase, estado, fecha_inicio, fecha_fin").eq("empleado_id", id).order("created_at", { ascending: false }),
       ])
     : [vacio, vacio, vacio, vacio, vacio, vacio];
   const idsRecibos = ((recibos.data ?? []) as { id: string }[]).map((r) => r.id);
   const [lineas, soportes] = idsRecibos.length
     ? await Promise.all([
-        supabase.from("caja_menor_lineas").select("recibo_id, concepto, documento_soporte, valor").in("recibo_id", idsRecibos).order("orden"),
-        supabase.from("caja_menor_soportes").select("recibo_id, storage_path, nombre_archivo").in("recibo_id", idsRecibos),
+        supabase.from("caja_menor_lineas").select(COLUMNAS_GASTO_CAJA).in("recibo_id", idsRecibos).order("registrado_en", { ascending: false }),
+        supabase.from("caja_menor_soportes").select(COLUMNAS_FOTO_CAJA).in("recibo_id", idsRecibos),
       ])
     : [vacio, vacio];
 
@@ -67,9 +68,9 @@ export default async function NuevoEmpleadoPage({ searchParams }: { searchParams
     entregas: (entregas.data ?? []) as DatosFichaNueva["entregas"],
     liquidaciones: (liquidaciones.data ?? []) as DatosFichaNueva["liquidaciones"],
     desprendibles: (desprendibles.data ?? []) as DatosFichaNueva["desprendibles"],
-    recibos: (recibos.data ?? []) as DatosFichaNueva["recibos"],
-    lineas: (lineas.data ?? []) as DatosFichaNueva["lineas"],
-    soportes: (soportes.data ?? []) as DatosFichaNueva["soportes"],
+    cajas: (recibos.data ?? []) as DatosFichaNueva["cajas"],
+    gastos: (lineas.data ?? []) as DatosFichaNueva["gastos"],
+    fotos: (soportes.data ?? []) as DatosFichaNueva["fotos"],
     contratos: (contratos.data ?? []) as DatosFichaNueva["contratos"],
   };
 
