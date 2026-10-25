@@ -14,11 +14,21 @@ const L = "block text-sm text-slate-600";
  * Asignado / gastado / saldo. El saldo es lo primero que se ve; si se pasó, en rojo con el
  * excedente (no se bloquea: el gasto tiene que quedar registrado).
  */
-export function ResumenSaldo({ caja, grande }: { caja: CajaMenor; grande?: boolean }) {
+export function ResumenSaldo({ caja, grande, paraRrhh }: { caja: CajaMenor; grande?: boolean; paraRrhh?: boolean }) {
   const negativo = Number(caja.saldo) < 0;
+  const cerrada = caja.estado === "cerrada";
+  const titulo = negativo
+    ? paraRrhh
+      ? "Se pasó del saldo"
+      : "Te pasaste del saldo"
+    : cerrada
+      ? "Saldo final"
+      : paraRrhh
+        ? "Saldo"
+        : "Te queda";
   return (
     <div className={`rounded-xl border-2 p-3 ${negativo ? "border-red-500 bg-red-50" : "border-green-600 bg-green-50"}`}>
-      <p className={`text-sm font-semibold ${negativo ? "text-red-800" : "text-green-800"}`}>{negativo ? "Te pasaste del saldo" : "Te queda"}</p>
+      <p className={`text-sm font-semibold ${negativo ? "text-red-800" : "text-green-800"}`}>{titulo}</p>
       <p className={`${grande ? "text-3xl" : "text-2xl"} font-bold ${negativo ? "text-red-700" : "text-green-800"}`}>{pesos(Number(caja.saldo))}</p>
       {negativo && (
         <p className="text-sm font-semibold text-red-800">Excedente: {pesos(Number(caja.excedente))} por encima de lo asignado.</p>

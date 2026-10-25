@@ -190,7 +190,7 @@ function TarjetaCaja({
         </span>
       </div>
       {caja.anulado_en && <p className="text-xs text-slate-700">Anulada: {caja.motivo_anulacion}</p>}
-      <ResumenSaldo caja={caja} />
+      <ResumenSaldo caja={caja} paraRrhh />
 
       {abierta && (
         <div className="space-y-2 border-t border-slate-100 pt-2">
