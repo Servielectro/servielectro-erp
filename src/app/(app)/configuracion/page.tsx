@@ -69,6 +69,18 @@ export default async function ConfiguracionPage() {
               </div>
             </Link>
             <Link
+              href="/configuracion/problemas"
+              className="flex items-center gap-3 rounded-lg border border-slate-300 bg-white p-4 shadow-sm active:bg-slate-50"
+            >
+              <span className="text-2xl">⚠</span>
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Reportes de problema</p>
+                <p className="text-xs text-slate-600">
+                  Lo que reportan desde “Registrar problema”: revisarlos y responder a quien reportó.
+                </p>
+              </div>
+            </Link>
+            <Link
               href="/configuracion/archivos"
               className="flex items-center gap-3 rounded-lg border border-slate-300 bg-white p-4 shadow-sm active:bg-slate-50"
             >

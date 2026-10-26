@@ -27,6 +27,8 @@ export interface AccesosMenu {
   planificacion: boolean;
   /** configuracion/responsable: grupos y transferir tareas. */
   configResponsable: boolean;
+  /** administrativo/trabajar: importar clientes de SIIGO (lo que exige esa pantalla). */
+  administrativoTrabajar: boolean;
 }
 
 export function MenuPrincipal({

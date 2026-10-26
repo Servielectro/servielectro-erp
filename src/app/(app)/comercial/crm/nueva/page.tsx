@@ -9,7 +9,7 @@ export default async function NuevaOportunidadPage(props: PageProps<"/comercial/
   const tipo: TipoPipeline = p === "renovacion" ? "renovacion" : "proyecto_nuevo";
 
   const supabase = await createClient();
-  const [{ data }, { data: cotizaciones }, { data: totales }] = await Promise.all([
+  const [{ data }, { data: cotizaciones }, { data: totales }, origenRes] = await Promise.all([
     supabase
       .from("clientes")
       .select("id, nombre, nit, direccion, email, contacto, telefono")
@@ -20,6 +20,8 @@ export default async function NuevaOportunidadPage(props: PageProps<"/comercial/
       .select("id, codigo, descripcion, cliente_id")
       .order("created_at", { ascending: false }),
     supabase.from("v_cotizacion_totales_iva").select("cotizacion_id, total_cotizacion"),
+    // ¿Ya corrió la migración 74? (origen del lead)
+    supabase.from("oportunidades").select("origen_lead").limit(1),
   ]);
   const totalPor = new Map(
     (totales ?? []).map((t) => [t.cotizacion_id as string, Number(t.total_cotizacion)]),
@@ -38,6 +40,7 @@ export default async function NuevaOportunidadPage(props: PageProps<"/comercial/
         {PIPELINE_LABEL[tipo]} · entra en {tipo === "renovacion" ? "Renovación próxima" : "Solicitud"}
       </p>
       <NuevaOportunidadForm
+        conOrigen={!origenRes.error}
         tipo={tipo}
         clientes={(data ?? []) as ClienteResumen[]}
         cotizaciones={(cotizaciones ?? []).map((c) => ({

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AbrirArchivo } from "@/components/rrhh/archivos";
 import { CAMPO, ETIQUETA, TARJETA } from "@/components/rrhh/PantallaPerfil";
-import { ESTADO_ABONO, REGLA_ABONO_FECHA, fechaCorta, leerMonto, motivoAbonoBloqueado, nombreQuincena, pesos, type Abono } from "@/lib/rrhh-registros";
+import { abonoRecortado, ESTADO_ABONO, REGLA_ABONO_FECHA, fechaCorta, leerMonto, motivoAbonoBloqueado, nombreQuincena, pesos, type Abono } from "@/lib/rrhh-registros";
 import { sumarDias } from "@/lib/tareas";
 
 export function AbonosTecnico({ yo, hoy, abonos }: { yo: string; hoy: string; abonos: Abono[] }) {
@@ -123,7 +123,16 @@ export function AbonosTecnico({ yo, hoy, abonos }: { yo: string; hoy: string; ab
             <li key={a.id} className={`${TARJETA} ${a.estado === "anulado" ? "opacity-60" : ""}`}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-base font-bold">{pesos(Number(a.monto))}</p>
+                  {a.monto_aprobado !== null ? (
+                    <>
+                      <p className="text-base font-bold">Te aprobaron {pesos(Number(a.monto_aprobado))}</p>
+                      <p className={`text-sm ${abonoRecortado(a) ? "font-semibold text-amber-800" : "text-slate-600"}`}>
+                        {abonoRecortado(a) ? `Pediste ${pesos(Number(a.monto))}: se te aprobó menos` : `Pediste ${pesos(Number(a.monto))}: se te aprobó todo`}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-base font-bold">Pediste {pesos(Number(a.monto))}</p>
+                  )}
                   <p className="text-sm text-slate-600">Pedido el {fechaCorta(a.fecha_solicitud)}</p>
                 </div>
                 <span

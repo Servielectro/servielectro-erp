@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { VIA_LABEL, type TipoPipeline, type ViaAprobacion } from "@/lib/crm";
+import { ORIGENES } from "@/lib/crm-filtros";
 import { formatCOP } from "@/lib/pricing";
 import { crearOportunidad } from "../actions";
 import { ClienteCombobox } from "@/components/clientes/ClienteCombobox";
@@ -16,7 +17,10 @@ export function NuevaOportunidadForm({
   tipo,
   clientes,
   cotizaciones,
+  conOrigen,
 }: {
+  /** Existe la columna origen_lead (migración 74). */
+  conOrigen: boolean;
   tipo: TipoPipeline;
   clientes: ClienteResumen[];
   cotizaciones: { id: string; codigo: string; descripcion: string; clienteId: string; total: number | null }[];
@@ -33,6 +37,7 @@ export function NuevaOportunidadForm({
   const [valor, setValor] = useState("");
   const [via, setVia] = useState<ViaAprobacion | "">("");
   const [cotizacionId, setCotizacionId] = useState("");
+  const [origen, setOrigen] = useState("");
 
   const cotizacionesCliente = clienteElegido
     ? cotizaciones.filter((c) => c.clienteId === clienteElegido.id)
@@ -60,6 +65,7 @@ export function NuevaOportunidadForm({
             valorEstimado: valorNum,
             cotizacionId: cotizacionValida || null,
             viaAprobacion: via || null,
+            ...(conOrigen ? { origenLead: origen || null } : {}),
           });
           if (!res.ok) setError(res.error);
           else router.push(`/comercial/crm/${res.id}`);
@@ -158,6 +164,19 @@ export function NuevaOportunidadForm({
           ))}
         </select>
       </Campo>
+
+      {conOrigen && (
+        <Campo label="¿De dónde llegó? (origen del lead)">
+          <select value={origen} onChange={(e) => setOrigen(e.target.value)} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+            <option value="">Sin registrar</option>
+            {ORIGENES.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.nombre}
+              </option>
+            ))}
+          </select>
+        </Campo>
+      )}
 
       <button
         type="submit"

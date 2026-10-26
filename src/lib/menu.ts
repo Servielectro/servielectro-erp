@@ -41,7 +41,22 @@ export function seccionesMenu(a: AccesosMenu): SeccionMenu[] {
         { nombre: "Cotizaciones", href: "/comercial/cotizaciones", palabras: "cotización cotizar oferta propuesta presupuesto precio imprimir pdf aiu iva" },
         { nombre: "Catálogo de ítems", href: "/comercial/catalogo", nivel: 2, palabras: "ítems items productos materiales equipos mano de obra precios proveedor lista" },
         { nombre: "CRM", href: "/comercial/crm", palabras: "oportunidades negocios prospectos leads embudo pipeline seguimiento renovación" },
-        { nombre: "Clientes", href: "/comercial/crm/clientes", palabras: "cliente nit empresa contacto sedes siigo importar excel rut dian dirección" },
+        { nombre: "Clientes del CRM", href: "/comercial/crm/clientes", palabras: "cliente cotizaciones empresa contacto" },
+      ],
+    });
+  }
+  // Administrativo (decisión del 2026-10-25): los maestros, "quién es y cómo lo contacto".
+  if (a.modulos.includes("administrativo")) {
+    s.push({
+      id: "administrativo",
+      nombre: "Administrativo",
+      href: "/administrativo",
+      palabras: "maestros terceros proveedores",
+      hijos: [
+        { nombre: "Clientes", href: "/administrativo/clientes", palabras: "cliente nit dv empresa contacto sedes rut dian dirección facturación electrónica dane exportar excel" },
+        ...(a.administrativoTrabajar
+          ? [{ nombre: "Importar clientes de SIIGO", href: "/administrativo/clientes/importar", nivel: 2 as const, palabras: "siigo importar excel subir terceros" }]
+          : []),
       ],
     });
   }
@@ -123,6 +138,7 @@ export function seccionesMenu(a: AccesosMenu): SeccionMenu[] {
           ? [
               { nombre: "👥 Grupos", href: "/configuracion/grupos", palabras: "grupos equipos" },
               { nombre: "🔁 Transferir tareas", href: "/configuracion/transferir", palabras: "transferir reasignar tareas" },
+              { nombre: "⚠ Reportes de problema", href: "/configuracion/problemas", palabras: "problema error bug falla daño reporte registrar" },
             ]
           : []),
       ],

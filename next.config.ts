@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Versión publicada, para los reportes de problema (migración 73): el commit en Vercel o, si
+  // no hay, la hora de la compilación.
+  env: {
+    NEXT_PUBLIC_VERSION_APP: (process.env.VERCEL_GIT_COMMIT_SHA ?? "").slice(0, 7) || new Date().toISOString().slice(0, 16),
+  },
   /* config options here */
 
   // Cotizaciones y catálogo pasaron a vivir bajo /comercial (ERP modular, 2026-09-25).

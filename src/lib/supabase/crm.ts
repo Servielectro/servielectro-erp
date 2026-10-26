@@ -11,6 +11,7 @@ import {
   type TipoPipeline,
   type ViaAprobacion,
 } from "@/lib/crm";
+import { grupoDe, type FilaCrm } from "@/lib/crm-filtros";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any>;
@@ -173,6 +174,8 @@ export interface OportunidadDetalle {
   viaAprobacion: ViaAprobacion | null;
   requiereExpensaExtraordinaria: boolean | null;
   fechaEstimadaDecision: string | null;
+  /** Migración 74. undefined = la columna todavía no existe (no se muestra ni se guarda). */
+  origenLead?: string | null;
   motivoPerdida: MotivoPerdida | null;
   motivoPerdidaDetalle: string | null;
   competidorGanador: string | null;
@@ -226,7 +229,7 @@ export async function getOportunidadDetalle(
     nombre: string;
   };
 
-  const [historialRes, contactosRes, cotizacionesRes, totales] = await Promise.all([
+  const [historialRes, contactosRes, cotizacionesRes, totales, origenRes] = await Promise.all([
     supabase
       .from("oportunidad_etapas_historial")
       .select("id, etapa_id, estado, fecha_entrada, fecha_salida, valor")
@@ -243,7 +246,10 @@ export async function getOportunidadDetalle(
       .eq("cliente_id", cliente.id)
       .order("created_at", { ascending: false }),
     totalesCotizaciones(supabase, o.cotizacion_id ? [o.cotizacion_id] : []),
+    // Aparte, para que el detalle no se caiga mientras no corra la migración 74.
+    supabase.from("oportunidades").select("origen_lead").eq("id", id).maybeSingle(),
   ]);
+  const origenLead = origenRes.error ? undefined : ((origenRes.data as { origen_lead: string | null } | null)?.origen_lead ?? null);
   const cotizacionesCliente = (cotizacionesRes.data ?? []) as {
     id: string;
     codigo: string;
@@ -269,6 +275,7 @@ export async function getOportunidadDetalle(
     viaAprobacion: o.via_aprobacion,
     requiereExpensaExtraordinaria: o.requiere_expensa_extraordinaria,
     fechaEstimadaDecision: o.fecha_estimada_decision,
+    origenLead,
     motivoPerdida: o.motivo_perdida,
     motivoPerdidaDetalle: o.motivo_perdida_detalle,
     competidorGanador: o.competidor_ganador,
@@ -297,4 +304,92 @@ export async function getOportunidadDetalle(
       total: totalesCliente.get(c.id) ?? null,
     })),
   };
+}
+
+/**
+ * Todos los negocios de un pipeline (sin el corte de 90 días del tablero), con lo que piden los
+ * filtros: valor que manda, fechas, responsable, origen y última actividad (el contacto hecho
+ * más reciente o el último cambio de etapa). `conOrigen` es false mientras no corra la
+ * migración 74: entonces no se pide la columna y el filtro de origen no se muestra.
+ */
+export async function getListaCrm(
+  supabase: Db,
+  tipo: TipoPipeline,
+  etapas: EtapaConfig[],
+): Promise<{ filas: FilaCrm[]; conOrigen: boolean }> {
+  const columnas =
+    "id, nombre, etapa_id, estado, valor_estimado, cotizacion_id, fecha_estimada_decision, created_at, responsable_id, proyecto_id, cliente_id, clientes(nombre)";
+  let conOrigen = true;
+  const pedir = (cols: string) => supabase.from("oportunidades").select(cols).eq("tipo_pipeline", tipo).order("created_at", { ascending: false });
+  let res = await pedir(`${columnas}, origen_lead`);
+  if (res.error && /origen_lead/.test(res.error.message)) {
+    conOrigen = false;
+    res = await pedir(columnas);
+  }
+  if (res.error) throw res.error;
+  const datos = (res.data ?? []) as unknown as {
+    id: string;
+    nombre: string;
+    etapa_id: string;
+    estado: EstadoOportunidad;
+    valor_estimado: number | null;
+    cotizacion_id: string | null;
+    fecha_estimada_decision: string | null;
+    created_at: string;
+    responsable_id: string | null;
+    proyecto_id: string | null;
+    cliente_id: string;
+    clientes: { nombre: string } | { nombre: string }[] | null;
+    origen_lead?: string | null;
+  }[];
+  const ids = datos.map((o) => o.id);
+  if (!ids.length) return { filas: [], conOrigen };
+
+  const [contactosRes, historialRes, totales] = await Promise.all([
+    supabase.from("oportunidad_contactos").select("oportunidad_id, fecha_realizada").in("oportunidad_id", ids).not("fecha_realizada", "is", null),
+    supabase.from("oportunidad_etapas_historial").select("oportunidad_id, fecha_entrada").in("oportunidad_id", ids),
+    totalesCotizaciones(supabase, datos.map((o) => o.cotizacion_id).filter((x): x is string => Boolean(x))),
+  ]);
+  const ultima = new Map<string, string>();
+  const anotar = (id: string, iso: string | null) => {
+    if (!iso) return;
+    const actual = ultima.get(id);
+    if (!actual || iso > actual) ultima.set(id, iso);
+  };
+  for (const c of contactosRes.data ?? []) anotar(c.oportunidad_id, c.fecha_realizada);
+  for (const h of historialRes.data ?? []) anotar(h.oportunidad_id, h.fecha_entrada);
+
+  const etapaPorId = new Map(etapas.map((e) => [e.id, e]));
+  const dia = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
+  const filas = datos.map((o): FilaCrm => {
+    const etapa = etapaPorId.get(o.etapa_id);
+    const cliente = Array.isArray(o.clientes) ? o.clientes[0] : o.clientes;
+    const v = valorQueManda(o.cotizacion_id ? totales.get(o.cotizacion_id) : undefined, o.valor_estimado);
+    return {
+      id: o.id,
+      nombre: o.nombre,
+      clienteId: o.cliente_id,
+      clienteNombre: cliente?.nombre ?? "—",
+      etapaId: o.etapa_id,
+      etapaNombre: etapa?.nombre ?? o.etapa_id,
+      estado: o.estado,
+      grupo: grupoDe({ etapaId: o.etapa_id, estado: o.estado, resultado: etapa?.resultado ?? null, proyectoId: o.proyecto_id }),
+      valor: v.valor,
+      valorEsCotizado: v.valorEsCotizado,
+      creado: dia(o.created_at),
+      objetivoCierre: o.fecha_estimada_decision,
+      ultimaActividad: dia(ultima.get(o.id) ?? o.created_at),
+      responsableId: o.responsable_id,
+      origen: o.origen_lead ?? null,
+      abierta: o.estado !== "cerrada",
+    };
+  });
+  return { filas, conOrigen };
+}
+
+/** Id y nombre de los responsables comerciales (migración 74). Vacío si todavía no corrió. */
+export async function getResponsablesCrm(supabase: Db): Promise<{ id: string; nombre: string }[]> {
+  const { data, error } = await supabase.rpc("fn_crm_responsables");
+  if (error) return [];
+  return (data ?? []) as { id: string; nombre: string }[];
 }

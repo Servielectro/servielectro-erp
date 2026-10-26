@@ -45,6 +45,8 @@ export async function crearOportunidad(input: {
   valorEstimado: number | null;
   cotizacionId: string | null;
   viaAprobacion: ViaAprobacion | null;
+  /** Solo se manda cuando existe la columna (migración 74). */
+  origenLead?: string | null;
 }): Promise<Resultado<{ id: string }>> {
   if (!(await puedeTrabajar())) return { ok: false, error: SIN_PERMISO };
   const nombre = input.nombre.trim();
@@ -69,6 +71,7 @@ export async function crearOportunidad(input: {
       cotizacion_id: input.cotizacionId,
       valor_estimado: input.cotizacionId ? null : input.valorEstimado,
       via_aprobacion: input.viaAprobacion,
+      ...(input.origenLead !== undefined ? { origen_lead: input.origenLead } : {}),
     })
     .select("id")
     .single();
@@ -169,6 +172,7 @@ export async function actualizarDatos(
     viaAprobacion: ViaAprobacion | null;
     requiereExpensaExtraordinaria: boolean | null;
     fechaEstimadaDecision: string | null;
+    origenLead?: string | null;
   },
 ): Promise<Resultado> {
   if (!(await puedeTrabajar())) return { ok: false, error: SIN_PERMISO };
@@ -183,6 +187,7 @@ export async function actualizarDatos(
       via_aprobacion: datos.viaAprobacion,
       requiere_expensa_extraordinaria: datos.requiereExpensaExtraordinaria,
       fecha_estimada_decision: datos.fechaEstimadaDecision,
+      ...(datos.origenLead !== undefined ? { origen_lead: datos.origenLead } : {}),
     })
     .eq("id", id);
   if (error) return { ok: false, error: mensaje(error) };

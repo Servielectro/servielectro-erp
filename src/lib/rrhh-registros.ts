@@ -150,7 +150,10 @@ export const ESTADO_ABONO: Record<EstadoAbono, string> = {
 export interface Abono {
   id: string;
   persona_id: string;
+  /** Lo solicitado. Nunca se reescribe al aprobar. */
   monto: number;
+  /** Migración 72: lo aprobado y desembolsado (lo que se descuenta). Vacío mientras no se decide. */
+  monto_aprobado: number | null;
   /** Migración 68: para qué fecha lo requiere, y si es calamidad (con su justificación). */
   fecha_requerida: string;
   urgencia_calamidad: boolean;
@@ -164,7 +167,7 @@ export interface Abono {
   quincena_descuento: string | null;
 }
 export const COLUMNAS_ABONO =
-  "id, persona_id, monto, fecha_requerida, urgencia_calamidad, justificacion, fecha_solicitud, estado, decidido_en, motivo_rechazo, fecha_desembolso, pantallazo_path, quincena_descuento";
+  "id, persona_id, monto, monto_aprobado, fecha_requerida, urgencia_calamidad, justificacion, fecha_solicitud, estado, decidido_en, motivo_rechazo, fecha_desembolso, pantallazo_path, quincena_descuento";
 
 /** Por qué los abonos no se piden para el mismo día (Jhojan). Se muestra siempre en el formulario. */
 export const REGLA_ABONO_FECHA =
@@ -178,6 +181,11 @@ export function motivoAbonoBloqueado(urgencia: boolean, fecha: string, hoy: stri
   if (!fecha) return "Indica para qué fecha necesitas el abono.";
   if (urgencia) return fecha < hoy ? "La calamidad doméstica se acepta para el mismo día en que se pide, no para días anteriores." : null;
   return fecha <= hoy ? REGLA_ABONO_FECHA : null;
+}
+
+/** Se aprobó menos de lo que pidió. */
+export function abonoRecortado(a: Pick<Abono, "monto" | "monto_aprobado">): boolean {
+  return a.monto_aprobado !== null && Number(a.monto_aprobado) !== Number(a.monto);
 }
 
 /** "1.ª quincena de octubre 2026" a partir del primer día de la quincena (1 o 16). */

@@ -40,7 +40,9 @@ export default async function AbonosRrhhPage({ searchParams }: { searchParams: P
   if (filtro === "desembolsado") q = q.eq("estado", "desembolsado");
   const { data, error } = await q;
   const abonos = (data ?? []) as Abono[];
-  const total = abonos.filter((a) => a.estado !== "anulado" && a.estado !== "rechazado").reduce((s, a) => s + Number(a.monto), 0);
+  // Lo que se descuenta es lo APROBADO (migración 72); lo pendiente de decidir va aparte, por lo solicitado.
+  const aprobado = abonos.filter((a) => a.estado === "aprobado" || a.estado === "desembolsado").reduce((s, a) => s + Number(a.monto_aprobado ?? a.monto), 0);
+  const porDecidir = abonos.filter((a) => a.estado === "solicitado").reduce((s, a) => s + Number(a.monto), 0);
 
   return (
     <MarcoRrhh
@@ -53,7 +55,8 @@ export default async function AbonosRrhhPage({ searchParams }: { searchParams: P
       ) : (
         <>
           <p className="mb-2 text-xs text-slate-600">
-            {abonos.length} {abonos.length === 1 ? "abono" : "abonos"} · {pesos(total)}
+            {abonos.length} {abonos.length === 1 ? "abono" : "abonos"} · aprobado {pesos(aprobado)}
+            {porDecidir > 0 && <> · por decidir {pesos(porDecidir)} (lo solicitado)</>}
           </p>
           <AbonosRrhh
             abonos={abonos}

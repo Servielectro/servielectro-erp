@@ -18,6 +18,7 @@ import {
   type ViaAprobacion,
 } from "@/lib/crm";
 import { formatCOP } from "@/lib/pricing";
+import { ORIGENES } from "@/lib/crm-filtros";
 import {
   actualizarDatos,
   agregarContacto,
@@ -416,6 +417,7 @@ function Pronostico({ o, pendiente, correr }: { o: OportunidadDetalle; pendiente
   const [via, setVia] = useState<ViaAprobacion | "">(o.viaAprobacion ?? "");
   const [expensa, setExpensa] = useState(expensaTexto);
   const [fechaDecision, setFechaDecision] = useState(o.fechaEstimadaDecision ?? "");
+  const [origen, setOrigen] = useState(o.origenLead ?? "");
   const [guardado, setGuardado] = useState(false);
 
   const cotizacionElegida = o.cotizacionesCliente.find((c) => c.id === cotizacionId);
@@ -425,7 +427,8 @@ function Pronostico({ o, pendiente, correr }: { o: OportunidadDetalle; pendiente
     (pideEstimado && valor !== estimadoTexto) ||
     via !== (o.viaAprobacion ?? "") ||
     expensa !== expensaTexto ||
-    fechaDecision !== (o.fechaEstimadaDecision ?? "");
+    fechaDecision !== (o.fechaEstimadaDecision ?? "") ||
+    (o.origenLead !== undefined && origen !== (o.origenLead ?? ""));
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-3">
@@ -527,7 +530,7 @@ function Pronostico({ o, pendiente, correr }: { o: OportunidadDetalle; pendiente
           </select>
         </label>
         <label className="block text-xs text-slate-600 sm:col-span-2">
-          Fecha estimada de la decisión
+          Objetivo de cierre (fecha estimada de la decisión)
           <input
             type="date"
             value={fechaDecision}
@@ -539,7 +542,21 @@ function Pronostico({ o, pendiente, correr }: { o: OportunidadDetalle; pendiente
               Con expensa extraordinaria normalmente decide la asamblea: la fecha suele correrse a la próxima reunión.
             </span>
           )}
+          <span className="mt-0.5 block text-slate-500">Si pasa sin cerrarse, el negocio sale en el filtro “vencidos” del CRM.</span>
         </label>
+        {o.origenLead !== undefined && (
+          <label className="block text-xs text-slate-600 sm:col-span-2">
+            Origen del lead
+            <select value={origen} onChange={(e) => setOrigen(e.target.value)} className="mt-0.5 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm">
+              <option value="">Sin registrar</option>
+              {ORIGENES.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
       {(cambiado || guardado) && (
         <button
@@ -560,6 +577,7 @@ function Pronostico({ o, pendiente, correr }: { o: OportunidadDetalle; pendiente
                   viaAprobacion: via || null,
                   requiereExpensaExtraordinaria: expensa === "" ? null : expensa === "si",
                   fechaEstimadaDecision: fechaDecision || null,
+                  ...(o.origenLead !== undefined ? { origenLead: origen || null } : {}),
                 }),
               () => setGuardado(true),
             );

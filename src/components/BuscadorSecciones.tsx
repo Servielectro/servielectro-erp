@@ -41,7 +41,7 @@ export function BotonBuscador({ secciones }: { secciones: SeccionMenu[] }) {
           <circle cx="11" cy="11" r="7" />
           <path strokeLinecap="round" d="m20 20-3.5-3.5" />
         </svg>
-        <span className="hidden text-sm text-slate-500 xl:inline">Buscar</span>
+        <span className="hidden text-sm text-slate-500 2xl:inline">Buscar</span>
       </button>
       {abierto && <VentanaBuscador secciones={secciones} onCerrar={() => setAbierto(false)} />}
     </>

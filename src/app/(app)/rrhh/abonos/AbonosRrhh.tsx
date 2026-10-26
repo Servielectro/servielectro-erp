@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AbrirArchivo, ElegirArchivo, subirSoporte } from "@/components/rrhh/archivos";
 import { inicioQuincena } from "@/lib/supabase/rrhh-acceso";
-import { ESTADO_ABONO, fechaCorta, nombreQuincena, pesos, type Abono } from "@/lib/rrhh-registros";
+import { abonoRecortado, ESTADO_ABONO, fechaCorta, leerMonto, nombreQuincena, pesos, type Abono } from "@/lib/rrhh-registros";
 
 export function AbonosRrhh({
   abonos,
@@ -36,6 +36,12 @@ function FilaAbono({ a, persona, yo, hoy, aprueba }: { a: Abono; persona: string
   const [motivo, setMotivo] = useState("");
   const [fecha, setFecha] = useState(hoy);
   const [archivo, setArchivo] = useState<File | null>(null);
+  // Lo que se aprueba (Jhojan: "pidió 350.000 pero se le pudo aprobar 200.000"). Arranca en lo
+  // solicitado, o en lo ya aprobado si ahora se transfiere.
+  const [aprobarTexto, setAprobarTexto] = useState(String(Math.round(Number(a.monto_aprobado ?? a.monto))));
+  const valorAprobado = leerMonto(aprobarTexto);
+  const faltaAprobado =
+    valorAprobado === null ? "Escribe cuánto se aprueba." : valorAprobado > Number(a.monto) ? `No se aprueba más de lo solicitado (${pesos(Number(a.monto))}). Si necesita más, que pida otro abono.` : null;
   const [error, setError] = useState<string | null>(null);
   const [pendiente, empezar] = useTransition();
   const propio = a.persona_id === yo;
@@ -61,7 +67,7 @@ function FilaAbono({ a, persona, yo, hoy, aprueba }: { a: Abono; persona: string
         const s = await subirSoporte(`abonos/${a.id}`, archivo);
         const { data, error: e } = await createClient()
           .from("abonos")
-          .update({ estado: "desembolsado", fecha_desembolso: fecha, pantallazo_path: s.path })
+          .update({ estado: "desembolsado", fecha_desembolso: fecha, pantallazo_path: s.path, monto_aprobado: valorAprobado })
           .eq("id", a.id)
           .select("id");
         if (e) throw new Error(e.message);
@@ -74,7 +80,22 @@ function FilaAbono({ a, persona, yo, hoy, aprueba }: { a: Abono; persona: string
     });
   }
 
-  const faltaDesembolso = !archivo ? "Falta el pantallazo de la transferencia." : !fecha ? "Falta la fecha de la transferencia." : fecha > hoy ? "La fecha no puede ser futura." : fecha < a.fecha_solicitud ? "La fecha no puede ser antes de la solicitud." : null;
+  const faltaDesembolso = faltaAprobado ?? (!archivo ? "Falta el pantallazo de la transferencia." : !fecha ? "Falta la fecha de la transferencia." : fecha > hoy ? "La fecha no puede ser futura." : fecha < a.fecha_solicitud ? "La fecha no puede ser antes de la solicitud." : null);
+
+  const campoAprobado = (
+    <label className="block text-xs text-slate-600">
+      Monto que se aprueba y se transfiere
+      <input
+        value={aprobarTexto}
+        onChange={(e) => setAprobarTexto(e.target.value)}
+        inputMode="numeric"
+        className="mt-0.5 block w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+      />
+      <span className="mt-0.5 block text-slate-500">
+        Pidió {pesos(Number(a.monto))}.{valorAprobado !== null && valorAprobado < Number(a.monto) ? ` Se le aprueban ${pesos(valorAprobado)}: lo verá al lado de lo que pidió.` : " Déjalo igual para aprobarle todo."}
+      </span>
+    </label>
+  );
 
   return (
     <li className="rounded-lg border border-slate-300 bg-white p-3 text-sm">
@@ -84,7 +105,18 @@ function FilaAbono({ a, persona, yo, hoy, aprueba }: { a: Abono; persona: string
           <p className="text-xs text-slate-600">Pedido el {fechaCorta(a.fecha_solicitud)}</p>
         </div>
         <div className="shrink-0 text-right">
-          <p className="font-bold">{pesos(Number(a.monto))}</p>
+          {a.monto_aprobado !== null ? (
+            <>
+              <p className="font-bold">{pesos(Number(a.monto_aprobado))}</p>
+              <p className={`text-xs ${abonoRecortado(a) ? "font-semibold text-amber-800" : "text-slate-500"}`}>
+                {abonoRecortado(a) ? `aprobado de ${pesos(Number(a.monto))} pedidos` : "aprobado (lo que pidió)"}
+              </p>
+            </>
+          ) : (
+            <p className="font-bold">
+              {pesos(Number(a.monto))} <span className="text-xs font-normal text-slate-500">pedidos</span>
+            </p>
+          )}
           <p className="text-xs font-semibold text-slate-500">{ESTADO_ABONO[a.estado]}</p>
         </div>
       </div>
@@ -131,6 +163,7 @@ function FilaAbono({ a, persona, yo, hoy, aprueba }: { a: Abono; persona: string
             </div>
           ) : modo === "desembolsar" ? (
             <div className="space-y-2">
+              {campoAprobado}
               <label className="block text-xs text-slate-600">
                 Fecha de la transferencia
                 <input type="date" value={fecha} max={hoy} min={a.fecha_solicitud} onChange={(e) => setFecha(e.target.value)} className="mt-0.5 block w-full rounded-md border border-slate-300 px-2 py-1 text-sm" />
@@ -163,18 +196,22 @@ function FilaAbono({ a, persona, yo, hoy, aprueba }: { a: Abono; persona: string
               {faltaDesembolso && !pendiente && <p className="text-xs text-slate-500">{faltaDesembolso}</p>}
             </div>
           ) : (
-            <div className="flex flex-wrap gap-2">
+            <div className="space-y-2">
+              {a.estado === "solicitado" && campoAprobado}
+              <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => setModo("rechazar")} className="min-h-9 rounded-md border border-red-300 px-3 text-xs font-semibold text-red-800">
                 Rechazar…
               </button>
               {a.estado === "solicitado" && (
-                <button type="button" disabled={pendiente} onClick={() => actualizar({ estado: "aprobado" })} className="min-h-9 rounded-md border border-green-700 px-3 text-xs font-semibold text-green-800 disabled:opacity-40">
+                <button type="button" disabled={pendiente || faltaAprobado !== null} onClick={() => actualizar({ estado: "aprobado", monto_aprobado: valorAprobado })} className="min-h-9 rounded-md border border-green-700 px-3 text-xs font-semibold text-green-800 disabled:opacity-40">
                   Aprobar (transfiero después)
                 </button>
               )}
               <button type="button" onClick={() => setModo("desembolsar")} className="min-h-9 rounded-md bg-green-700 px-3 text-xs font-semibold text-white">
                 {a.estado === "solicitado" ? "Aprobar y registrar transferencia" : "Registrar transferencia"}
               </button>
+              </div>
+              {a.estado === "solicitado" && faltaAprobado && <p className="text-xs text-slate-500">{faltaAprobado}</p>}
             </div>
           )}
           {error && <p className="rounded-md bg-red-50 px-2 py-1 text-xs text-red-800">{error}</p>}

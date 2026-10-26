@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -8,6 +8,7 @@ import { MenuPrincipal, type AccesosMenu } from "@/components/MenuPrincipal";
 import { seccionesMenu } from "@/lib/menu";
 import { logout } from "@/app/logout/actions";
 import { BotonBuscador } from "@/components/BuscadorSecciones";
+import { BotonRegistrarProblema } from "@/components/RegistrarProblema";
 
 /**
  * Barra superior global — presente en todas las pantallas de la app (menos /login).
@@ -23,6 +24,9 @@ import { BotonBuscador } from "@/components/BuscadorSecciones";
  * Las dos salen de la misma lista (src/lib/menu.ts): solo los módulos que el usuario tiene.
  *
  * Mide 57 px (65 px desde sm) en los dos modos: la app del técnico se pega debajo con esos altos.
+ *
+ * Si los módulos no caben en la barra (1024 px con todos los módulos), los que sobran pasan a
+ * "Más ▾", medidos de verdad: nunca quedan tapados ni la página se sale de ancho.
  */
 export function AppHeader({ accesos, usuario }: { accesos: AccesosMenu; usuario?: string | null }) {
   const [menuAbierto, setMenuAbierto] = useState<false | "menu" | "basedatos">(false);
@@ -33,6 +37,33 @@ export function AppHeader({ accesos, usuario }: { accesos: AccesosMenu; usuario?
   const setDesplegada = (f: (d: string | null) => string | null) => setAbiertaEn({ id: f(desplegada) ?? "", ruta });
   const barra = useRef<HTMLElement>(null);
   const secciones = seccionesMenu(accesos);
+  const nav = useRef<HTMLElement>(null);
+  const medidor = useRef<HTMLDivElement>(null);
+  const [cabe, setCabe] = useState(secciones.length);
+
+  // Cuántos módulos caben: se miden en una copia invisible y se recalcula al cambiar el ancho.
+  useLayoutEffect(() => {
+    const n = nav.current;
+    const m = medidor.current;
+    if (!n || !m) return;
+    const observador = new ResizeObserver(() => {
+      if (!n.clientWidth) return; // pantalla angosta: la barra no se ve
+      const anchos = [...m.children].map((c) => (c as HTMLElement).offsetWidth + 2);
+      const mas = anchos.pop() ?? 0;
+      let usado = 0;
+      let k = 0;
+      for (; k < anchos.length; k++) {
+        const reserva = k < anchos.length - 1 ? mas : 0;
+        if (usado + anchos[k] + reserva > n.clientWidth) break;
+        usado += anchos[k];
+      }
+      setCabe(k);
+    });
+    observador.observe(n);
+    return () => observador.disconnect();
+  }, [secciones.length]);
+  const enBarra = secciones.slice(0, cabe);
+  const enMas = secciones.slice(cabe);
 
   // Una lista abierta se cierra al tocar fuera o con Escape.
   useEffect(() => {
@@ -62,13 +93,27 @@ export function AppHeader({ accesos, usuario }: { accesos: AccesosMenu; usuario?
           <BotonBuscador secciones={secciones} />
 
           {/* Pantalla ancha: los módulos en la barra. */}
-          <nav className="ml-4 hidden min-w-0 flex-1 items-center gap-0.5 lg:flex" aria-label="Módulos">
-            {secciones.map((s) =>
+          <nav ref={nav} className="relative ml-4 hidden min-w-0 flex-1 items-center gap-0.5 lg:flex" aria-label="Módulos">
+            {/* Copia invisible para medir (no ocupa lugar ni se sale de ancho). */}
+            <div aria-hidden className="pointer-events-none invisible absolute left-0 top-0 h-0 w-0 overflow-hidden">
+              <div ref={medidor} className="flex w-max">
+                {secciones.map((s) => (
+                  <span key={s.id} className="flex items-center gap-1 whitespace-nowrap px-2 text-sm font-medium">
+                    {s.nombre}
+                    {s.hijos.length > 0 && <span className="text-xs">▾</span>}
+                  </span>
+                ))}
+                <span className="flex items-center gap-1 whitespace-nowrap px-2 text-sm font-medium">
+                  Más <span className="text-xs">▾</span>
+                </span>
+              </div>
+            </div>
+            {enBarra.map((s) =>
               s.hijos.length === 0 ? (
                 <Link
                   key={s.id}
                   href={s.href}
-                  className={`flex min-h-11 items-center whitespace-nowrap rounded-md px-2.5 text-sm font-medium hover:bg-slate-100 ${
+                  className={`flex min-h-11 items-center whitespace-nowrap rounded-md px-2 text-sm font-medium hover:bg-slate-100 ${
                     activa(s.href) ? "bg-slate-100 text-slate-900" : "text-slate-600"
                   }`}
                 >
@@ -80,7 +125,7 @@ export function AppHeader({ accesos, usuario }: { accesos: AccesosMenu; usuario?
                     type="button"
                     aria-expanded={desplegada === s.id}
                     onClick={() => setDesplegada((d) => (d === s.id ? null : s.id))}
-                    className={`flex min-h-11 items-center gap-1 whitespace-nowrap rounded-md px-2.5 text-sm font-medium hover:bg-slate-100 ${
+                    className={`flex min-h-11 items-center gap-1 whitespace-nowrap rounded-md px-2 text-sm font-medium hover:bg-slate-100 ${
                       activa(s.href) || desplegada === s.id ? "bg-slate-100 text-slate-900" : "text-slate-600"
                     }`}
                   >
@@ -111,9 +156,52 @@ export function AppHeader({ accesos, usuario }: { accesos: AccesosMenu; usuario?
                 </div>
               ),
             )}
+            {enMas.length > 0 && (
+              <div className="relative">
+                <button
+                  type="button"
+                  aria-expanded={desplegada === "mas"}
+                  onClick={() => setDesplegada((d) => (d === "mas" ? null : "mas"))}
+                  className={`flex min-h-11 items-center gap-1 whitespace-nowrap rounded-md px-2 text-sm font-medium hover:bg-slate-100 ${
+                    enMas.some((s) => activa(s.href)) || desplegada === "mas" ? "bg-slate-100 text-slate-900" : "text-slate-600"
+                  }`}
+                >
+                  Más
+                  <span aria-hidden className="text-xs text-slate-400">
+                    ▾
+                  </span>
+                </button>
+                {desplegada === "mas" && (
+                  <div className="absolute right-0 top-full z-40 mt-1 max-h-[80vh] w-64 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+                    {enMas.map((s) => (
+                      <div key={s.id} className="border-b border-slate-100 py-0.5 last:border-0">
+                        <Link href={s.href} className="flex min-h-11 items-center rounded-md px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+                          {s.nombreLargo ?? s.nombre}
+                          {s.nota && <span className="ml-1 text-xs font-normal text-amber-700">({s.nota})</span>}
+                        </Link>
+                        {s.hijos.map((h) => (
+                          <Link
+                            key={h.href}
+                            href={h.href}
+                            className={`flex min-h-11 items-center rounded-md text-sm hover:bg-slate-50 ${h.nivel === 2 ? "pl-8 text-slate-500" : "pl-5 text-slate-600"} ${
+                              activa(h.href) ? "font-semibold text-slate-900" : ""
+                            }`}
+                          >
+                            {h.nombre}
+                          </Link>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </nav>
 
           <span className="flex-1 lg:hidden" />
+
+          {/* Registrar problema: en todas las pantallas, también en la app del técnico (Jhojan). */}
+          <BotonRegistrarProblema administra={accesos.configResponsable} />
 
           {/* Pantalla ancha: lo del usuario a la derecha. */}
           <div className="hidden shrink-0 items-center gap-1 lg:flex">
@@ -127,7 +215,7 @@ export function AppHeader({ accesos, usuario }: { accesos: AccesosMenu; usuario?
               </button>
             )}
             {usuario && (
-              <span className="hidden max-w-56 truncate px-2 text-xs text-slate-500 xl:inline" title={usuario}>
+              <span className="hidden max-w-56 truncate px-2 text-xs text-slate-500 2xl:inline" title={usuario}>
                 {usuario}
               </span>
             )}

@@ -67,6 +67,7 @@ export function accesosDeMenu(permisos: MisPermisos) {
     campoTecnico: alMenos("tecnico", "trabajar"),
     planificacion: alMenos("planificacion", "trabajar"),
     configResponsable: alMenos("configuracion", "responsable"),
+    administrativoTrabajar: alMenos("administrativo", "trabajar"),
   };
 }
 
