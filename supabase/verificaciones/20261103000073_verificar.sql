@@ -132,6 +132,9 @@ select '4b anónimo no ve nada', 'false',
 
 -- ============================================================ limpieza (admin)
 delete from reportes_problema where id::text like '00000000-0000-0000-0000-0000000073c%';
+-- Supabase bloquea el delete directo en storage.objects (storage.protect_delete); este es el
+-- escape que el propio disparador acepta, solo dentro de esta transacción y solo para la limpieza.
+set local storage.allow_delete_query = 'true';
 delete from storage.objects where bucket_id = 'reportes-problema' and name like '00000000-0000-0000-0000-0000000073_0/%';
 delete from perfiles where id in ('00000000-0000-0000-0000-0000000073a0', '00000000-0000-0000-0000-0000000073b0');
 delete from auth.users where id in ('00000000-0000-0000-0000-0000000073a0', '00000000-0000-0000-0000-0000000073b0');

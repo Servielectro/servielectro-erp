@@ -97,8 +97,12 @@ insert into resultado (prueba, esperado, resultado)
 select '1g no sube archivos fuera de la carpeta del RUT', 'contiene: row-level security', pg_temp.intentar($q$
   insert into storage.objects (bucket_id, name) values ('documentos-clientes', 'proyectos/00000000-0000-0000-0000-0000000071e1/factura/2.pdf')$q$);
 insert into resultado (prueba, esperado, resultado)
-select '1h no borra un RUT (registro ni archivo)', 'aceptado (0 filas) / aceptado (0 filas)',
-  pg_temp.intentar($q$delete from documentos where id = '00000000-0000-0000-0000-0000000071f1'$q$) || ' / ' ||
+select '1h no borra el registro del RUT', 'aceptado (0 filas)',
+  pg_temp.intentar($q$delete from documentos where id = '00000000-0000-0000-0000-0000000071f1'$q$);
+-- El archivo: Supabase (storage.protect_delete) frena todo delete directo sobre storage.objects,
+-- antes de la RLS y para cualquiera. Más estricto que la RLS sola.
+insert into resultado (prueba, esperado, resultado)
+select '1h2 nadie borra el archivo del RUT por SQL', 'contiene: Direct deletion from storage tables is not allowed',
   pg_temp.intentar($q$delete from storage.objects where name = 'clientes/00000000-0000-0000-0000-0000000071d1/rut/1-rut.pdf'$q$);
 insert into resultado (prueba, esperado, resultado)
 select '1i ve el RUT vigente del cliente', 'rut.pdf', pg_temp.valor($q$
@@ -126,6 +130,9 @@ select '3b Comercial sigue subiendo al bucket', 'aceptado (1 filas)', pg_temp.in
 reset role;
 
 -- ============================================================ limpieza (admin)
+-- Supabase bloquea el delete directo en storage.objects (storage.protect_delete); este es el
+-- escape que el propio disparador acepta, solo dentro de esta transacción y solo para la limpieza.
+set local storage.allow_delete_query = 'true';
 delete from storage.objects where bucket_id = 'documentos-clientes' and (name like '%71d1%' or name like '%71e1%');
 delete from documentos where cliente_id = '00000000-0000-0000-0000-0000000071d1' or proyecto_id = '00000000-0000-0000-0000-0000000071e1';
 delete from proyectos where id = '00000000-0000-0000-0000-0000000071e1';
