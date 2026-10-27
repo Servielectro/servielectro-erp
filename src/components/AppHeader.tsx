@@ -26,8 +26,18 @@ import { BotonRegistrarProblema } from "@/components/RegistrarProblema";
  * Mide 57 px (65 px desde sm) en los dos modos: la app del técnico se pega debajo con esos altos.
  *
  * Si los módulos no caben en la barra (1024 px con todos los módulos), los que sobran pasan a
- * "Más ▾", medidos de verdad: nunca quedan tapados ni la página se sale de ancho.
+ * "Más ▾", medidos de verdad: nunca quedan tapados ni la página se sale de ancho. Caen a "Más"
+ * los que ese usuario abre menos (se cuentan en este navegador), nunca el de la pantalla actual;
+ * los que quedan en la barra conservan el orden de siempre.
  */
+const CLAVE_USO = "uso-modulos";
+function leerUso(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(CLAVE_USO) ?? "{}") as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
 export function AppHeader({ accesos, usuario }: { accesos: AccesosMenu; usuario?: string | null }) {
   const [menuAbierto, setMenuAbierto] = useState<false | "menu" | "basedatos">(false);
   const ruta = usePathname();
@@ -39,7 +49,20 @@ export function AppHeader({ accesos, usuario }: { accesos: AccesosMenu; usuario?
   const secciones = seccionesMenu(accesos);
   const nav = useRef<HTMLElement>(null);
   const medidor = useRef<HTMLDivElement>(null);
-  const [cabe, setCabe] = useState(secciones.length);
+  const [visibles, setVisibles] = useState<string[] | null>(null);
+  const seccionActual = secciones.find((s) => ruta === s.href || ruta.startsWith(s.href + "/") || s.hijos.some((h) => ruta === h.href || ruta.startsWith(h.href + "/")))?.id ?? null;
+
+  // Cuenta las visitas a cada módulo (solo en este navegador) para saber cuáles usa menos.
+  useEffect(() => {
+    if (!seccionActual) return;
+    try {
+      const uso = leerUso();
+      uso[seccionActual] = (uso[seccionActual] ?? 0) + 1;
+      localStorage.setItem(CLAVE_USO, JSON.stringify(uso));
+    } catch {
+      // sin almacenamiento (ventana privada): todos pesan igual y manda el orden de siempre
+    }
+  }, [seccionActual]);
 
   // Cuántos módulos caben: se miden en una copia invisible y se recalcula al cambiar el ancho.
   useLayoutEffect(() => {
@@ -50,20 +73,29 @@ export function AppHeader({ accesos, usuario }: { accesos: AccesosMenu; usuario?
       if (!n.clientWidth) return; // pantalla angosta: la barra no se ve
       const anchos = [...m.children].map((c) => (c as HTMLElement).offsetWidth + 2);
       const mas = anchos.pop() ?? 0;
-      let usado = 0;
-      let k = 0;
-      for (; k < anchos.length; k++) {
-        const reserva = k < anchos.length - 1 ? mas : 0;
-        if (usado + anchos[k] + reserva > n.clientWidth) break;
-        usado += anchos[k];
+      const total = anchos.reduce((a, b) => a + b, 0);
+      if (total <= n.clientWidth) return setVisibles(null); // caben todos
+      // No caben: entran primero el de la pantalla actual y después los más usados.
+      const uso = leerUso();
+      const prioridad = secciones
+        .map((s, i) => ({ id: s.id, i, ancho: anchos[i] ?? 0 }))
+        .sort((a, b) => Number(b.id === seccionActual) - Number(a.id === seccionActual) || (uso[b.id] ?? 0) - (uso[a.id] ?? 0) || a.i - b.i);
+      const elegidos: string[] = [];
+      let usado = mas;
+      for (const p of prioridad) {
+        if (usado + p.ancho > n.clientWidth) continue;
+        usado += p.ancho;
+        elegidos.push(p.id);
       }
-      setCabe(k);
+      setVisibles(elegidos);
     });
     observador.observe(n);
     return () => observador.disconnect();
-  }, [secciones.length]);
-  const enBarra = secciones.slice(0, cabe);
-  const enMas = secciones.slice(cabe);
+    // secciones cambia de identidad en cada render; basta con su cantidad y la pantalla actual.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secciones.length, seccionActual]);
+  const enBarra = visibles ? secciones.filter((s) => visibles.includes(s.id)) : secciones;
+  const enMas = visibles ? secciones.filter((s) => !visibles.includes(s.id)) : [];
 
   // Una lista abierta se cierra al tocar fuera o con Escape.
   useEffect(() => {
