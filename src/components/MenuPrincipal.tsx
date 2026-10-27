@@ -14,6 +14,7 @@ import {
   type PrevisualizacionTabla,
   type RespaldoListado,
 } from "@/app/(app)/comercial/cotizaciones/backup-actions";
+import { fechaHoraCo } from "@/lib/fecha-hora";
 
 type VistaBaseDatos = "inicio" | "lista" | "previsualizacion";
 
@@ -355,7 +356,7 @@ export function MenuPrincipal({
                     >
                       <span className="block font-medium text-slate-800">
                         {r.creadoEn
-                          ? new Date(r.creadoEn).toLocaleString("es-CO")
+                          ? fechaHoraCo(r.creadoEn)
                           : r.nombre}
                       </span>
                       <span className="text-slate-500">{r.nombre}</span>

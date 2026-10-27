@@ -113,8 +113,14 @@ function FilaSede({ s, clienteId, edita }: { s: Sede; clienteId: string; edita: 
               <button type="button" onClick={() => setEditando(true)} className="min-h-11 rounded-md border border-slate-300 px-3 text-xs font-semibold">
                 Editar
               </button>
-              <button type="button" disabled={pendiente} onClick={tomarUbicacion} className="min-h-11 rounded-md border border-slate-300 px-3 text-xs font-semibold">
-                📍 Guardar mi ubicación actual como la de esta sede
+              <button
+                type="button"
+                disabled={pendiente}
+                onClick={tomarUbicacion}
+                title="Guardar mi ubicación actual como la de esta sede (hazlo parado en la sede)"
+                className="min-h-11 rounded-md border border-slate-300 px-3 text-xs font-semibold"
+              >
+                📍 Estoy en esta sede: guardar ubicación
               </button>
             </>
           )}

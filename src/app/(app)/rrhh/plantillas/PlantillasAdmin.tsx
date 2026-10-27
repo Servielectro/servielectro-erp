@@ -12,6 +12,7 @@ import {
 } from "@/lib/rrhh";
 import { crearPlantilla, enlaceDescarga, publicarVersion } from "./actions";
 import { SelectorArchivo } from "@/components/SelectorArchivo";
+import { fechaHoraCo } from "@/lib/fecha-hora";
 
 export interface PlantillaUI {
   id: string;
@@ -112,7 +113,7 @@ export function PlantillasAdmin({ plantillas, puedeSubir }: { plantillas: Planti
             {vigente && (
               <p className="mt-1 text-xs text-slate-600">
                 Vigente: v{vigente.version} · {vigente.nombreArchivo} · subida el{" "}
-                {new Date(vigente.subidaEn).toLocaleString("es-CO")}
+                {fechaHoraCo(vigente.subidaEn)}
                 {vigente.notas && ` · ${vigente.notas}`}
               </p>
             )}
@@ -126,7 +127,7 @@ export function PlantillasAdmin({ plantillas, puedeSubir }: { plantillas: Planti
                   {anteriores.map((v) => (
                     <li key={v.id} className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
                       <span>
-                        v{v.version} · {v.nombreArchivo} · {new Date(v.subidaEn).toLocaleString("es-CO")}
+                        v{v.version} · {v.nombreArchivo} · {fechaHoraCo(v.subidaEn)}
                         {v.notas && ` · ${v.notas}`}
                       </span>
                       <button type="button" onClick={() => descargar(v.id)} className="underline">

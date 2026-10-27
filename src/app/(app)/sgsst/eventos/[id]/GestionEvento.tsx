@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { sha256 } from "@/lib/tecnico/captura";
-import type { EstadoPlazo } from "@/lib/sst/plazos";
+import { ESTADO_EVENTO, type EstadoPlazo } from "@/lib/sst/plazos";
+import { fechaHoraCo } from "@/lib/fecha-hora";
 
 export interface EventoDetalle {
   id: string;
@@ -101,7 +102,7 @@ export function GestionEvento({
           {ev.tipo === "accidente" ? "Accidente de trabajo" : "Incidente"} · {afectado ?? "sin afectado"}
         </h1>
         <p className="text-sm text-slate-600">
-          {new Date(ev.ocurrido_en).toLocaleString("es-CO")} · {ev.lugar ?? "sin lugar"} · {ev.estado}
+          {fechaHoraCo(ev.ocurrido_en)} · {ev.lugar ?? "sin lugar"} · {ESTADO_EVENTO[ev.estado] ?? ev.estado}
         </p>
       </div>
       <section className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
@@ -130,8 +131,8 @@ export function GestionEvento({
               <p className="font-semibold">{que}</p>
               {hecho ? (
                 <p>
-                  Reportado el {new Date(hecho).toLocaleString("es-CO")}
-                  {radicado ? ` · radicado ${radicado}` : ""}. Queda registrado una sola vez.
+                  Reportado el {fechaHoraCo(hecho)}
+                  {radicado ? ` · radicado ${radicado}` : ""} — queda registrado una sola vez.
                 </p>
               ) : editable ? (
                 <div className="space-y-1">

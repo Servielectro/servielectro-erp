@@ -1,6 +1,9 @@
 // Plazos de reporte e investigación (migración 77). Los días los carga la gestión SST con su
 // vigencia: aquí no hay ningún número de ley.
 
+/** Estados de un accidente o incidente (migración 77), como se leen en pantalla. */
+export const ESTADO_EVENTO: Record<string, string> = { abierto: "Abierto", investigado: "Investigado", cerrado: "Cerrado", anulado: "Anulado" };
+
 export interface Plazo {
   clave: string;
   nombre: string;

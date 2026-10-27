@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { fechaHoraCo } from "@/lib/fecha-hora";
 
 export interface ReporteGestion {
   id: string;
@@ -48,7 +49,7 @@ export function AtenderReporte({ r, trabaja }: { r: ReporteGestion; trabaja: boo
         <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold">{ESTADO[r.estado]}</span>
       </div>
       <p className="text-xs text-slate-600">
-        {r.tipo === "acto" ? "Acto inseguro" : "Condición insegura"} · {r.lugar ?? "sin lugar"} · {r.quien} · {new Date(r.reportado_en).toLocaleString("es-CO")}
+        {r.tipo === "acto" ? "Acto inseguro" : "Condición insegura"} · {r.lugar ?? "sin lugar"} · {r.quien} · {fechaHoraCo(r.reportado_en)}
       </p>
       {r.lat !== null && r.lng !== null ? (
         <a href={`https://www.google.com/maps?q=${r.lat},${r.lng}`} target="_blank" rel="noreferrer" className="text-xs font-semibold text-[#A82323] underline">

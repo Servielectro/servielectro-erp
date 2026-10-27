@@ -2,8 +2,9 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso } from "@/lib/permisos";
 import { hoyColombia } from "@/lib/crm";
-import { estadoPlazo, type Plazo } from "@/lib/sst/plazos";
+import { ESTADO_EVENTO, estadoPlazo, type Plazo } from "@/lib/sst/plazos";
 import { NuevoEvento } from "./NuevoEvento";
+import { fechaHoraCo } from "@/lib/fecha-hora";
 
 export default async function EventosPage() {
   const supabase = await createClient();
@@ -47,10 +48,10 @@ export default async function EventosPage() {
                     <p className="font-semibold text-slate-900">
                       {e.tipo === "accidente" ? "Accidente" : "Incidente"} · {e.empleado_id ? nombre.get(e.empleado_id) ?? "Empleado" : e.afectado_nombre ?? "sin afectado"}
                     </p>
-                    <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold">{e.estado}</span>
+                    <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold">{ESTADO_EVENTO[e.estado] ?? e.estado}</span>
                   </div>
                   <p className="text-xs text-slate-600">
-                    {new Date(e.ocurrido_en).toLocaleString("es-CO")} · {e.lugar ?? "sin lugar"}
+                    {fechaHoraCo(e.ocurrido_en)} · {e.lugar ?? "sin lugar"}
                   </p>
                   <p className="line-clamp-2 text-sm text-slate-700">{e.descripcion}</p>
                   {arl?.tipo === "pendiente" && (
