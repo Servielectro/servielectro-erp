@@ -3,8 +3,9 @@
 -- cobro; BORRA todo antes de mostrar el resultado.
 -- Resultado esperado: todas las filas en "OK".
 --
--- Supuestos (los confirma el caso 0): Jhojan (696d…) es Administrador, con Administrativo
--- "responsable"; el rol Coordinador NO tiene Administrativo "responsable".
+-- Supuestos (los confirma el caso 0): Jhojan (696d…) es Administrador (con Administrativo y,
+-- desde esta migración, Contratistas "responsable"). La tarifa la ven SOLO él y el contratista
+-- (Jhojan, 2026-10-27): el caso 0d cuenta quiénes la ven y 0e dice sus nombres.
 -- Lo que NO prueba: las políticas del bucket "contratistas" (Storage); se prueban desde la app.
 
 begin;
@@ -56,16 +57,26 @@ on conflict (id) do update set rol_id = excluded.rol_id, nombre = excluded.nombr
 
 -- ============================================================ 0) supuestos
 insert into resultado (prueba, esperado, resultado)
-select '0a Jhojan tiene Administrativo responsable', 'true', pg_temp.valor($q$
-  select exists (select 1 from perfiles p join permisos_rol pr on pr.rol_id = p.rol_id
-                 where p.id = '696d9431-5c4d-4043-aee4-3e4597094f26' and pr.modulo_id = 'administrativo' and pr.nivel = 'responsable')::text$q$);
+select '0a Jhojan tiene Administrativo y Contratistas responsable', 'true', pg_temp.valor($q$
+  select (2 = (select count(*) from perfiles p join permisos_rol pr on pr.rol_id = p.rol_id
+               where p.id = '696d9431-5c4d-4043-aee4-3e4597094f26' and pr.nivel = 'responsable'
+                 and pr.modulo_id in ('administrativo', 'contratistas')))::text$q$);
 insert into resultado (prueba, esperado, resultado)
-select '0b Coordinador NO tiene Administrativo responsable', 'false', pg_temp.valor($q$
-  select exists (select 1 from roles r join permisos_rol pr on pr.rol_id = r.id
-                 where r.nombre = 'Coordinador' and pr.modulo_id = 'administrativo' and pr.nivel = 'responsable')::text$q$);
+select '0b solo el rol Administrador tiene Contratistas responsable', 'Administrador', pg_temp.valor($q$
+  select string_agg(r.nombre, ',' order by r.nombre) from roles r join permisos_rol pr on pr.rol_id = r.id
+  where pr.modulo_id = 'contratistas' and pr.nivel = 'responsable'$q$);
 insert into resultado (prueba, esperado, resultado)
 select '0c el rol Contratistas solo tiene el módulo contratistas', 'contratistas', pg_temp.valor($q$
   select string_agg(pr.modulo_id, ',' order by pr.modulo_id) from roles r join permisos_rol pr on pr.rol_id = r.id where r.nombre = 'Contratistas'$q$);
+-- "Solo lo vemos el contratista y yo": personas reales (no las de prueba) que verían TODAS las tarifas.
+insert into resultado (prueba, esperado, resultado)
+select '0d personas que ven todas las tarifas', '1', pg_temp.valor($q$
+  select count(*)::text from perfiles p join permisos_rol pr on pr.rol_id = p.rol_id
+  where pr.modulo_id = 'contratistas' and pr.nivel = 'responsable' and p.id::text not like '00000000-0000-0000-0000-0000000008%'$q$);
+insert into resultado (prueba, esperado, resultado)
+select '0e … quién es (tiene que ser Jhojan)', '(informativo)', pg_temp.valor($q$
+  select string_agg(coalesce(p.nombre, p.id::text), ', ') from perfiles p join permisos_rol pr on pr.rol_id = p.rol_id
+  where pr.modulo_id = 'contratistas' and pr.nivel = 'responsable' and p.id::text not like '00000000-0000-0000-0000-0000000008%'$q$);
 
 set local role authenticated;
 
@@ -195,7 +206,7 @@ insert into resultado (prueba, esperado, resultado)
 select '4e radicada no se edita', 'contiene: no se edita', pg_temp.intentar($q$
   update contratista_cuentas_cobro set cantidad = 25 where id = '00000000-0000-0000-0000-0000000008e1'$q$);
 insert into resultado (prueba, esperado, resultado)
-select '4f el contratista NO se aprueba la cuenta', 'contiene: Administrativo (responsable)', pg_temp.intentar($q$
+select '4f el contratista NO se aprueba la cuenta', 'contiene: quien maneja los contratistas', pg_temp.intentar($q$
   update contratista_cuentas_cobro set estado = 'aprobada' where id = '00000000-0000-0000-0000-0000000008e1'$q$);
 
 select pg_temp.como('00000000-0000-0000-0000-0000000008c2');
@@ -251,7 +262,7 @@ reset role;
 insert into resultado (prueba, esperado, resultado)
 select '6a funciones de contratistas ejecutables por anon', '0', count(*)::text
 from pg_proc p join pg_namespace n on n.oid = p.pronamespace and n.nspname = 'public'
-where p.proname in ('fn_es_contratista', 'fn_contratista_de_planilla', 'fn_contratista_ve_valores', 'fn_contratista_ve_planillas',
+where p.proname in ('fn_contratistas_valores_admin', 'fn_es_contratista', 'fn_contratista_de_planilla', 'fn_contratista_ve_valores', 'fn_contratista_ve_planillas',
                     'fn_contratista_cobertura', 'fn_contratista_dias_sin_cobertura', 'fn_contratista_archivo',
                     'fn_contratista_tarifas_reglas', 'fn_contratista_planillas_reglas', 'fn_contratista_personas_reglas',
                     'fn_contratista_cuentas_reglas', 'fn_contratista_historial')
@@ -283,6 +294,7 @@ select prueba, esperado, resultado,
     when esperado = 'RECHAZADO' and resultado like 'RECHAZADO%' then 'OK'
     when esperado like 'contiene: %' and position(substring(esperado from 11) in resultado) > 0 then 'OK'
     when esperado like '>= %' and resultado ~ '^[0-9]+$' and resultado::int >= substring(esperado from 4)::int then 'OK'
+    when esperado = '(informativo)' then 'OK'
     when esperado = resultado then 'OK'
     else 'REVISAR'
   end as estado

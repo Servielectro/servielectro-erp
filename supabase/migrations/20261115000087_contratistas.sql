@@ -6,11 +6,14 @@
 --    para subir y/o crear las cuentas de cobro que deba presentar a la empresa para los pagos
 --    correspondientes."
 --
--- QUIÉN VE LA TARIFA (pregunta abierta a Jhojan, sin respuesta al escribir esto): SOLO
--- Administrativo "responsable" y el propio contratista. Nadie más: ni Técnicos, ni Operativo, ni
--- Administrativo "consultar"/"trabajar". Las cuentas de cobro dicen la tarifa (valor por día), así
--- que siguen la misma regla. Es lo conservador: abrir después es una política; cerrar después
--- es descubrir quién ya la vio.
+-- QUIÉN VE LA TARIFA (Jhojan, 2026-10-27): "solo lo vemos, el contratista y yo, por el
+-- momento". Entonces: el propio contratista y quien tenga Contratistas "responsable", que esta
+-- migración le da SOLO al rol Administrador. Nadie de Técnicos, Proyectos, Operativo ni
+-- Administrativo. Las cuentas de cobro, el historial y los soportes de pago dicen la tarifa, así
+-- que siguen la misma regla.
+-- UN SOLO LUGAR para ampliarlo ("por el momento" es de él): fn_contratistas_valores_admin().
+-- Abrirlo a otro rol = darle Contratistas "responsable" en Usuarios y permisos, o cambiar esa
+-- función. Nada más en esta migración pregunta por ese permiso.
 --
 -- LA PLANILLA DE PARAFISCALES (PILA): la lectura automática llena SOLO columnas *_inferida y
 -- filas con fuente 'lectura'. Eso es INFERIDO: no vale como dato hasta que alguien de
@@ -52,6 +55,13 @@ insert into public.permisos_rol (rol_id, modulo_id, nivel, ve_datos_sensibles)
 select r.id, 'contratistas', 'trabajar', false
 from public.roles r
 where r.nombre = 'Contratistas'
+on conflict (rol_id, modulo_id) do nothing;
+
+-- Quien ve y maneja tarifas, cuentas de cobro y pagos de TODOS: por ahora solo el Administrador.
+insert into public.permisos_rol (rol_id, modulo_id, nivel, ve_datos_sensibles)
+select r.id, 'contratistas', 'responsable', true
+from public.roles r
+where r.nombre = 'Administrador'
 on conflict (rol_id, modulo_id) do nothing;
 
 -- ============================================================ 2) tablas
@@ -204,10 +214,17 @@ returns uuid language sql stable security definer set search_path = public as $$
   select contratista_id from contratista_planillas where id = p_planilla_id;
 $$;
 
--- Tarifa y cuentas de cobro: el propio contratista o Administrativo "responsable". Nadie más.
+-- EL ÚNICO LUGAR que decide quién ve y maneja los valores pactados de todos los contratistas.
+-- Hoy: Contratistas "responsable" (solo el rol Administrador). Para ampliarlo, acá.
+create or replace function public.fn_contratistas_valores_admin()
+returns boolean language sql stable security definer set search_path = public as $$
+  select fn_tiene_permiso('contratistas', 'responsable');
+$$;
+
+-- Tarifa y cuentas de cobro: el propio contratista o quien maneja los valores. Nadie más.
 create or replace function public.fn_contratista_ve_valores(p_contratista_id uuid)
 returns boolean language sql stable security definer set search_path = public as $$
-  select fn_tiene_permiso('administrativo', 'responsable') or fn_es_contratista(p_contratista_id);
+  select fn_contratistas_valores_admin() or fn_es_contratista(p_contratista_id);
 $$;
 
 -- Planillas (sin valores pactados): el propio, Administrativo "consultar" y SG-SST "consultar"
@@ -363,7 +380,7 @@ create trigger trg_contratista_personas_reglas before insert or update or delete
 create or replace function public.fn_contratista_cuentas_reglas()
 returns trigger language plpgsql set search_path = public as $$
 declare
-  v_admin boolean := fn_tiene_permiso('administrativo', 'responsable');
+  v_admin boolean := fn_contratistas_valores_admin();
   v_tarifa contratista_tarifas%rowtype;
   v_faltan date[];
 begin
@@ -426,7 +443,7 @@ begin
     raise exception 'Una cuenta radicada no se edita: si está mal, se rechaza y se radica otra.';
   end if;
   if not v_admin then
-    raise exception 'Aprobar, rechazar o registrar el pago es de Administrativo (responsable).';
+    raise exception 'Aprobar, rechazar o registrar el pago de una cuenta de cobro es de quien maneja los contratistas (hoy, el Administrador).';
   end if;
 
   if old.estado = 'radicada' and new.estado = 'aprobada' then
@@ -531,11 +548,11 @@ create policy contratistas_update on public.contratistas for update to authentic
   using (fn_tiene_permiso('administrativo', 'trabajar'))
   with check (fn_tiene_permiso('administrativo', 'trabajar'));
 
--- tarifas: SOLO Administrativo "responsable" y el propio (que la ve, no la pacta).
+-- tarifas: SOLO quien maneja los valores y el propio (que la ve, no la pacta).
 create policy contratista_tarifas_select on public.contratista_tarifas for select to authenticated
   using (fn_contratista_ve_valores(contratista_id));
 create policy contratista_tarifas_insert on public.contratista_tarifas for insert to authenticated
-  with check (fn_tiene_permiso('administrativo', 'responsable'));
+  with check (fn_contratistas_valores_admin());
 
 -- planillas: las sube el propio o Administrativo "trabajar"; las ven ellos, Administrativo y SG-SST.
 create policy contratista_planillas_select on public.contratista_planillas for select to authenticated
@@ -554,7 +571,7 @@ create policy contratista_planilla_personas_update on public.contratista_planill
   using (fn_es_contratista(fn_contratista_de_planilla(planilla_id)) or fn_tiene_permiso('administrativo', 'trabajar'))
   with check (fn_es_contratista(fn_contratista_de_planilla(planilla_id)) or fn_tiene_permiso('administrativo', 'trabajar'));
 
--- cuentas de cobro (dicen la tarifa): el propio y Administrativo "responsable".
+-- cuentas de cobro (dicen la tarifa): el propio y quien maneja los valores.
 create policy contratista_cuentas_select on public.contratista_cuentas_cobro for select to authenticated
   using (fn_contratista_ve_valores(contratista_id));
 create policy contratista_cuentas_insert on public.contratista_cuentas_cobro for insert to authenticated
@@ -563,14 +580,14 @@ create policy contratista_cuentas_update on public.contratista_cuentas_cobro for
   using (fn_contratista_ve_valores(contratista_id))
   with check (fn_contratista_ve_valores(contratista_id));
 
--- historial (trae valores): el propio y Administrativo "responsable".
+-- historial (trae valores): el propio y quien maneja los valores.
 create policy contratista_eventos_select on public.contratista_eventos for select to authenticated
   using (fn_contratista_ve_valores(contratista_id));
 
 -- ============================================================ 6) archivos (bucket privado contratistas)
 -- {contratista_id}/planillas/...  → lo ven quienes ven planillas.
 -- {contratista_id}/cuentas/...    → lo ven quienes ven valores (dice la tarifa).
--- {contratista_id}/pagos/...      → soporte de pago: solo Administrativo "responsable" sube.
+-- {contratista_id}/pagos/...      → soporte de pago: solo quien maneja los valores sube.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('contratistas', 'contratistas', false, 15728640,
         array['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf',
@@ -590,7 +607,7 @@ returns boolean language sql stable security definer set search_path = public as
     when (storage.foldername(p_nombre))[2] = 'cuentas' then fn_contratista_ve_valores(c.id)
     when (storage.foldername(p_nombre))[2] = 'pagos' then
       case p_accion when 'ver' then fn_contratista_ve_valores(c.id)
-                    else fn_tiene_permiso('administrativo', 'responsable') end
+                    else fn_contratistas_valores_admin() end
     else false
   end
   from (select (select id from contratistas where id::text = (storage.foldername(p_nombre))[1]) as id) c;
@@ -605,6 +622,7 @@ create policy contratistas_archivos_select on storage.objects for select to auth
 -- Sin update ni delete: lo subido no se reemplaza ni se borra.
 
 -- ============================================================ 7) privilegios de las funciones
+revoke all on function public.fn_contratistas_valores_admin() from public, anon;
 revoke all on function public.fn_es_contratista(uuid) from public, anon;
 revoke all on function public.fn_contratista_de_planilla(uuid) from public, anon;
 revoke all on function public.fn_contratista_ve_valores(uuid) from public, anon;
@@ -612,6 +630,7 @@ revoke all on function public.fn_contratista_ve_planillas(uuid) from public, ano
 revoke all on function public.fn_contratista_cobertura(uuid, date) from public, anon;
 revoke all on function public.fn_contratista_dias_sin_cobertura(uuid, date, date) from public, anon;
 revoke all on function public.fn_contratista_archivo(text, text) from public, anon;
+grant execute on function public.fn_contratistas_valores_admin() to authenticated, service_role;
 grant execute on function public.fn_es_contratista(uuid) to authenticated, service_role;
 grant execute on function public.fn_contratista_de_planilla(uuid) to authenticated, service_role;
 grant execute on function public.fn_contratista_ve_valores(uuid) to authenticated, service_role;

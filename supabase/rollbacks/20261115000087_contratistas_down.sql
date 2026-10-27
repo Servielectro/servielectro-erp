@@ -24,8 +24,12 @@ drop function if exists public.fn_contratista_ve_planillas(uuid);
 drop function if exists public.fn_contratista_ve_valores(uuid);
 drop function if exists public.fn_contratista_de_planilla(uuid);
 drop function if exists public.fn_es_contratista(uuid);
+drop function if exists public.fn_contratistas_valores_admin();
 
--- El rol y el módulo: solo si nadie quedó con el rol.
+-- El permiso del Administrador sobre el módulo se va siempre; el rol y el módulo, solo si nadie
+-- quedó con el rol Contratistas.
+delete from public.permisos_rol
+where modulo_id = 'contratistas' and rol_id in (select id from public.roles where nombre = 'Administrador');
 delete from public.permisos_rol
 where modulo_id = 'contratistas'
   and not exists (select 1 from public.perfiles p join public.roles r on r.id = p.rol_id where r.nombre = 'Contratistas');
