@@ -4,6 +4,7 @@ import { tienePermiso } from "@/lib/permisos";
 import { getAccesoRrhh } from "@/lib/supabase/rrhh-acceso";
 import { COLUMNAS_NOTIFICACION, type Notificacion, type TipoNotificacion } from "@/lib/notificaciones";
 import { ListaNotificaciones, PreferenciasNotificaciones } from "./NotificacionesCliente";
+import { ActivarAvisos } from "./ActivarAvisos";
 
 // Todas mis notificaciones y qué quiero que me avise. Va en el grupo (campo): la usan también los
 // técnicos, sin el cierre por inactividad de la oficina.
@@ -31,6 +32,7 @@ export default async function NotificacionesPage() {
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4 p-4 sm:p-6">
       <h1 className="text-lg font-bold text-slate-900">Notificaciones</h1>
+      <ActivarAvisos />
       {notifRes.error ? (
         <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">No se pudieron leer las notificaciones: {notifRes.error.message}</p>
       ) : (

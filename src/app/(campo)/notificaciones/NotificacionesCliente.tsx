@@ -120,7 +120,6 @@ export function PreferenciasNotificaciones({ tipos, prefs, yo }: { tipos: TipoNo
           </ul>
         </div>
       ))}
-      <p className="mt-2 text-xs text-slate-500">El aviso al celular (fuera de la app) todavía no está activo: por ahora se ven aquí y en la campanita.</p>
     </section>
   );
 }

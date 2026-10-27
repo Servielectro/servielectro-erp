@@ -129,3 +129,44 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(archivoEstatico(event));
   }
 });
+
+// ---------------------------------------------------------------- Aviso al celular (Web Push)
+// Lo manda la Edge Function "enviar-push" con el mismo título y cuerpo de la notificación (sin
+// montos: esto sale en la pantalla de bloqueo). Al tocarlo, abre la pantalla de la notificación.
+self.addEventListener("push", (event) => {
+  let datos = {};
+  try {
+    datos = event.data ? event.data.json() : {};
+  } catch {
+    datos = { titulo: event.data ? event.data.text() : "Servielectro ERP" };
+  }
+  const titulo = datos.titulo || "Servielectro ERP";
+  event.waitUntil(
+    self.registration.showNotification(titulo, {
+      body: datos.cuerpo || "",
+      icon: "/icon-192x192.png",
+      badge: "/icon-192x192.png",
+      tag: datos.id || undefined,
+      requireInteraction: !!datos.urgente,
+      data: { ruta: datos.ruta || "/notificaciones" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const destino = new URL((event.notification.data && event.notification.data.ruta) || "/notificaciones", self.location.origin).href;
+  event.waitUntil(
+    (async () => {
+      const ventanas = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const v of ventanas) {
+        if (new URL(v.url).origin === self.location.origin && "focus" in v) {
+          await v.focus();
+          if ("navigate" in v) return v.navigate(destino);
+          return;
+        }
+      }
+      return self.clients.openWindow(destino);
+    })(),
+  );
+});
