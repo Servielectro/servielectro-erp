@@ -142,6 +142,10 @@ export default async function ProyectoPage({
       )}
       {!proyectosTrabaja && <p className="mt-1 text-xs text-slate-500">Llenar actas requiere Proyectos en nivel “trabajar”.</p>}
 
+      <Link href={`/proyectos/reuniones?proyecto=${p.id}`} className="mt-3 flex min-h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800">
+        🎙 Reuniones de la obra (grabar, acta, compromisos)
+      </Link>
+
       <h2 className="mb-2 mt-6 text-sm font-semibold text-slate-900">Visitas y obras del proyecto</h2>
       {visitas.length === 0 ? (
         <p className="text-xs text-slate-500">

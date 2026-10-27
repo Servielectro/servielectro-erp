@@ -43,8 +43,10 @@ $$;
 
 -- ============================================================ 0) lo de antes no cambió
 insert into resultado (prueba, esperado, resultado)
+-- (Se excluye la plantilla "Acta de reunión" que siembra la migración 86, si ya corrió. Si alguien ya
+-- armó plantillas o llenó actas de Proyectos, esta fila deja de aplicar: es para correr recién migrada.)
 select '0a lo que ya existía quedó en el ámbito SG-SST', '0 / 0',
-  pg_temp.valor($q$select (select count(*) from sst_plantillas where ambito <> 'sgsst')::text || ' / ' ||
+  pg_temp.valor($q$select (select count(*) from sst_plantillas where ambito <> 'sgsst' and id <> '00000000-0000-4000-8000-0000000086a1')::text || ' / ' ||
                           (select count(*) from sst_formatos where ambito <> 'sgsst')::text$q$);
 
 -- ============================================================ personas, proyecto (admin)

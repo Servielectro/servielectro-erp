@@ -5,7 +5,7 @@ import Link from "next/link";
 import { FormularioSst, type ArchivoVista } from "@/components/sst/FormularioSst";
 import { FirmaPantallaCompleta } from "@/app/(campo)/tecnico/FirmaPantallaCompleta";
 import { comprimirFoto, hoyBogota, obtenerUbicacion, sha256 } from "@/lib/tecnico/captura";
-import { dePadre, guardarYEncolar, leer, leerMeta, guardarMeta, todos } from "@/lib/tecnico/db";
+import { dePadre, guardar, guardarYEncolar, leer, leerMeta, guardarMeta, todos } from "@/lib/tecnico/db";
 import { useCola, nuevoId } from "@/lib/sst/campo";
 import { dispositivoActual, type PlantillaLocal, type SstArchivoLocal, type SstFirmaLocal, type SstFormatoLocal } from "@/lib/sst/local";
 import {
@@ -32,7 +32,18 @@ type Yo = { id: string; nombre: string; cedula: string };
  * la primera firma; aquí también se bloquea el contenido en ese momento, para que el celular y la
  * base digan lo mismo.
  */
-export function CampoSst({ yo, ambito = "sgsst", proyectoInicial = null }: { yo: Yo; ambito?: Ambito; proyectoInicial?: string | null }) {
+export function CampoSst({
+  yo,
+  ambito = "sgsst",
+  proyectoInicial = null,
+  formatoInicial = null,
+}: {
+  yo: Yo;
+  ambito?: Ambito;
+  proyectoInicial?: string | null;
+  /** Un acta armada en la oficina (ej. la de una reunión aprobada) que se trae al celular para firmarla. */
+  formatoInicial?: string | null;
+}) {
   // Migración 85: el mismo llenado sirve a SG-SST y a las actas de Proyectos. Cada ámbito guarda
   // en el celular sus propias plantillas y solo muestra lo suyo.
   const acta = ambito === "proyectos";
@@ -44,6 +55,7 @@ export function CampoSst({ yo, ambito = "sgsst", proyectoInicial = null }: { yo:
   const [formatos, setFormatos] = useState<SstFormatoLocal[]>([]);
   const [abierto, setAbierto] = useState<string | null>(null);
   const [eligiendo, setEligiendo] = useState(false);
+  const [avisoTraer, setAvisoTraer] = useState<string | null>(null);
 
   const recargarLocales = useCallback(async () => {
     const fs = (await todos<SstFormatoLocal>("sst_formatos")).filter((f) => (f.plantilla.ambito ?? "sgsst") === ambito);
@@ -85,9 +97,22 @@ export function CampoSst({ yo, ambito = "sgsst", proyectoInicial = null }: { yo:
       setProyectos((await leerMeta<{ id: string; nombre: string }[]>(`${k}_proyectos`)) ?? []);
       setPersonal((await leerMeta<string[]>(`${k}_personal`)) ?? []);
       await recargarLocales();
+      if (formatoInicial) {
+        if (await leer<SstFormatoLocal>("sst_formatos", formatoInicial)) {
+          setAbierto(formatoInicial);
+        } else {
+          setAvisoTraer("Trayendo el documento para firmar…");
+          const r = await traerFormato(formatoInicial, (await leerMeta<{ id: string; nombre: string }[]>(`${k}_proyectos`)) ?? []);
+          setAvisoTraer(r.aviso);
+          if (r.ok) {
+            await recargarLocales();
+            setAbierto(formatoInicial);
+          }
+        }
+      }
     }, 0);
     return () => clearTimeout(t);
-  }, [recargarLocales, k]);
+  }, [recargarLocales, k, formatoInicial]);
 
   async function nuevo(p: PlantillaLocal) {
     const ahora = new Date().toISOString();
@@ -135,6 +160,7 @@ export function CampoSst({ yo, ambito = "sgsst", proyectoInicial = null }: { yo:
         </Link>
       </div>
       <BarraCola cola={cola} />
+      {avisoTraer && <p className="rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-900">{avisoTraer}</p>}
 
       {eligiendo ? (
         <section className="space-y-2 rounded-lg border border-slate-300 bg-white p-3">
@@ -713,4 +739,44 @@ function ListaTecnicos({
       )}
     </section>
   );
+}
+
+/**
+ * Trae al celular un documento armado en la oficina (ej. el acta de una reunión aprobada), sin
+ * firmas todavía, para firmarlo aquí. Ya existe en la base con este contenido: se guarda local sin
+ * volver a subirlo.
+ */
+async function traerFormato(id: string, proyectos: { id: string; nombre: string }[]): Promise<{ ok: boolean; aviso: string | null }> {
+  try {
+    const { createClient } = await import("@/lib/supabase/client");
+    const supabase = createClient();
+    const { data: f } = await supabase.from("sst_formatos").select("id, plantilla_id, proyecto_id, lugar, fecha, respuestas, tecnicos_en_obra, estado").eq("id", id).maybeSingle();
+    if (!f) return { ok: false, aviso: "No se encontró el documento (o no tienes permiso para verlo)." };
+    if (f.estado !== "borrador") return { ok: false, aviso: "Ese documento ya está cerrado: no recibe más firmas." };
+    const [{ data: p }, { count }] = await Promise.all([
+      supabase.from("sst_plantillas").select(COLUMNAS_PLANTILLA).eq("id", f.plantilla_id).single(),
+      supabase.from("sst_formato_firmas").select("id", { count: "exact", head: true }).eq("formato_id", id),
+    ]);
+    if (!p) return { ok: false, aviso: "No se pudo leer la plantilla del documento." };
+    if (count) return { ok: false, aviso: "Ese documento ya tiene firmas recogidas en otro celular: termina de firmarlo allá." };
+    const pl = p as Plantilla;
+    const ahora = new Date().toISOString();
+    const local: SstFormatoLocal = {
+      id: f.id,
+      plantilla: { id: pl.id, codigo: pl.codigo, nombre: pl.nombre, version: pl.version, descripcion: pl.descripcion, campos: pl.campos, firmas: pl.firmas, ambito: pl.ambito },
+      proyectoId: f.proyecto_id,
+      proyectoNombre: proyectos.find((x) => x.id === f.proyecto_id)?.nombre ?? null,
+      lugar: f.lugar ?? "",
+      fecha: f.fecha,
+      respuestas: (f.respuestas ?? {}) as Record<string, unknown>,
+      ...(f.tecnicos_en_obra ? { tecnicosEnObra: f.tecnicos_en_obra } : {}),
+      creadoEn: ahora,
+      actualizadoEn: ahora,
+      cerrado: false,
+    };
+    await guardar("sst_formatos", local);
+    return { ok: true, aviso: null };
+  } catch {
+    return { ok: false, aviso: "Sin señal: para traer el documento hace falta conexión una vez." };
+  }
 }
