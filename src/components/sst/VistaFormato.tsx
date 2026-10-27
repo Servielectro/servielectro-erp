@@ -1,8 +1,7 @@
 import { FormularioSst } from "@/components/sst/FormularioSst";
 import { fechaHora, type FormatoCompleto } from "@/lib/sst/formato-servidor";
-import { ESTADO_FORMATO, tecnicosSinFirmar } from "@/lib/sst/plantillas";
+import { AMBITO, ESTADO_FORMATO, tecnicosSinFirmar } from "@/lib/sst/plantillas";
 
-const ROL: Record<string, string> = { tecnico: "Técnico", responsable_sst: "Responsable en sitio", sst_cliente: "SST del cliente", otro: "Otro" };
 
 /** El formato completo, de solo lectura: contenido, firmas con su registro y el sello. */
 export function VistaFormato({ f, imprimir }: { f: FormatoCompleto; imprimir?: boolean }) {
@@ -39,7 +38,7 @@ export function VistaFormato({ f, imprimir }: { f: FormatoCompleto; imprimir?: b
           <div className="grid gap-3 sm:grid-cols-2">
             {f.firmas.map((x) => (
               <div key={x.id} className="break-inside-avoid rounded-md border border-slate-200 p-2 text-sm">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{ROL[x.rol] ?? x.rol}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{(AMBITO[f.ambito].roles as Record<string, string>)[x.rol] ?? x.rol}</p>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 {x.url ? <img src={x.url} alt={`Firma de ${x.nombre}`} className="my-1 h-20 w-full object-contain" /> : <p className="my-1 text-xs text-slate-500">(imagen no disponible)</p>}
                 <p className="font-semibold">{x.nombre}</p>
@@ -92,7 +91,7 @@ function Sello({ f }: { f: FormatoCompleto }) {
   ) : (
     <div className="rounded-lg border border-red-400 bg-red-50 px-3 py-2 text-sm text-red-900">
       <p className="font-semibold">✗ El contenido NO coincide con lo que se firmó</p>
-      <p>Alguien lo cambió por fuera del ERP después del sello. Este documento no sirve como evidencia tal como está: avisa a la gestión SST.</p>
+      <p>Alguien lo cambió por fuera del ERP después del sello. Este documento no sirve como evidencia tal como está: avisa a {AMBITO[f.ambito].gestion}.</p>
     </div>
   );
 }

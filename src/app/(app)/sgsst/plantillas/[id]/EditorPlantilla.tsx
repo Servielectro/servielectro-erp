@@ -8,10 +8,12 @@ import {
   idDesdeEtiqueta,
   NOMBRE_TIPO,
   problemaCampos,
-  ROLES_FIRMA,
+  AMBITO,
+  rolesFirma,
   TIPOS_CAMPO,
   TIPOS_COLUMNA,
   type Campo,
+  type Ambito,
   type FirmaPedida,
   type Plantilla,
   type TipoCampo,
@@ -27,7 +29,7 @@ function limpiar(campos: Campo[]): Campo[] {
 }
 
 /**
- * El armador: la gestión SST define los campos y las firmas, y el formulario sale solo en el
+ * El armador (SG-SST y actas de Proyectos, migración 85): quien gestiona define los campos y las firmas, y el formulario sale solo en el
  * celular. En borrador se edita libre; publicada queda fija (se crea una versión nueva).
  */
 export function EditorPlantilla({ inicial, gestiona }: { inicial: Plantilla; gestiona: boolean }) {
@@ -95,7 +97,7 @@ export function EditorPlantilla({ inicial, gestiona }: { inicial: Plantilla; ges
         .select("id")
         .single();
       if (e) return setError(e.message);
-      router.push(`/sgsst/plantillas/${data.id}`);
+      router.push(`${AMBITO[p.ambito].plantillas}/${data.id}`);
     });
 
   const archivar = () =>
@@ -122,7 +124,7 @@ export function EditorPlantilla({ inicial, gestiona }: { inicial: Plantilla; ges
         )}
         {p.estado === "publicada" && <p className="text-sm text-slate-600">Publicada: ya se puede llenar en sitio. Para cambiarla, crea una versión nueva; lo ya llenado queda con esta.</p>}
         {p.estado === "archivada" && <p className="text-sm text-amber-800">Archivada: {p.motivo_archivo}. Ya no se ofrece para llenar; lo llenado se conserva.</p>}
-        {!gestiona && <p className="text-sm text-slate-500">Solo lectura: armar plantillas lo hace la gestión SST.</p>}
+        {!gestiona && <p className="text-sm text-slate-500">Solo lectura: armar plantillas lo hace {AMBITO[p.ambito].gestion}.</p>}
       </div>
 
       <div className="flex gap-2">
@@ -199,7 +201,7 @@ export function EditorPlantilla({ inicial, gestiona }: { inicial: Plantilla; ges
             <p className="mb-2 text-xs text-slate-500">
               Al firmar el primero, el contenido queda sellado: todos firman lo mismo. El bloque de técnicos es una lista: firman todos los que estuvieron en la obra.
             </p>
-            <EditorFirmas firmas={p.firmas} editable={editable} onCambio={(firmas) => poner({ firmas })} />
+            <EditorFirmas ambito={p.ambito} firmas={p.firmas} editable={editable} onCambio={(firmas) => poner({ firmas })} />
           </section>
 
           {editable && (
@@ -368,17 +370,18 @@ function EditorColumnas({ c, dis, onCambio }: { c: Campo; dis: boolean; onCambio
   );
 }
 
-function EditorFirmas({ firmas, editable, onCambio }: { firmas: FirmaPedida[]; editable: boolean; onCambio: (f: FirmaPedida[]) => void }) {
+function EditorFirmas({ ambito, firmas, editable, onCambio }: { ambito: Ambito; firmas: FirmaPedida[]; editable: boolean; onCambio: (f: FirmaPedida[]) => void }) {
+  const roles = rolesFirma(ambito);
   const poner = (i: number, x: Partial<FirmaPedida>) => onCambio(firmas.map((f, j) => (j === i ? { ...f, ...x } : f)));
   return (
     <div className="space-y-2">
       {firmas.map((f, i) => (
         <div key={i} className="space-y-1 rounded-md border border-slate-200 p-2">
           <input disabled={!editable} value={f.etiqueta} onChange={(e) => poner(i, { etiqueta: e.target.value })} className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm font-medium" />
-          <p className="text-xs text-slate-500">{ROLES_FIRMA.find((r) => r.id === f.rol)?.nombre}</p>
+          <p className="text-xs text-slate-500">{roles.find((r) => r.id === f.rol)?.nombre}</p>
           <label className="flex min-h-11 items-center gap-2 text-sm">
             <input type="checkbox" disabled={!editable} checked={f.obligatoria !== false} onChange={(e) => poner(i, { obligatoria: e.target.checked })} className="h-5 w-5" />
-            Obligatoria para cerrar el formato
+            Obligatoria para cerrar {AMBITO[ambito].documento === "acta" ? "el acta" : "el formato"}
           </label>
           {editable && (
             <button type="button" onClick={() => onCambio(firmas.filter((_, j) => j !== i))} className="min-h-9 text-xs text-red-800 underline">
@@ -389,7 +392,7 @@ function EditorFirmas({ firmas, editable, onCambio }: { firmas: FirmaPedida[]; e
       ))}
       {editable && (
         <div className="flex flex-wrap gap-1">
-          {ROLES_FIRMA.filter((r) => r.id === "otro" || !firmas.some((f) => f.rol === r.id)).map((r) => (
+          {roles.filter((r) => r.id === "otro" || !firmas.some((f) => f.rol === r.id)).map((r) => (
             <button key={r.id} type="button" onClick={() => onCambio([...firmas, { rol: r.id, etiqueta: r.nombre, obligatoria: true }])} className="min-h-11 rounded-md border border-dashed border-slate-400 px-3 text-xs">
               + {r.nombre}
             </button>

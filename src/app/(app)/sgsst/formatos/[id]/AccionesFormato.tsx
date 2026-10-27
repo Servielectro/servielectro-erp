@@ -3,23 +3,25 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { AMBITO, type Ambito } from "@/lib/sst/plantillas";
 
-/** Aprobar (firmado → aprobado) y anular con motivo: solo la gestión SST. Nada se borra. */
-export function AccionesFormato({ id, estado, gestiona }: { id: string; estado: string; gestiona: boolean }) {
+/** Aprobar (firmado → aprobado) y anular con motivo: solo quien gestiona el ámbito. Nada se borra. */
+export function AccionesFormato({ id, estado, gestiona, ambito = "sgsst" }: { id: string; estado: string; gestiona: boolean; ambito?: Ambito }) {
+  const a = AMBITO[ambito];
   const router = useRouter();
   const [anulando, setAnulando] = useState(false);
   const [motivo, setMotivo] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pendiente, empezar] = useTransition();
   if (estado === "anulado") return null;
-  if (!gestiona) return <p className="text-sm text-slate-500">Aprobar o anular un formato lo hace la gestión SST.</p>;
+  if (!gestiona) return <p className="text-sm text-slate-500">Aprobar o anular {a.documento === "acta" ? "un acta" : "un formato"} lo hace {a.gestion}.</p>;
 
   const cambiar = (cambios: Record<string, unknown>) =>
     empezar(async () => {
       setError(null);
       const { data, error: e } = await createClient().from("sst_formatos").update(cambios).eq("id", id).select("id");
       if (e) return setError(e.message);
-      if (!data?.length) return setError("No se guardó: el formato cambió o no tienes permiso.");
+      if (!data?.length) return setError(`No se guardó: ${a.documento === "acta" ? "el acta" : "el formato"} cambió o no tienes permiso.`);
       setAnulando(false);
       router.refresh();
     });
@@ -47,7 +49,7 @@ export function AccionesFormato({ id, estado, gestiona }: { id: string; estado: 
         </div>
       ) : (
         <button type="button" onClick={() => setAnulando(true)} className="min-h-11 w-full rounded-md border border-red-300 text-sm text-red-800">
-          Anular formato (no se borra: queda con el motivo)
+          Anular {a.documento} (no se borra: queda con el motivo)
         </button>
       )}
       {error && <p className="rounded-md bg-red-50 px-2 py-1 text-sm text-red-800">{error}</p>}

@@ -9,6 +9,7 @@ import { dePadre, guardarYEncolar, leer, leerMeta, guardarMeta, todos } from "@/
 import { useCola, nuevoId } from "@/lib/sst/campo";
 import { dispositivoActual, type PlantillaLocal, type SstArchivoLocal, type SstFirmaLocal, type SstFormatoLocal } from "@/lib/sst/local";
 import {
+  AMBITO,
   COLUMNAS_PLANTILLA,
   docComparable,
   faltantes,
@@ -16,6 +17,7 @@ import {
   pideTecnicos,
   ROL_LISTA,
   tecnicosSinFirmar,
+  type Ambito,
   type FirmaPedida,
   type Plantilla,
   type TecnicoEnObra,
@@ -30,7 +32,12 @@ type Yo = { id: string; nombre: string; cedula: string };
  * la primera firma; aquí también se bloquea el contenido en ese momento, para que el celular y la
  * base digan lo mismo.
  */
-export function CampoSst({ yo }: { yo: Yo }) {
+export function CampoSst({ yo, ambito = "sgsst", proyectoInicial = null }: { yo: Yo; ambito?: Ambito; proyectoInicial?: string | null }) {
+  // Migración 85: el mismo llenado sirve a SG-SST y a las actas de Proyectos. Cada ámbito guarda
+  // en el celular sus propias plantillas y solo muestra lo suyo.
+  const acta = ambito === "proyectos";
+  const k = acta ? "actas" : "sst";
+  const [obraNueva, setObraNueva] = useState<string>(proyectoInicial ?? "");
   const [plantillas, setPlantillas] = useState<PlantillaLocal[]>([]);
   const [proyectos, setProyectos] = useState<{ id: string; nombre: string }[]>([]);
   const [personal, setPersonal] = useState<string[]>([]);
@@ -39,52 +46,55 @@ export function CampoSst({ yo }: { yo: Yo }) {
   const [eligiendo, setEligiendo] = useState(false);
 
   const recargarLocales = useCallback(async () => {
-    const fs = await todos<SstFormatoLocal>("sst_formatos");
+    const fs = (await todos<SstFormatoLocal>("sst_formatos")).filter((f) => (f.plantilla.ambito ?? "sgsst") === ambito);
     fs.sort((a, b) => b.actualizadoEn.localeCompare(a.actualizadoEn));
     setFormatos(fs);
-  }, []);
+  }, [ambito]);
 
   // Con señal: baja las plantillas publicadas, las obras y los nombres del personal.
   const bajar = useCallback(async () => {
     const { createClient } = await import("@/lib/supabase/client");
     const supabase = createClient();
     const [p, o, g] = await Promise.all([
-      supabase.from("sst_plantillas").select(COLUMNAS_PLANTILLA).eq("estado", "publicada").order("codigo"),
+      supabase.from("sst_plantillas").select(COLUMNAS_PLANTILLA).eq("estado", "publicada").eq("ambito", ambito).order("codigo"),
       supabase.rpc("fn_proyectos_nombres"),
       supabase.rpc("fn_sst_personal"),
     ]);
     if (!p.error) {
-      const ps = ((p.data ?? []) as Plantilla[]).map((x) => ({ id: x.id, codigo: x.codigo, nombre: x.nombre, version: x.version, descripcion: x.descripcion, campos: x.campos, firmas: x.firmas }));
-      await guardarMeta("sst_plantillas", ps);
+      const ps = ((p.data ?? []) as Plantilla[]).map((x) => ({ id: x.id, codigo: x.codigo, nombre: x.nombre, version: x.version, descripcion: x.descripcion, campos: x.campos, firmas: x.firmas, ambito: x.ambito }));
+      await guardarMeta(`${k}_plantillas`, ps);
       setPlantillas(ps);
     }
     if (!o.error) {
       const os = ((o.data ?? []) as { id: string; codigo: string; nombre: string; estado: string }[]).map((x) => ({ id: x.id, nombre: `${x.codigo} · ${x.nombre}` }));
-      await guardarMeta("sst_proyectos", os);
+      await guardarMeta(`${k}_proyectos`, os);
       setProyectos(os);
     }
     if (!g.error) {
       const ns = ((g.data ?? []) as { nombre: string; estado_laboral: string }[]).filter((x) => x.estado_laboral !== "retirado").map((x) => x.nombre);
-      await guardarMeta("sst_personal", ns);
+      await guardarMeta(`${k}_personal`, ns);
       setPersonal(ns);
     }
-  }, []);
+  }, [ambito, k]);
 
-  const cola = useCola("/sgsst/campo", bajar);
+  const cola = useCola(AMBITO[ambito].campo, bajar);
 
   useEffect(() => {
     const t = setTimeout(async () => {
-      setPlantillas((await leerMeta<PlantillaLocal[]>("sst_plantillas")) ?? []);
-      setProyectos((await leerMeta<{ id: string; nombre: string }[]>("sst_proyectos")) ?? []);
-      setPersonal((await leerMeta<string[]>("sst_personal")) ?? []);
+      setPlantillas((await leerMeta<PlantillaLocal[]>(`${k}_plantillas`)) ?? []);
+      setProyectos((await leerMeta<{ id: string; nombre: string }[]>(`${k}_proyectos`)) ?? []);
+      setPersonal((await leerMeta<string[]>(`${k}_personal`)) ?? []);
       await recargarLocales();
     }, 0);
     return () => clearTimeout(t);
-  }, [recargarLocales]);
+  }, [recargarLocales, k]);
 
   async function nuevo(p: PlantillaLocal) {
     const ahora = new Date().toISOString();
-    const f: SstFormatoLocal = { id: nuevoId(), plantilla: p, proyectoId: null, proyectoNombre: null, lugar: "", fecha: hoyBogota(), respuestas: {}, creadoEn: ahora, actualizadoEn: ahora, cerrado: false };
+    // Un acta va con su obra desde el primer momento (la base no la recibe sin obra).
+    const obra = acta ? proyectos.find((x) => x.id === obraNueva) : undefined;
+    if (acta && !obra) return;
+    const f: SstFormatoLocal = { id: nuevoId(), plantilla: { ...p, ambito }, proyectoId: obra?.id ?? null, proyectoNombre: obra?.nombre ?? null, lugar: "", fecha: hoyBogota(), respuestas: {}, creadoEn: ahora, actualizadoEn: ahora, cerrado: false };
     await guardarYEncolar("sst_formatos", f, { id: f.id, tipo: "sst_formato", visitaId: f.id });
     setEligiendo(false);
     await recargarLocales();
@@ -101,6 +111,7 @@ export function CampoSst({ yo }: { yo: Yo }) {
         key={abierto}
         id={abierto}
         yo={yo}
+        ambito={ambito}
         proyectos={proyectos}
         personal={personal}
         pendientes={pendientesDe(abierto)}
@@ -118,8 +129,8 @@ export function CampoSst({ yo }: { yo: Yo }) {
   return (
     <div className="mx-auto w-full max-w-xl space-y-4 p-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-slate-900">Formatos SG-SST en sitio</h1>
-        <Link href="/sgsst" className="text-sm text-slate-600 underline">
+        <h1 className="text-lg font-bold text-slate-900">{acta ? "Actas de obra" : "Formatos SG-SST en sitio"}</h1>
+        <Link href={acta ? "/proyectos/actas" : "/sgsst"} className="text-sm text-slate-600 underline">
           Oficina
         </Link>
       </div>
@@ -127,16 +138,32 @@ export function CampoSst({ yo }: { yo: Yo }) {
 
       {eligiendo ? (
         <section className="space-y-2 rounded-lg border border-slate-300 bg-white p-3">
-          <p className="text-sm font-semibold">¿Qué formato vas a llenar?</p>
+          {acta && (
+            <label className="block text-sm font-medium">
+              ¿De qué obra?
+              <select value={obraNueva} onChange={(e) => setObraNueva(e.target.value)} className={CAMPO}>
+                <option value="">— Elige la obra —</option>
+                {proyectos.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <p className="text-sm font-semibold">{acta ? "¿Qué acta vas a llenar?" : "¿Qué formato vas a llenar?"}</p>
+          {acta && !obraNueva && plantillas.length > 0 && <p className="text-xs text-slate-500">Primero elige la obra: el acta queda con ella.</p>}
           {plantillas.length === 0 ? (
             <p className="text-sm text-slate-600">
               {cola.enLinea
-                ? "Todavía no hay plantillas publicadas. Las arma la gestión SST."
+                ? acta
+                  ? "Todavía no hay plantillas de actas publicadas. Se arman en Proyectos → Actas → Plantillas."
+                  : "Todavía no hay plantillas publicadas. Las arma la gestión SST."
                 : "Sin señal y sin plantillas guardadas en este celular: abre esta pantalla una vez con señal."}
             </p>
           ) : (
             plantillas.map((p) => (
-              <button key={p.id} type="button" onClick={() => void nuevo(p)} className="flex min-h-14 w-full flex-col justify-center rounded-lg border border-slate-300 px-3 text-left">
+              <button key={p.id} type="button" disabled={acta && !obraNueva} onClick={() => void nuevo(p)} className="flex min-h-14 w-full flex-col justify-center rounded-lg border border-slate-300 px-3 text-left disabled:opacity-40">
                 <span className="text-base font-semibold">{p.nombre}</span>
                 <span className="text-xs text-slate-500">
                   {p.codigo} · versión {p.version}
@@ -150,14 +177,14 @@ export function CampoSst({ yo }: { yo: Yo }) {
         </section>
       ) : (
         <button type="button" onClick={() => setEligiendo(true)} className="min-h-12 w-full rounded-lg bg-slate-900 text-base font-semibold text-white">
-          + Llenar un formato
+          {acta ? "+ Nueva acta" : "+ Llenar un formato"}
         </button>
       )}
 
       <section>
         <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">En este celular</h2>
         {formatos.length === 0 ? (
-          <p className="text-sm text-slate-500">No has llenado formatos en este celular.</p>
+          <p className="text-sm text-slate-500">{acta ? "No has llenado actas en este celular." : "No has llenado formatos en este celular."}</p>
         ) : (
           <ul className="space-y-2">
             {formatos.map((f) => {
@@ -204,6 +231,7 @@ function BarraCola({ cola }: { cola: ReturnType<typeof useCola> }) {
 function EditorFormato({
   id,
   yo,
+  ambito,
   proyectos,
   personal,
   pendientes,
@@ -213,6 +241,7 @@ function EditorFormato({
 }: {
   id: string;
   yo: Yo;
+  ambito: Ambito;
   proyectos: { id: string; nombre: string }[];
   personal: string[];
   pendientes: number;
@@ -275,6 +304,7 @@ function EditorFormato({
   const falta = [
     ...faltantes(f.plantilla.campos, f.respuestas, porCampo),
     ...(!sellado && pideTecnicos(f.plantilla.firmas) && lista.length === 0 ? ["los técnicos que estuvieron en la obra"] : []),
+    ...(!sellado && ambito === "proyectos" && !f.proyectoId ? ["la obra"] : []),
   ];
   const sinFirmar = tecnicosSinFirmar(lista, firmas);
   const faltanFirmas = lista.length
@@ -326,7 +356,7 @@ function EditorFormato({
     if (!f || faltanFirmas.length) return;
     const cerrado = { ...f, cerrado: true, actualizadoEn: new Date().toISOString() };
     await guardarYEncolar("sst_formatos", cerrado, { id: `cerrar-${f.id}`, tipo: "sst_cerrar", visitaId: f.id });
-    setAviso("Formato cerrado. Sube con la señal; en la oficina queda sellado y por aprobar.");
+    setAviso(`${ambito === "proyectos" ? "Acta cerrada" : "Formato cerrado"}. Sube con la señal; en la oficina queda sellado y por aprobar.`);
     await recargar();
     onCambio();
   }
@@ -356,7 +386,7 @@ function EditorFormato({
   return (
     <div className="mx-auto w-full max-w-xl space-y-4 p-4 pb-24">
       <button type="button" onClick={onVolver} className="min-h-11 text-sm text-slate-600 underline">
-        ← Mis formatos
+        {ambito === "proyectos" ? "← Mis actas" : "← Mis formatos"}
       </button>
       <div>
         <h1 className="text-lg font-bold text-slate-900">{f.plantilla.nombre}</h1>
@@ -386,7 +416,7 @@ function EditorFormato({
             }}
             className={CAMPO}
           >
-            <option value="">— Sin obra / otra —</option>
+            {ambito === "proyectos" ? <option value="" disabled>— Elige la obra —</option> : <option value="">— Sin obra / otra —</option>}
             {proyectos.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nombre}
@@ -511,7 +541,7 @@ function EditorFormato({
         ) : (
           <>
             <button type="button" disabled={faltanFirmas.length > 0} onClick={() => void cerrar()} className="min-h-12 w-full rounded-lg bg-green-700 text-base font-semibold text-white disabled:opacity-40">
-              Cerrar formato
+              {ambito === "proyectos" ? "Cerrar acta" : "Cerrar formato"}
             </button>
             {faltanFirmas.length > 0 && <p className="text-center text-sm text-slate-600">Para cerrarlo faltan las firmas de: {faltanFirmas.join(", ")}.</p>}
           </>

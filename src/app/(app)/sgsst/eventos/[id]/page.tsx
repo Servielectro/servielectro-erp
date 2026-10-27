@@ -16,8 +16,8 @@ export default async function EventoPage({ params }: { params: Promise<{ id: str
     supabase.rpc("fn_sst_plazos", { p_fecha: ev.ocurrido_en.slice(0, 10) }),
     supabase.rpc("fn_sst_personal"),
     supabase.from("sst_evento_archivos").select("id, descripcion, path, created_at").eq("evento_id", id).order("created_at"),
-    supabase.from("sst_formatos").select("id, plantilla_id, fecha, lugar, estado").in("estado", ["firmado", "aprobado"]).order("fecha", { ascending: false }).limit(100),
-    supabase.from("sst_plantillas").select("id, nombre"),
+    supabase.from("sst_formatos").select("id, plantilla_id, fecha, lugar, estado").eq("ambito", "sgsst").in("estado", ["firmado", "aprobado"]).order("fecha", { ascending: false }).limit(100),
+    supabase.from("sst_plantillas").select("id, nombre").eq("ambito", "sgsst"),
     tienePermiso("sgsst", "trabajar"),
     tienePermiso("sgsst", "responsable"),
   ]);

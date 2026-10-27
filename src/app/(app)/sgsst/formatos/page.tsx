@@ -15,8 +15,8 @@ export default async function FormatosPage({ searchParams }: { searchParams: Pro
   const filtro = FILTROS.find((f) => f.id === ver) ?? FILTROS[0];
   const supabase = await createClient();
   const [{ data, error }, plantillasRes, trabaja] = await Promise.all([
-    supabase.from("sst_formatos").select("id, plantilla_id, lugar, fecha, estado, creado_en").in("estado", filtro.estados).order("fecha", { ascending: false }).limit(300),
-    supabase.from("sst_plantillas").select("id, codigo, nombre, version"),
+    supabase.from("sst_formatos").select("id, plantilla_id, lugar, fecha, estado, creado_en").eq("ambito", "sgsst").in("estado", filtro.estados).order("fecha", { ascending: false }).limit(300),
+    supabase.from("sst_plantillas").select("id, codigo, nombre, version").eq("ambito", "sgsst"),
     tienePermiso("sgsst", "trabajar"),
   ]);
   const plantillas = new Map(((plantillasRes.data ?? []) as { id: string; codigo: string; nombre: string; version: number }[]).map((p) => [p.id, p]));

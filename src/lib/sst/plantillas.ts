@@ -71,6 +71,55 @@ export const FIRMAS_POR_DEFECTO: FirmaPedida[] = [
   { rol: "responsable_sst", etiqueta: "Responsable en sitio de Servielectro", obligatoria: true },
   { rol: "sst_cliente", etiqueta: "Responsable SST del cliente", obligatoria: true },
 ];
+// ------------------------------------------------------------------ ámbito (migración 85)
+// El mismo motor sirve a SG-SST y a las actas de Proyectos. En la base los roles de firma son los
+// mismos; aquí cambian los nombres y a dónde lleva cada pantalla.
+export type Ambito = "sgsst" | "proyectos";
+
+export const AMBITO: Record<
+  Ambito,
+  { plantillas: string; documentos: string; campo: string; gestion: string; documento: string; documentos_nombre: string; roles: Record<RolFirma, string> }
+> = {
+  sgsst: {
+    plantillas: "/sgsst/plantillas",
+    documentos: "/sgsst/formatos",
+    campo: "/sgsst/campo",
+    gestion: "la gestión SST",
+    documento: "formato",
+    documentos_nombre: "Formatos",
+    roles: { tecnico: "Técnico", responsable_sst: "Responsable en sitio", sst_cliente: "SST del cliente", otro: "Otro" },
+  },
+  proyectos: {
+    plantillas: "/proyectos/actas/plantillas",
+    documentos: "/proyectos/actas",
+    campo: "/actas/campo",
+    gestion: "el responsable de Proyectos",
+    documento: "acta",
+    documentos_nombre: "Actas",
+    roles: { tecnico: "Técnico", responsable_sst: "Por Servielectro", sst_cliente: "Por el cliente", otro: "Otro" },
+  },
+};
+
+/** Los bloques de firma que se ofrecen al armar, con su nombre en cada ámbito. */
+export function rolesFirma(ambito: Ambito): { id: RolFirma; nombre: string; lista: boolean }[] {
+  if (ambito === "sgsst") return ROLES_FIRMA;
+  return [
+    { id: "tecnico", nombre: "Técnicos de Servielectro (firman todos los de la obra)", lista: true },
+    { id: "responsable_sst", nombre: "Representante de Servielectro", lista: false },
+    { id: "sst_cliente", nombre: "Representante del cliente (con su empresa)", lista: false },
+    { id: "otro", nombre: "Otro (interventoría, supervisor…)", lista: false },
+  ];
+}
+
+/** Con qué firmas arranca una plantilla nueva. En Proyectos no se inventa el texto del acta: solo las firmas. */
+export function firmasPorDefecto(ambito: Ambito): FirmaPedida[] {
+  if (ambito === "sgsst") return FIRMAS_POR_DEFECTO;
+  return [
+    { rol: "responsable_sst", etiqueta: "Por Servielectro SAS", obligatoria: true },
+    { rol: "sst_cliente", etiqueta: "Por el cliente", obligatoria: true },
+  ];
+}
+
 export const ROL_LISTA: Record<RolFirma, boolean> = { tecnico: true, responsable_sst: false, sst_cliente: false, otro: false };
 
 /** Migración 83: quién estuvo en la obra ese día. Firman todos; la base no deja cerrar sin eso. */
@@ -106,9 +155,11 @@ export interface Plantilla {
   publicada_en: string | null;
   archivada_en: string | null;
   motivo_archivo: string | null;
+  /** Migración 85: SG-SST o actas de Proyectos (el mismo motor). */
+  ambito: Ambito;
 }
 export const COLUMNAS_PLANTILLA =
-  "id, codigo, nombre, version, descripcion, campos, firmas, estado, plantilla_anterior_id, publicada_en, archivada_en, motivo_archivo";
+  "id, codigo, nombre, version, descripcion, campos, firmas, estado, plantilla_anterior_id, publicada_en, archivada_en, motivo_archivo, ambito";
 
 /** "Trabajo a realizar" → "trabajo_a_realizar" (único dentro de la plantilla). */
 export function idDesdeEtiqueta(etiqueta: string, usados: string[]): string {

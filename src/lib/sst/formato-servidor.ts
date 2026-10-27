@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { COLUMNAS_PLANTILLA, type Plantilla } from "./plantillas";
+import { COLUMNAS_PLANTILLA, type Ambito, type Plantilla } from "./plantillas";
 
 export interface FirmaRegistrada {
   id: string;
@@ -30,6 +30,8 @@ export interface FormatoCompleto {
   respuestas: Record<string, unknown>;
   /** Migración 83: quién estuvo en la obra (firman todos). null en formatos de antes. */
   tecnicos_en_obra: { nombre: string; documento: string }[] | null;
+  /** Migración 85: SG-SST o acta de Proyectos. */
+  ambito: Ambito;
   estado: "borrador" | "firmado" | "aprobado" | "anulado";
   creado_por_nombre: string | null;
   creado_en: string;
@@ -52,7 +54,7 @@ type Db = SupabaseClient<any>;
 export async function leerFormato(supabase: Db, id: string): Promise<FormatoCompleto | null> {
   const { data: f } = await supabase
     .from("sst_formatos")
-    .select("id, plantilla_id, proyecto_id, lugar, fecha, respuestas, tecnicos_en_obra, estado, creado_por, creado_en, sellado_en, hash_contenido, aprobado_por, aprobado_en, anulado_en, motivo_anulacion")
+    .select("id, plantilla_id, proyecto_id, lugar, fecha, respuestas, tecnicos_en_obra, ambito, estado, creado_por, creado_en, sellado_en, hash_contenido, aprobado_por, aprobado_en, anulado_en, motivo_anulacion")
     .eq("id", id)
     .maybeSingle();
   if (!f) return null;
@@ -91,6 +93,7 @@ export async function leerFormato(supabase: Db, id: string): Promise<FormatoComp
     fecha: f.fecha,
     respuestas: f.respuestas ?? {},
     tecnicos_en_obra: f.tecnicos_en_obra ?? null,
+    ambito: f.ambito ?? "sgsst",
     estado: f.estado,
     creado_por_nombre: nombres.get(f.creado_por) ?? null,
     creado_en: f.creado_en,

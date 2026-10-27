@@ -12,7 +12,7 @@ export default async function PlanPage() {
     supabase.from("sst_plan_items").select("id, estandar, descripcion, responsable_id, fecha_limite, avance, orden, archivado_en, motivo_archivo").order("orden").order("fecha_limite"),
     supabase.from("sst_plan_evidencias").select("id, item_id, descripcion, path, formato_id, subida_en, anulada_en, motivo_anulacion").order("subida_en"),
     supabase.rpc("fn_sst_personal"),
-    supabase.from("sst_formatos").select("id, fecha, lugar, estado").in("estado", ["firmado", "aprobado"]).order("fecha", { ascending: false }).limit(100),
+    supabase.from("sst_formatos").select("id, fecha, lugar, estado").eq("ambito", "sgsst").in("estado", ["firmado", "aprobado"]).order("fecha", { ascending: false }).limit(100),
     tienePermiso("sgsst", "trabajar"),
     tienePermiso("sgsst", "responsable"),
   ]);

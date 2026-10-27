@@ -1,5 +1,6 @@
 // Service worker del ERP: SOLO hace que las pantallas de campo abran sin señal: la app del
-// técnico (/tecnico), el llenado de formatos de SG-SST (/sgsst/campo) y el reporte de un acto
+// técnico (/tecnico), el llenado de formatos de SG-SST (/sgsst/campo) y de actas de obra
+// (/actas/campo, migración 85), y el reporte de un acto
 // o condición insegura (/reportar).
 // El resto del ERP sigue igual (siempre de la red).
 //
@@ -11,7 +12,7 @@
 
 const CACHE = "se-tecnico-v1"; // no cambiar a la ligera: cambiarlo borra la copia guardada de /tecnico
 const estatico = (pathname) => pathname.startsWith("/_next/static/") || pathname.startsWith("/_next/image");
-const PAGINAS = ["/tecnico", "/sgsst/campo", "/reportar"];
+const PAGINAS = ["/tecnico", "/sgsst/campo", "/actas/campo", "/reportar"];
 const esPagina = (pathname) => PAGINAS.includes(pathname);
 const MAX_ARCHIVOS = 200;
 const ESPERA_RED_MS = 4000;

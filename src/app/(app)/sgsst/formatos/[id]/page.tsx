@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso } from "@/lib/permisos";
 import { leerFormato } from "@/lib/sst/formato-servidor";
@@ -11,6 +11,7 @@ export default async function FormatoPage({ params }: { params: Promise<{ id: st
   const supabase = await createClient();
   const [f, gestiona] = await Promise.all([leerFormato(supabase, id), tienePermiso("sgsst", "responsable")]);
   if (!f) notFound();
+  if (f.ambito === "proyectos") redirect(`/proyectos/actas/${id}`);
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 space-y-3 p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">

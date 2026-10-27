@@ -9,7 +9,7 @@ const ESTADO: Record<Plantilla["estado"], string> = { borrador: "Borrador", publ
 export default async function PlantillasPage() {
   const supabase = await createClient();
   const gestiona = await tienePermiso("sgsst", "responsable");
-  const { data, error } = await supabase.from("sst_plantillas").select(COLUMNAS_PLANTILLA).order("codigo").order("version", { ascending: false });
+  const { data, error } = await supabase.from("sst_plantillas").select(COLUMNAS_PLANTILLA).eq("ambito", "sgsst").order("codigo").order("version", { ascending: false });
   const plantillas = (data ?? []) as Plantilla[];
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 space-y-3 p-4 sm:p-6 lg:max-w-5xl">

@@ -7,8 +7,8 @@ export default async function SgsstPage() {
   const [trabaja, gestiona, borradores, porAprobar, reportesNuevos, eventosAbiertos] = await Promise.all([
     tienePermiso("sgsst", "trabajar"),
     tienePermiso("sgsst", "responsable"),
-    supabase.from("sst_formatos").select("id", { count: "exact", head: true }).eq("estado", "borrador"),
-    supabase.from("sst_formatos").select("id", { count: "exact", head: true }).eq("estado", "firmado"),
+    supabase.from("sst_formatos").select("id", { count: "exact", head: true }).eq("estado", "borrador").eq("ambito", "sgsst"),
+    supabase.from("sst_formatos").select("id", { count: "exact", head: true }).eq("estado", "firmado").eq("ambito", "sgsst"),
     supabase.from("sst_reportes_inseguros").select("id", { count: "exact", head: true }).in("estado", ["nuevo", "en_gestion"]),
     supabase.from("sst_eventos").select("id", { count: "exact", head: true }).in("estado", ["abierto", "investigado"]),
   ]);

@@ -5,6 +5,7 @@ import { tienePermiso } from "@/lib/permisos";
 import { getClientesActivos, type ClienteResumen } from "@/lib/supabase/clientes";
 import { COLUMNAS_PROYECTO, ESTADO_PROYECTO, type Proyecto } from "@/lib/supabase/proyectos";
 import { FormProyecto } from "../FormProyecto";
+import { ESTADO_FORMATO } from "@/lib/sst/plantillas";
 
 const ESTADO_VISITA: Record<string, string> = {
   programada: "Programada",
@@ -39,7 +40,7 @@ export default async function ProyectoPage({
   if (!data) notFound();
   const p = data as unknown as Proyecto & { clientes: { nombre: string } | null };
 
-  const [clientes, visitasRes] = await Promise.all([
+  const [clientes, visitasRes, actasRes, plantillasActasRes] = await Promise.all([
     puedeEditar && veClientes ? getClientesActivos(supabase).catch(() => [] as ClienteResumen[]) : Promise.resolve([]),
     // Las visitas solo se ven con permiso de Operativo (RLS): si no, la lista queda vacía.
     supabase
@@ -48,7 +49,12 @@ export default async function ProyectoPage({
       .eq("proyecto_id", id)
       .order("fecha_programada", { ascending: false })
       .limit(50),
+    // Migración 85: las actas de esta obra (acta de inicio, de reunión…).
+    supabase.from("sst_formatos").select("id, plantilla_id, fecha, estado").eq("ambito", "proyectos").eq("proyecto_id", id).order("fecha", { ascending: false }).limit(50),
+    supabase.from("sst_plantillas").select("id, nombre").eq("ambito", "proyectos"),
   ]);
+  const actas = (actasRes.data ?? []) as { id: string; plantilla_id: string; fecha: string; estado: string }[];
+  const nombrePlantilla = new Map(((plantillasActasRes.data ?? []) as { id: string; nombre: string }[]).map((x) => [x.id, x.nombre]));
   const visitas = visitasRes.error ? [] : (visitasRes.data ?? []);
   const anio = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota", year: "numeric" }).format(new Date());
 
@@ -96,6 +102,45 @@ export default async function ProyectoPage({
           <p className="pt-2 text-xs text-slate-500">Editar proyectos requiere el módulo Proyectos en nivel “trabajar”.</p>
         </div>
       )}
+
+      <div className="mb-2 mt-6 flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-slate-900">Actas de la obra</h2>
+        {proyectosTrabaja && (
+          <Link href={`/actas/campo?proyecto=${p.id}`} className="inline-flex min-h-11 items-center rounded-md bg-slate-900 px-3 text-xs font-semibold text-white">
+            + Llenar un acta
+          </Link>
+        )}
+      </div>
+      {actas.length === 0 ? (
+        <p className="text-xs text-slate-500">
+          Ninguna todavía.{" "}
+          {nombrePlantilla.size === 0 ? (
+            <>
+              Primero se arma la plantilla en{" "}
+              <Link href="/proyectos/actas/plantillas" className="underline">
+                Plantillas de actas
+              </Link>
+              .
+            </>
+          ) : (
+            "Se llenan en la obra con sus firmas; quedan selladas y salen en PDF."
+          )}
+        </p>
+      ) : (
+        <ul className="divide-y divide-slate-200 rounded-lg border border-slate-300 bg-white">
+          {actas.map((a) => (
+            <li key={a.id}>
+              <Link href={`/proyectos/actas/${a.id}`} className="block p-3 text-sm active:bg-slate-50">
+                <p className="font-semibold text-slate-900">{nombrePlantilla.get(a.plantilla_id) ?? "Acta"}</p>
+                <p className="text-xs text-slate-600">
+                  {a.fecha} · {ESTADO_FORMATO[a.estado] ?? a.estado}
+                </p>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!proyectosTrabaja && <p className="mt-1 text-xs text-slate-500">Llenar actas requiere Proyectos en nivel “trabajar”.</p>}
 
       <h2 className="mb-2 mt-6 text-sm font-semibold text-slate-900">Visitas y obras del proyecto</h2>
       {visitas.length === 0 ? (

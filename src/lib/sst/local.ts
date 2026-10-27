@@ -2,7 +2,7 @@
 // misma cola de subida: src/lib/tecnico). Se borra la imagen solo cuando el servidor la confirmó.
 
 import type { Ubicacion } from "@/lib/tecnico/db";
-import type { Campo, FirmaPedida, RolFirma, TecnicoEnObra } from "./plantillas";
+import type { Ambito, Campo, FirmaPedida, RolFirma, TecnicoEnObra } from "./plantillas";
 
 /** La plantilla tal como se usó (versión exacta), para llenar sin señal. */
 export interface PlantillaLocal {
@@ -13,6 +13,8 @@ export interface PlantillaLocal {
   descripcion: string | null;
   campos: Campo[];
   firmas: FirmaPedida[];
+  /** Migración 85. Falta en lo guardado antes: es SG-SST. */
+  ambito?: Ambito;
 }
 
 export interface SstFormatoLocal {

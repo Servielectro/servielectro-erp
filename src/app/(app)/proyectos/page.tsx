@@ -42,6 +42,9 @@ export default async function ProyectosPage({ searchParams }: { searchParams: Pr
         El nombre de cada proyecto es lo que ven los técnicos, Operativo y RRHH.
       </p>
 
+      <Link href="/proyectos/actas" className="mb-2 flex min-h-11 w-full items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800">
+        📝 Actas de obra (inicio, reuniones…)
+      </Link>
       {puedeCrear && (
         <Link
           href="/proyectos/nuevo"
