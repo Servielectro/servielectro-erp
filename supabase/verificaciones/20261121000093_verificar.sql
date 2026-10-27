@@ -1,3 +1,4 @@
+-- (2a falla con "malformed array literal" hasta correr la 97, que arregla el mensaje.)
 -- Verificación de la migración 93 (datos del contrato: inferido → confirmado → otrosí). Correr
 -- DESPUÉS de la migración (y de la 90), todo junto. Crea usuarios, un proyecto, documentos y
 -- contratos de prueba; BORRA todo al final. Todas las filas deben decir OK.
@@ -132,7 +133,7 @@ insert into resultado (prueba, esperado, resultado)
 select '3d un reemplazado no se toca', 'contiene: fue reemplazado', pg_temp.intentar($q$
   update proyecto_contratos set estado = 'confirmado' where id = '00000000-0000-0000-0000-0000000093f1'$q$);
 insert into resultado (prueba, esperado, resultado)
-select '3e un contrato no se borra', 'RECHAZADO', pg_temp.intentar($q$
+select '3e un contrato no se borra', 'contiene: permission denied', pg_temp.intentar($q$
   delete from proyecto_contratos where id = '00000000-0000-0000-0000-0000000093f2'$q$);
 
 select pg_temp.como('00000000-0000-0000-0000-0000000093c0');

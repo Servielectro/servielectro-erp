@@ -39,10 +39,12 @@ export interface Campo {
    * respuestas._prellenado y, si se cambia, el acta queda marcada como apartada.
    */
   prellenar?: string;
-  /** Migración 94: lo calcula la base (y el celular con la misma regla); no se escribe a mano. */
-  calculado?: "fecha_del_acta" | "terminacion_dias_habiles";
+  /** Migraciones 94 y 96: lo calcula la base (y el celular con la misma regla); no se escribe a mano. */
+  calculado?: "fecha_del_acta" | "inicio_dias_habiles" | "terminacion_dias_habiles";
   /** Para "terminacion_dias_habiles": el campo con el plazo en días hábiles. */
   plazo_campo?: string;
+  /** Migración 96: el campo "Inicio de labores" (el mismo día del acta / el día siguiente). */
+  inicio_campo?: string;
   /** Migración 94: si al firmar no está en "Sí", la pantalla avisa (no bloquea). */
   aviso_firma?: boolean;
 }

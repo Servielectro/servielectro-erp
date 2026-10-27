@@ -111,12 +111,12 @@ select '4a Jhojan (Configuración) ve el estado del respaldo', 'true', pg_temp.v
 insert into resultado (prueba, esperado, resultado)
 select '4b … y el resumen', 'true', pg_temp.valor($q$select (respaldados >= 1)::text from v_respaldo_drive_resumen$q$);
 insert into resultado (prueba, esperado, resultado)
-select '4c desde la app no se escribe el respaldo (ni Jhojan)', 'RECHAZADO', pg_temp.intentar($q$
+select '4c desde la app no se escribe el respaldo (ni Jhojan)', 'contiene: permission denied', pg_temp.intentar($q$
   update respaldo_drive_archivos set estado = 'respaldado' where ruta = 'zz-prueba-91/archivo.pdf'$q$);
 insert into resultado (prueba, esperado, resultado)
-select '4d desde la app no se consulta la cola de Storage', 'RECHAZADO', pg_temp.intentar($q$select * from fn_respaldo_pendientes(10)$q$);
+select '4d desde la app no se consulta la cola de Storage', 'contiene: permission denied', pg_temp.intentar($q$select * from fn_respaldo_pendientes(10)$q$);
 insert into resultado (prueba, esperado, resultado)
-select '4e desde la app no se toma el turno', 'RECHAZADO', pg_temp.intentar($q$select fn_respaldo_tomar_turno()$q$);
+select '4e desde la app no se toma el turno', 'contiene: permission denied', pg_temp.intentar($q$select fn_respaldo_tomar_turno()$q$);
 select pg_temp.como('00000000-0000-0000-0000-0000000091c0');
 insert into resultado (prueba, esperado, resultado)
 select '4f el técnico no ve nada del respaldo', '0 / 0', pg_temp.valor($q$

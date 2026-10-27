@@ -91,7 +91,7 @@ select '1b Jhojan pacta la tarifa por día', 'aceptado (1 filas)', pg_temp.inten
   insert into contratista_tarifas (id, contratista_id, modalidad, valor, vigente_desde)
   values ('00000000-0000-0000-0000-0000000008b1', '00000000-0000-0000-0000-0000000008a1', 'dia', 150000, '2026-10-01')$q$);
 insert into resultado (prueba, esperado, resultado)
-select '1c obra/labor sin decir qué se pactó', 'RECHAZADO', pg_temp.intentar($q$
+select '1c obra/labor sin decir qué se pactó', 'contiene: contratista_tarifas_obra_describe', pg_temp.intentar($q$
   insert into contratista_tarifas (contratista_id, modalidad, valor, vigente_desde)
   values ('00000000-0000-0000-0000-0000000008a1', 'obra_labor', 2000000, '2026-10-01')$q$);
 insert into resultado (prueba, esperado, resultado)
@@ -104,7 +104,7 @@ insert into resultado (prueba, esperado, resultado)
 select '1e una tarifa pactada no se cambia (filas)', 'aceptado (0 filas)', pg_temp.intentar($q$
   update contratista_tarifas set valor = 1 where id = '00000000-0000-0000-0000-0000000008b1'$q$);
 insert into resultado (prueba, esperado, resultado)
-select '1f ni se borra', 'RECHAZADO', pg_temp.intentar($q$
+select '1f ni se borra', 'contiene: permission denied', pg_temp.intentar($q$
   delete from contratista_tarifas where id = '00000000-0000-0000-0000-0000000008b1'$q$);
 
 -- ============================================================ 2) quién ve la tarifa
@@ -112,7 +112,7 @@ select pg_temp.como('00000000-0000-0000-0000-0000000008c1');
 insert into resultado (prueba, esperado, resultado)
 select '2a el contratista ve sus dos tarifas', '2', pg_temp.valor($q$select count(*) from contratista_tarifas$q$);
 insert into resultado (prueba, esperado, resultado)
-select '2b el contratista NO se pacta una tarifa', 'RECHAZADO', pg_temp.intentar($q$
+select '2b el contratista NO se pacta una tarifa', 'contiene: row-level security', pg_temp.intentar($q$
   insert into contratista_tarifas (contratista_id, modalidad, valor, vigente_desde)
   values ('00000000-0000-0000-0000-0000000008a1', 'dia', 999999, '2026-10-01')$q$);
 insert into resultado (prueba, esperado, resultado)
@@ -183,7 +183,7 @@ insert into resultado (prueba, esperado, resultado)
 select '3m confirmada: la planilla no se cambia', 'contiene: ya fue revisada', pg_temp.intentar($q$
   update contratista_planillas set vigencia_hasta = '2026-12-31' where id = '00000000-0000-0000-0000-0000000008d1'$q$);
 insert into resultado (prueba, esperado, resultado)
-select '3n una planilla no se borra', 'RECHAZADO', pg_temp.intentar($q$
+select '3n una planilla no se borra', 'contiene: permission denied', pg_temp.intentar($q$
   delete from contratista_planillas where id = '00000000-0000-0000-0000-0000000008d1'$q$);
 
 -- ============================================================ 4) cuentas de cobro
@@ -239,13 +239,13 @@ insert into resultado (prueba, esperado, resultado)
 select '4o rechazar sin motivo', 'contiene: motivo del rechazo', pg_temp.intentar($q$
   update contratista_cuentas_cobro set estado = 'rechazada' where id = '00000000-0000-0000-0000-0000000008e2'$q$);
 insert into resultado (prueba, esperado, resultado)
-select '4p una cuenta no se borra', 'RECHAZADO', pg_temp.intentar($q$
+select '4p una cuenta no se borra', 'contiene: permission denied', pg_temp.intentar($q$
   delete from contratista_cuentas_cobro where id = '00000000-0000-0000-0000-0000000008e2'$q$);
 insert into resultado (prueba, esperado, resultado)
 select '4q el historial registró tarifas, planilla y cuentas', '>= 9', pg_temp.valor($q$
   select count(*) from contratista_eventos where contratista_id = '00000000-0000-0000-0000-0000000008a1'$q$);
 insert into resultado (prueba, esperado, resultado)
-select '4r el historial no se escribe a mano', 'RECHAZADO', pg_temp.intentar($q$
+select '4r el historial no se escribe a mano', 'contiene: permission denied', pg_temp.intentar($q$
   insert into contratista_eventos (contratista_id, tipo) values ('00000000-0000-0000-0000-0000000008a1', 'x')$q$);
 
 -- ============================================================ 5) el contratista pierde el rol

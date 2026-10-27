@@ -1,3 +1,6 @@
+-- OJO: desde la 96 la regla de días hábiles cambió (sábado hábil e inicio de labores elegido en el
+-- acta) y fn_sumar_dias_habiles tiene otra firma: los casos 1c, 1d, 1e, 4a y 4b de este archivo ya no
+-- aplican; los reemplaza la verificación de la 96.
 -- Verificación de la migración 94 (acta de inicio: festivos, días hábiles, prellenado, fechas
 -- calculadas y marca de "se apartó"). Correr DESPUÉS de la migración (y de la 90 y la 93), todo
 -- junto. Crea un cliente, una sede, un proyecto, un contrato confirmado y actas de prueba; BORRA
@@ -129,18 +132,20 @@ select '4c sin plazo, no hay terminación (no se inventa)', '(vacío)', pg_temp.
   select respuestas ->> 'fecha_terminacion_estimada' from n$q$);
 
 -- ============================================================ 5) la marca de "se apartó del contrato"
+-- Cada update en su statement y la consulta en otro: una función STABLE en el mismo statement que
+-- el UPDATE ve el estado anterior (así la 5a pasaba sin probar nada).
+update sst_formatos set respuestas = respuestas
+    || jsonb_build_object('alcance', E'• Desmonte de puertas\n\n• Cambio de   rodamientos',
+                          '_prellenado', jsonb_build_object('alcance', E'• Desmonte de puertas\n• Cambio de rodamientos'))
+  where id = '00000000-0000-0000-0000-0000000094f1';
 insert into resultado (prueba, esperado, resultado)
-select '5a mismo alcance que el contrato (con otros espacios): no se marca', '{}', pg_temp.valor($q$
-  with n as (update sst_formatos set respuestas = respuestas
-      || jsonb_build_object('alcance', E'• Desmonte de puertas\n\n• Cambio de   rodamientos',
-                            '_prellenado', jsonb_build_object('alcance', E'• Desmonte de puertas\n• Cambio de rodamientos'))
-    where id = '00000000-0000-0000-0000-0000000094f1' returning id)
-  select fn_formato_se_aparta(id)::text from n$q$);
+select '5a mismo alcance que el contrato (con otros espacios): no se marca', 'NINGUNO', pg_temp.valor($q$
+  select coalesce(nullif(array_to_string(fn_formato_se_aparta('00000000-0000-0000-0000-0000000094f1'), ', '), ''), 'NINGUNO')$q$);
+update sst_formatos set respuestas = jsonb_set(respuestas, '{alcance}', to_jsonb('• Desmonte de puertas y accesos a o Regata en terreno duro'::text))
+  where id = '00000000-0000-0000-0000-0000000094f1';
 insert into resultado (prueba, esperado, resultado)
-select '5b alcance cambiado a mano: queda marcado', '{Alcance}', pg_temp.valor($q$
-  with n as (update sst_formatos set respuestas = jsonb_set(respuestas, '{alcance}', to_jsonb('• Desmonte de puertas y accesos a o Regata en terreno duro'::text))
-    where id = '00000000-0000-0000-0000-0000000094f1' returning id)
-  select fn_formato_se_aparta(id)::text from n$q$);
+select '5b alcance cambiado a mano: queda marcado', 'Alcance', pg_temp.valor($q$
+  select coalesce(nullif(array_to_string(fn_formato_se_aparta('00000000-0000-0000-0000-0000000094f1'), ', '), ''), 'NINGUNO')$q$);
 
 -- ============================================================ 6) estructura
 reset role;

@@ -8,7 +8,7 @@ import { comprimirFoto, hoyBogota, obtenerUbicacion, sha256 } from "@/lib/tecnic
 import { dePadre, guardar, guardarYEncolar, leer, leerMeta, guardarMeta, todos } from "@/lib/tecnico/db";
 import { useCola, nuevoId } from "@/lib/sst/campo";
 import { dispositivoActual, type PlantillaLocal, type SstArchivoLocal, type SstFirmaLocal, type SstFormatoLocal } from "@/lib/sst/local";
-import { sumarDiasHabiles } from "@/lib/fechas/dias-habiles";
+import { iniciaMismoDia, sumarDiasHabiles } from "@/lib/fechas/dias-habiles";
 import {
   AMBITO,
   avisosDeFirma,
@@ -30,7 +30,7 @@ const CAMPO = "mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 te
 type Yo = { id: string; nombre: string; cedula: string };
 
 /**
- * Campos calculados (migración 94): la fecha del acta y la terminación en días hábiles. La base
+ * Campos calculados (migraciones 94 y 96): el inicio de labores y la terminación en días hábiles. La base
  * los vuelve a calcular con la misma regla; aquí es para verlos antes de firmar. Sin calendario
  * de festivos en el celular, la terminación queda vacía y la pone la base al sincronizar.
  */
@@ -39,10 +39,13 @@ function conCalculados(f: SstFormatoLocal, festivos: Set<string> | null): SstFor
   let cambio = false;
   for (const c of f.plantilla.campos) {
     if (!c.calculado) continue;
+    const mismoDia = iniciaMismoDia(r[c.inicio_campo ?? ""]);
     const v =
       c.calculado === "fecha_del_acta"
         ? f.fecha || null
-        : sumarDiasHabiles(f.fecha, Number(String(r[c.plazo_campo ?? ""] ?? "").trim()), festivos);
+        : c.calculado === "inicio_dias_habiles"
+          ? sumarDiasHabiles(f.fecha, 1, mismoDia, festivos)
+          : sumarDiasHabiles(f.fecha, Number(String(r[c.plazo_campo ?? ""] ?? "").trim()), mismoDia, festivos);
     if ((r[c.id] ?? null) !== v) {
       r = { ...r };
       if (v) r[c.id] = v;

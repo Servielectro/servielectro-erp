@@ -58,7 +58,7 @@ export function FormularioSst({
               {c.calculado && <span className="ml-1 text-xs font-normal text-slate-500">(calculada)</span>}
             </p>
             {c.ayuda && <p className="text-xs text-slate-500">{c.ayuda}</p>}
-            {c.calculado && !v && <p className="text-xs text-amber-800">Se calcula con la fecha del acta y el plazo (al sincronizar, si este celular no tiene el calendario de festivos).</p>}
+            {c.calculado && !v && <p className="text-xs text-amber-800">Se calcula con la fecha del acta, el inicio de labores y el plazo (al sincronizar, si este celular no tiene el calendario de festivos).</p>}
             <Control c={c} v={v} dis={dis || !!c.calculado} onCambio={(x) => onCambio?.(c.id, x)} />
             {aparte && (
               <details className="mt-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-sm text-amber-900">

@@ -76,7 +76,7 @@ insert into resultado (prueba, esperado, resultado)
 select '1b … quedó con quien lo subió', 'true',
   pg_temp.valor($q$select (subido_por = '00000000-0000-0000-0000-0000000090a0')::text from proyecto_documentos where id = '00000000-0000-0000-0000-0000000090d1'$q$);
 insert into resultado (prueba, esperado, resultado)
-select '1c P (sin datos sensibles) NO sube un documento reservado', 'RECHAZADO',
+select '1c P (sin datos sensibles) NO sube un documento reservado', 'contiene: row-level security',
   pg_temp.intentar(pg_temp.doc('00000000-0000-0000-0000-0000000090d9', 'cotizacion', 'costos.xlsm', 'z', true));
 insert into resultado (prueba, esperado, resultado)
 select '1d el mismo archivo dos veces en el proyecto', 'contiene: uq_proyecto_documentos_sha',
@@ -86,7 +86,7 @@ select '1e un path fuera de la carpeta del proyecto', 'contiene: proyecto_docume
   insert into proyecto_documentos (proyecto_id, tipo, nombre, nombre_archivo, path, mime, bytes, sha256)
   values ('00000000-0000-0000-0000-0000000090e0', 'otro', 'x', 'x.pdf', 'otra-carpeta/x.pdf', 'application/pdf', 1, repeat('y', 64))$q$);
 insert into resultado (prueba, esperado, resultado)
-select '1f un tipo que no está en el catálogo', 'RECHAZADO',
+select '1f un tipo que no está en el catálogo', 'contiene: proyecto_documentos_tipo_check',
   pg_temp.intentar(pg_temp.doc('00000000-0000-0000-0000-0000000090d7', 'factura_inventada', 'f.pdf', 'x', false));
 
 select pg_temp.como('00000000-0000-0000-0000-0000000090b0');
@@ -126,7 +126,7 @@ insert into resultado (prueba, esperado, resultado)
 select '2g archivado, el mismo archivo se puede volver a subir', 'aceptado (1 filas)',
   pg_temp.intentar(pg_temp.doc('00000000-0000-0000-0000-0000000090d3', 'contrato_firmado', 'contrato-bien.pdf', 'a', false));
 insert into resultado (prueba, esperado, resultado)
-select '2h un documento no se borra', 'RECHAZADO', pg_temp.intentar($q$
+select '2h un documento no se borra', 'contiene: permission denied', pg_temp.intentar($q$
   delete from proyecto_documentos where id = '00000000-0000-0000-0000-0000000090d3'$q$);
 
 -- ============================================================ 3) pólizas y amparos
@@ -166,7 +166,7 @@ select '3i la vista de vigencias: 2 amparos, 1 con días para vencer, póliza pa
   select count(*)::text || ' / ' || count(dias_para_vencer)::text || ' / ' || bool_and(pagada)::text
   from v_proyecto_amparos_vigencia where poliza_id = '00000000-0000-0000-0000-0000000090f1'$q$);
 insert into resultado (prueba, esperado, resultado)
-select '3j un amparo no se borra', 'RECHAZADO', pg_temp.intentar($q$
+select '3j un amparo no se borra', 'contiene: permission denied', pg_temp.intentar($q$
   delete from proyecto_poliza_amparos where poliza_id = '00000000-0000-0000-0000-0000000090f1'$q$);
 select pg_temp.como('00000000-0000-0000-0000-0000000090c0');
 insert into resultado (prueba, esperado, resultado)

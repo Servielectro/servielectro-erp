@@ -162,7 +162,7 @@ select '3b1 SG-SST no ve el acta en borrador de Proyectos', '0',
 -- borrador; fn_sst_firma_reglas corre como quien firma y no lo ve). La 88 lo cambia por
 -- "No tienes permiso para firmar formatos de Proyectos" y su verificación aprieta el esperado.
 insert into resultado (prueba, esperado, resultado)
-select '3b SG-SST no firma un acta de Proyectos en borrador', 'contiene: RECHAZADO',
+select '3b SG-SST no firma un acta de Proyectos en borrador (mensaje de la 88)', 'contiene: No tienes permiso para firmar formatos de Proyectos',
   pg_temp.intentar(pg_temp.firma('00000000-0000-0000-0000-0000000085f2', 'otro', 'X', '9', 9));
 insert into resultado (prueba, esperado, resultado)
 select '3c SG-SST no sube archivos a un acta (borrador) de Proyectos', 'contiene: row-level security', pg_temp.intentar($q$

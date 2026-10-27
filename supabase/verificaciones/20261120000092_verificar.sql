@@ -72,7 +72,7 @@ insert into sst_formatos (id, plantilla_id, proyecto_id, respuestas) values
 insert into storage.objects (bucket_id, name) values ('sgsst', 'formatos/00000000-0000-0000-0000-0000000092f2/foto.jpg');
 insert into sst_formato_firmas (formato_id, rol, nombre, documento, empresa, imagen_path, imagen_sha256, firmada_en_dispositivo)
 values ('00000000-0000-0000-0000-0000000092f3', 'responsable_sst', 'Q', '92', 'Servielectro',
-        'formatos/00000000-0000-0000-0000-0000000092f3/firma.png', repeat('a', 64), now());
+        'formatos/00000000-0000-0000-0000-0000000092f3/firma-1.png', repeat('a', 64), now());
 
 -- ============================================================ 1) actas
 select pg_temp.como('00000000-0000-0000-0000-0000000092a0');

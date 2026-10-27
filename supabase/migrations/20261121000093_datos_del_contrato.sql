@@ -1,3 +1,5 @@
+-- (AGREGADO DESPUÉS de correrla: el mensaje "Para confirmar falta" reventaba con "malformed
+-- array literal"; lo arregla la 97.)
 -- Los datos del contrato como registro con campos (2026-10-27). Base para el acta de inicio, el
 -- acta de entrega y el cronograma.
 --
