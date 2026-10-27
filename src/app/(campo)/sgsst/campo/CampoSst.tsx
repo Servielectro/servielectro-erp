@@ -8,10 +8,13 @@ import { comprimirFoto, hoyBogota, obtenerUbicacion, sha256 } from "@/lib/tecnic
 import { dePadre, guardar, guardarYEncolar, leer, leerMeta, guardarMeta, todos } from "@/lib/tecnico/db";
 import { useCola, nuevoId } from "@/lib/sst/campo";
 import { dispositivoActual, type PlantillaLocal, type SstArchivoLocal, type SstFirmaLocal, type SstFormatoLocal } from "@/lib/sst/local";
+import { sumarDiasHabiles } from "@/lib/fechas/dias-habiles";
 import {
   AMBITO,
+  avisosDeFirma,
   COLUMNAS_PLANTILLA,
   docComparable,
+  prellenar,
   faltantes,
   firmasQueFaltan,
   pideTecnicos,
@@ -25,6 +28,30 @@ import {
 
 const CAMPO = "mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-base disabled:bg-slate-50 disabled:text-slate-800";
 type Yo = { id: string; nombre: string; cedula: string };
+
+/**
+ * Campos calculados (migración 94): la fecha del acta y la terminación en días hábiles. La base
+ * los vuelve a calcular con la misma regla; aquí es para verlos antes de firmar. Sin calendario
+ * de festivos en el celular, la terminación queda vacía y la pone la base al sincronizar.
+ */
+function conCalculados(f: SstFormatoLocal, festivos: Set<string> | null): SstFormatoLocal {
+  let r = f.respuestas;
+  let cambio = false;
+  for (const c of f.plantilla.campos) {
+    if (!c.calculado) continue;
+    const v =
+      c.calculado === "fecha_del_acta"
+        ? f.fecha || null
+        : sumarDiasHabiles(f.fecha, Number(String(r[c.plazo_campo ?? ""] ?? "").trim()), festivos);
+    if ((r[c.id] ?? null) !== v) {
+      r = { ...r };
+      if (v) r[c.id] = v;
+      else delete r[c.id];
+      cambio = true;
+    }
+  }
+  return cambio ? { ...f, respuestas: r } : f;
+}
 
 /**
  * Llenar un formato de SG-SST en la obra, con o sin señal. Todo se guarda primero en el celular y
@@ -56,6 +83,9 @@ export function CampoSst({
   const [abierto, setAbierto] = useState<string | null>(null);
   const [eligiendo, setEligiendo] = useState(false);
   const [avisoTraer, setAvisoTraer] = useState<string | null>(null);
+  // Actas (migración 94): lo que se prellena por obra y el calendario de festivos.
+  const [prellenado, setPrellenado] = useState<Record<string, Record<string, unknown>>>({});
+  const [festivos, setFestivos] = useState<string[] | null>(null);
 
   const recargarLocales = useCallback(async () => {
     const fs = (await todos<SstFormatoLocal>("sst_formatos")).filter((f) => (f.plantilla.ambito ?? "sgsst") === ambito);
@@ -67,11 +97,27 @@ export function CampoSst({
   const bajar = useCallback(async () => {
     const { createClient } = await import("@/lib/supabase/client");
     const supabase = createClient();
-    const [p, o, g] = await Promise.all([
+    const hoy = hoyBogota();
+    const [p, o, g, pre, fes] = await Promise.all([
       supabase.from("sst_plantillas").select(COLUMNAS_PLANTILLA).eq("estado", "publicada").eq("ambito", ambito).order("codigo"),
       supabase.rpc("fn_proyectos_nombres"),
       supabase.rpc("fn_sst_personal"),
+      acta ? supabase.rpc("fn_actas_prellenado") : Promise.resolve({ data: null, error: null }),
+      acta
+        ? supabase.from("festivos_colombia").select("fecha").gte("fecha", `${Number(hoy.slice(0, 4)) - 1}-01-01`).lte("fecha", `${Number(hoy.slice(0, 4)) + 3}-12-31`)
+        : Promise.resolve({ data: null, error: null }),
     ]);
+    // Sin la 94 corrida, estos dos fallan y el acta se llena sin prellenado (como antes).
+    if (acta && !pre.error && pre.data) {
+      const m = Object.fromEntries(((pre.data ?? []) as { proyecto_id: string; datos: Record<string, unknown> }[]).map((x) => [x.proyecto_id, x.datos]));
+      await guardarMeta(`${k}_prellenado`, m);
+      setPrellenado(m);
+    }
+    if (acta && !fes.error && fes.data) {
+      const fs = ((fes.data ?? []) as { fecha: string }[]).map((x) => x.fecha);
+      await guardarMeta(`${k}_festivos`, fs);
+      setFestivos(fs);
+    }
     if (!p.error) {
       const ps = ((p.data ?? []) as Plantilla[]).map((x) => ({ id: x.id, codigo: x.codigo, nombre: x.nombre, version: x.version, descripcion: x.descripcion, campos: x.campos, firmas: x.firmas, ambito: x.ambito }));
       await guardarMeta(`${k}_plantillas`, ps);
@@ -87,7 +133,7 @@ export function CampoSst({
       await guardarMeta(`${k}_personal`, ns);
       setPersonal(ns);
     }
-  }, [ambito, k]);
+  }, [ambito, k, acta]);
 
   const cola = useCola(AMBITO[ambito].campo, bajar);
 
@@ -96,6 +142,8 @@ export function CampoSst({
       setPlantillas((await leerMeta<PlantillaLocal[]>(`${k}_plantillas`)) ?? []);
       setProyectos((await leerMeta<{ id: string; nombre: string }[]>(`${k}_proyectos`)) ?? []);
       setPersonal((await leerMeta<string[]>(`${k}_personal`)) ?? []);
+      setPrellenado((await leerMeta<Record<string, Record<string, unknown>>>(`${k}_prellenado`)) ?? {});
+      setFestivos((await leerMeta<string[]>(`${k}_festivos`)) ?? null);
       await recargarLocales();
       if (formatoInicial) {
         if (await leer<SstFormatoLocal>("sst_formatos", formatoInicial)) {
@@ -119,7 +167,20 @@ export function CampoSst({
     // Un acta va con su obra desde el primer momento (la base no la recibe sin obra).
     const obra = acta ? proyectos.find((x) => x.id === obraNueva) : undefined;
     if (acta && !obra) return;
-    const f: SstFormatoLocal = { id: nuevoId(), plantilla: { ...p, ambito }, proyectoId: obra?.id ?? null, proyectoNombre: obra?.nombre ?? null, lugar: "", fecha: hoyBogota(), respuestas: {}, creadoEn: ahora, actualizadoEn: ahora, cerrado: false };
+    const base: SstFormatoLocal = {
+      id: nuevoId(),
+      plantilla: { ...p, ambito },
+      proyectoId: obra?.id ?? null,
+      proyectoNombre: obra?.nombre ?? null,
+      lugar: "",
+      fecha: hoyBogota(),
+      // Migración 94: lo que la plantilla pide prellenar, desde los datos de la obra.
+      respuestas: obra ? prellenar(p.campos, prellenado[obra.id]) : {},
+      creadoEn: ahora,
+      actualizadoEn: ahora,
+      cerrado: false,
+    };
+    const f = conCalculados(base, festivos ? new Set(festivos) : null);
     await guardarYEncolar("sst_formatos", f, { id: f.id, tipo: "sst_formato", visitaId: f.id });
     setEligiendo(false);
     await recargarLocales();
@@ -137,6 +198,7 @@ export function CampoSst({
         id={abierto}
         yo={yo}
         ambito={ambito}
+        festivos={festivos}
         proyectos={proyectos}
         personal={personal}
         pendientes={pendientesDe(abierto)}
@@ -258,6 +320,7 @@ function EditorFormato({
   id,
   yo,
   ambito,
+  festivos,
   proyectos,
   personal,
   pendientes,
@@ -268,6 +331,7 @@ function EditorFormato({
   id: string;
   yo: Yo;
   ambito: Ambito;
+  festivos: string[] | null;
   proyectos: { id: string; nombre: string }[];
   personal: string[];
   pendientes: number;
@@ -303,8 +367,10 @@ function EditorFormato({
   }, [recargar]);
 
   // Guardado con un respiro (no se encola en cada letra).
+  const calendario = useMemo(() => (festivos ? new Set(festivos) : null), [festivos]);
   const persistir = useCallback(
-    (nuevo: SstFormatoLocal) => {
+    (cambiado: SstFormatoLocal) => {
+      const nuevo = conCalculados(cambiado, calendario);
       setF(nuevo);
       if (espera.current) clearTimeout(espera.current);
       espera.current = setTimeout(async () => {
@@ -312,7 +378,7 @@ function EditorFormato({
         onCambio();
       }, 600);
     },
-    [onCambio],
+    [onCambio, calendario],
   );
 
   const porCampo = useMemo(() => {
@@ -336,6 +402,20 @@ function EditorFormato({
   const faltanFirmas = lista.length
     ? [...firmasQueFaltan(f.plantilla.firmas.filter((p) => p.rol !== "tecnico"), firmas), ...sinFirmar.map((t) => t.nombre)]
     : firmasQueFaltan(f.plantilla.firmas, firmas);
+
+  function pedirFirma(clave: string) {
+    if (f && firmas.length === 0) {
+      const sin = avisosDeFirma(f.plantilla.campos, f.respuestas);
+      if (
+        sin.length &&
+        !window.confirm(
+          `Vas a firmar sin marcar como cumplido:\n\n• ${sin.join("\n• ")}\n\nCon la primera firma el documento queda sellado y, en el acta de inicio, empieza a correr el plazo del contrato (y la multa por día de retraso).\n\n¿Firmar de todos modos?`,
+        )
+      )
+        return;
+    }
+    setAgregando(clave);
+  }
 
   const vistaArchivos: Record<string, ArchivoVista[]> = {};
   for (const a of archivos) (vistaArchivos[a.campoId] ??= []).push({ id: a.id, url: urls[a.id] ?? null, pendiente: !a.subida });
@@ -537,7 +617,7 @@ function EditorFormato({
                     <button
                       key={t.documento}
                       type="button"
-                      onClick={() => setAgregando(`tec:${docComparable(t.documento)}`)}
+                      onClick={() => pedirFirma(`tec:${docComparable(t.documento)}`)}
                       className="mt-2 flex min-h-11 w-full items-center justify-center rounded-lg border-2 border-slate-400 text-sm font-semibold"
                     >
                       ✍ Firma {t.nombre}
@@ -554,7 +634,7 @@ function EditorFormato({
                 />
               ) : (
                 puedeOtra && (
-                  <button type="button" onClick={() => setAgregando(p.rol + p.etiqueta)} className="mt-2 flex min-h-11 w-full items-center justify-center rounded-lg border-2 border-slate-400 text-sm font-semibold">
+                  <button type="button" onClick={() => pedirFirma(p.rol + p.etiqueta)} className="mt-2 flex min-h-11 w-full items-center justify-center rounded-lg border-2 border-slate-400 text-sm font-semibold">
                     ✍ {hechas.length && ROL_LISTA[p.rol] ? "Firma otro técnico" : "Firmar"}
                   </button>
                 )

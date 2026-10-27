@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Campo, Columna } from "@/lib/sst/plantillas";
+import { seAparto, type Campo, type Columna } from "@/lib/sst/plantillas";
 
 const CAMPO = "mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-base disabled:bg-slate-50 disabled:text-slate-800";
 
@@ -49,14 +49,23 @@ export function FormularioSst({
           );
         }
         const v = respuestas[c.id];
+        const aparte = seAparto(c, respuestas);
         return (
           <div key={c.id}>
             <p className="text-sm font-medium text-slate-900">
               {c.etiqueta}
               {c.obligatorio && <span className="text-red-700"> *</span>}
+              {c.calculado && <span className="ml-1 text-xs font-normal text-slate-500">(calculada)</span>}
             </p>
             {c.ayuda && <p className="text-xs text-slate-500">{c.ayuda}</p>}
-            <Control c={c} v={v} dis={dis} onCambio={(x) => onCambio?.(c.id, x)} />
+            {c.calculado && !v && <p className="text-xs text-amber-800">Se calcula con la fecha del acta y el plazo (al sincronizar, si este celular no tiene el calendario de festivos).</p>}
+            <Control c={c} v={v} dis={dis || !!c.calculado} onCambio={(x) => onCambio?.(c.id, x)} />
+            {aparte && (
+              <details className="mt-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-sm text-amber-900">
+                <summary className="cursor-pointer font-semibold">⚠ Se apartó de lo que traía (para el alcance: del contrato confirmado)</summary>
+                <p className="mt-1 whitespace-pre-line text-xs text-amber-900">{aparte.original}</p>
+              </details>
+            )}
             {(c.tipo === "foto" || c.tipo === "firma") && (
               <div className="mt-1 space-y-2">
                 {(archivos[c.id] ?? []).length > 0 && (

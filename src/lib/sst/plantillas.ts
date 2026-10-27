@@ -33,6 +33,52 @@ export interface Campo {
   opciones?: string[];
   multiple?: boolean;
   columnas?: Columna[];
+  /**
+   * Migración 94: se prellena al crear el acta con este dato de la obra (fn_actas_prellenado:
+   * "alcance" del contrato confirmado, "lugar_direccion" de la sede…). Lo que traía queda en
+   * respuestas._prellenado y, si se cambia, el acta queda marcada como apartada.
+   */
+  prellenar?: string;
+  /** Migración 94: lo calcula la base (y el celular con la misma regla); no se escribe a mano. */
+  calculado?: "fecha_del_acta" | "terminacion_dias_habiles";
+  /** Para "terminacion_dias_habiles": el campo con el plazo en días hábiles. */
+  plazo_campo?: string;
+  /** Migración 94: si al firmar no está en "Sí", la pantalla avisa (no bloquea). */
+  aviso_firma?: boolean;
+}
+
+/** Dónde guarda el acta lo que se prellenó (para saber si se apartó). */
+export const PRELLENADO = "_prellenado";
+
+const normal = (v: unknown) => String(v ?? "").replace(/\s+/g, " ").trim();
+
+/** ¿El valor de un campo prellenado se apartó de lo que traía? (ej. el alcance del contrato) */
+export function seAparto(c: Campo, respuestas: Record<string, unknown>): { original: string } | null {
+  const pre = respuestas[PRELLENADO] as Record<string, unknown> | undefined;
+  if (!c.prellenar || !pre || !(c.id in pre)) return null;
+  return normal(respuestas[c.id]) === normal(pre[c.id]) ? null : { original: String(pre[c.id] ?? "") };
+}
+
+/** Respuestas iniciales de un acta nueva: lo prellenado y su copia para comparar después. */
+export function prellenar(campos: Campo[], datos: Record<string, unknown> | undefined): Record<string, unknown> {
+  if (!datos) return {};
+  const r: Record<string, unknown> = {};
+  const pre: Record<string, unknown> = {};
+  for (const c of campos) {
+    if (!c.prellenar) continue;
+    const v = datos[c.prellenar];
+    if (v === undefined || v === null || v === "") continue;
+    r[c.id] = v;
+    pre[c.id] = v;
+  }
+  if (Object.keys(pre).length) r[PRELLENADO] = pre;
+  if (datos._contrato_id) r._contrato_id = datos._contrato_id;
+  return r;
+}
+
+/** Los requisitos con aviso que no están en "Sí" (para avisar antes de la primera firma). */
+export function avisosDeFirma(campos: Campo[], respuestas: Record<string, unknown>): string[] {
+  return campos.filter((c) => c.aviso_firma && respuestas[c.id] !== true).map((c) => c.etiqueta);
 }
 
 export type RolFirma = "tecnico" | "responsable_sst" | "sst_cliente" | "otro";
