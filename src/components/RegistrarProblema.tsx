@@ -22,33 +22,11 @@ import {
  * uso o algo que no esté bien"). En la barra de arriba de todas las pantallas, también en la
  * app del técnico. La pantalla en que estaba y los datos de depuración van solos; no se le
  * pregunta nada de eso. En "Mis reportes" ve en qué va cada uno (si nunca sabe qué pasó, deja
- * de reportar).
+ * de reportar). Se abre desde el fondo del menú ☰ y, en pantalla ancha, desde el menú "Cuenta".
  */
-export function BotonRegistrarProblema({ administra }: { administra: boolean }) {
-  const [abierto, setAbierto] = useState(false);
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => setAbierto(true)}
-        className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-md px-1.5 text-left text-xs font-medium leading-tight text-amber-800 hover:bg-amber-50 sm:px-2"
-      >
-        <span aria-hidden className="text-base">⚠</span>
-        <span>
-          {/* En dos líneas en el celular y en la barra hasta 1536 px (para que quepan los módulos). */}
-          Registrar
-          <br className="sm:hidden lg:inline 2xl:hidden" />
-          <span className="hidden sm:inline lg:hidden 2xl:inline"> </span>problema
-        </span>
-      </button>
-      {abierto && <VentanaProblema administra={administra} onCerrar={() => setAbierto(false)} />}
-    </>
-  );
-}
-
 const CAMPO = "w-full rounded-lg border border-slate-300 px-3 py-2 text-base";
 
-function VentanaProblema({ administra, onCerrar }: { administra: boolean; onCerrar: () => void }) {
+export function VentanaProblema({ administra, onCerrar }: { administra: boolean; onCerrar: () => void }) {
   const ruta = usePathname();
   const [pestana, setPestana] = useState<"nuevo" | "mios">("nuevo");
   const [quePaso, setQuePaso] = useState("");

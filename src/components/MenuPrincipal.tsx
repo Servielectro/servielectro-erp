@@ -3,6 +3,7 @@
 import { Fragment, useRef, useState } from "react";
 import { seccionesMenu } from "@/lib/menu";
 import { VentanaBuscador } from "@/components/BuscadorSecciones";
+import { VentanaProblema } from "@/components/RegistrarProblema";
 import Link from "next/link";
 import {
   aplicarContenido,
@@ -43,6 +44,7 @@ export function MenuPrincipal({
 }) {
   const [seccionAbierta, setSeccionAbierta] = useState<"basedatos" | null>(abrirEn ?? null);
   const [buscando, setBuscando] = useState(false);
+  const [reportando, setReportando] = useState(false);
   const [vista, setVista] = useState<VistaBaseDatos>("inicio");
   const [cargando, setCargando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -465,6 +467,33 @@ export function MenuPrincipal({
               </p>
             )}
           </div>
+        )}
+
+        {/* Al fondo y aparte: no son módulos (Jhojan: "el registrar problema… al menú hamburguesa al fondo"). */}
+        <div className="mt-auto border-t border-slate-200 pt-3">
+          <Link
+            href="/notificaciones"
+            onClick={onCerrar}
+            className="flex min-h-11 items-center rounded-md px-3 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            🔔 Notificaciones y qué me avisa
+          </Link>
+          <button
+            type="button"
+            onClick={() => setReportando(true)}
+            className="flex min-h-11 w-full items-center rounded-md px-3 text-left text-sm font-medium text-amber-800 hover:bg-amber-50"
+          >
+            ⚠ Registrar problema
+          </button>
+        </div>
+        {reportando && (
+          <VentanaProblema
+            administra={accesos.configResponsable}
+            onCerrar={() => {
+              setReportando(false);
+              onCerrar();
+            }}
+          />
         )}
       </div>
     </div>

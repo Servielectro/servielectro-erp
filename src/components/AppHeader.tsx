@@ -8,7 +8,8 @@ import { MenuPrincipal, type AccesosMenu } from "@/components/MenuPrincipal";
 import { seccionesMenu } from "@/lib/menu";
 import { logout } from "@/app/logout/actions";
 import { BotonBuscador } from "@/components/BuscadorSecciones";
-import { BotonRegistrarProblema } from "@/components/RegistrarProblema";
+import { VentanaProblema } from "@/components/RegistrarProblema";
+import { BotonNotificaciones } from "@/components/Notificaciones";
 
 /**
  * Barra superior global — presente en todas las pantallas de la app (menos /login).
@@ -46,6 +47,7 @@ export function AppHeader({ accesos, usuario }: { accesos: AccesosMenu; usuario?
   const desplegada = abiertaEn?.ruta === ruta ? abiertaEn.id : null;
   const setDesplegada = (f: (d: string | null) => string | null) => setAbiertaEn({ id: f(desplegada) ?? "", ruta });
   const barra = useRef<HTMLElement>(null);
+  const [reportando, setReportando] = useState(false);
   const secciones = seccionesMenu(accesos);
   const nav = useRef<HTMLElement>(null);
   const medidor = useRef<HTMLDivElement>(null);
@@ -232,8 +234,8 @@ export function AppHeader({ accesos, usuario }: { accesos: AccesosMenu; usuario?
 
           <span className="flex-1 lg:hidden" />
 
-          {/* Registrar problema: en todas las pantallas, también en la app del técnico (Jhojan). */}
-          <BotonRegistrarProblema administra={accesos.configResponsable} />
+          {/* La campanita: en todas las pantallas, también en la app del técnico (Jhojan). */}
+          <BotonNotificaciones />
 
           {/* Pantalla ancha: lo del usuario a la derecha. */}
           <div className="hidden shrink-0 items-center gap-1 lg:flex">
@@ -246,20 +248,45 @@ export function AppHeader({ accesos, usuario }: { accesos: AccesosMenu; usuario?
                 Base de datos
               </button>
             )}
-            {usuario && (
-              <span className="hidden max-w-56 truncate px-2 text-xs text-slate-500 2xl:inline" title={usuario}>
-                {usuario}
-              </span>
-            )}
-            <form action={logout}>
+            {/* Menú de la cuenta: quién está, notificaciones, Registrar problema y Cerrar sesión. */}
+            <div className="relative">
               <button
-                type="submit"
-                title={usuario ? `Cerrar la sesión de ${usuario}` : undefined}
-                className="flex min-h-11 items-center whitespace-nowrap rounded-md border border-slate-300 px-3 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                type="button"
+                aria-expanded={desplegada === "cuenta"}
+                onClick={() => setDesplegada((d) => (d === "cuenta" ? null : "cuenta"))}
+                className={`flex min-h-11 items-center gap-1 whitespace-nowrap rounded-md border border-slate-300 px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 ${desplegada === "cuenta" ? "bg-slate-100" : ""}`}
               >
-                Cerrar sesión
+                <span className="hidden max-w-48 truncate 2xl:inline">{usuario ?? "Cuenta"}</span>
+                <span className="2xl:hidden">Cuenta</span>
+                <span aria-hidden className="text-slate-400">
+                  ▾
+                </span>
               </button>
-            </form>
+              {desplegada === "cuenta" && (
+                <div className="absolute right-0 top-full z-40 mt-1 w-64 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+                  {usuario && <p className="truncate px-3 py-2 text-xs text-slate-500">Sesión de {usuario}</p>}
+                  <Link href="/notificaciones" className="flex min-h-11 items-center rounded-md px-3 text-sm text-slate-700 hover:bg-slate-50">
+                    🔔 Notificaciones y qué me avisa
+                  </Link>
+                  <div className="my-1 border-t border-slate-100" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAbiertaEn(null);
+                      setReportando(true);
+                    }}
+                    className="flex min-h-11 w-full items-center rounded-md px-3 text-left text-sm text-amber-800 hover:bg-amber-50"
+                  >
+                    ⚠ Registrar problema
+                  </button>
+                  <form action={logout}>
+                    <button type="submit" className="flex min-h-11 w-full items-center rounded-md px-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50">
+                      Cerrar sesión
+                    </button>
+                  </form>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Pantalla angosta: la hamburguesa de siempre. */}
@@ -276,6 +303,7 @@ export function AppHeader({ accesos, usuario }: { accesos: AccesosMenu; usuario?
         </div>
       </header>
 
+      {reportando && <VentanaProblema administra={accesos.configResponsable} onCerrar={() => setReportando(false)} />}
       {menuAbierto && (
         <MenuPrincipal onCerrar={() => setMenuAbierto(false)} accesos={accesos} abrirEn={menuAbierto === "basedatos" ? "basedatos" : undefined} />
       )}
