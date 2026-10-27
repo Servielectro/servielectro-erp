@@ -73,6 +73,26 @@ export const FIRMAS_POR_DEFECTO: FirmaPedida[] = [
 ];
 export const ROL_LISTA: Record<RolFirma, boolean> = { tecnico: true, responsable_sst: false, sst_cliente: false, otro: false };
 
+/** Migración 83: quién estuvo en la obra ese día. Firman todos; la base no deja cerrar sin eso. */
+export interface TecnicoEnObra {
+  nombre: string;
+  documento: string;
+}
+
+/** La cédula como la compara la base (fn_sst_doc): sin puntos, espacios ni guiones. */
+export function docComparable(d: string): string {
+  return d.toUpperCase().replace(/[^0-9A-Z]/g, "");
+}
+
+/** ¿La plantilla pide firma de técnico obligatoria? Entonces la lista va antes de la primera firma. */
+export function pideTecnicos(pedidas: FirmaPedida[]): boolean {
+  return pedidas.some((p) => p.rol === "tecnico" && p.obligatoria !== false);
+}
+
+export function tecnicosSinFirmar(lista: TecnicoEnObra[], hechas: { rol: string; documento: string }[]): TecnicoEnObra[] {
+  return lista.filter((t) => !hechas.some((h) => h.rol === "tecnico" && docComparable(h.documento) === docComparable(t.documento)));
+}
+
 export interface Plantilla {
   id: string;
   codigo: string;

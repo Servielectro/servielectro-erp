@@ -8,7 +8,18 @@ import { comprimirFoto, hoyBogota, obtenerUbicacion, sha256 } from "@/lib/tecnic
 import { dePadre, guardarYEncolar, leer, leerMeta, guardarMeta, todos } from "@/lib/tecnico/db";
 import { useCola, nuevoId } from "@/lib/sst/campo";
 import { dispositivoActual, type PlantillaLocal, type SstArchivoLocal, type SstFirmaLocal, type SstFormatoLocal } from "@/lib/sst/local";
-import { COLUMNAS_PLANTILLA, faltantes, firmasQueFaltan, ROL_LISTA, type FirmaPedida, type Plantilla } from "@/lib/sst/plantillas";
+import {
+  COLUMNAS_PLANTILLA,
+  docComparable,
+  faltantes,
+  firmasQueFaltan,
+  pideTecnicos,
+  ROL_LISTA,
+  tecnicosSinFirmar,
+  type FirmaPedida,
+  type Plantilla,
+  type TecnicoEnObra,
+} from "@/lib/sst/plantillas";
 
 const CAMPO = "mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-base disabled:bg-slate-50 disabled:text-slate-800";
 type Yo = { id: string; nombre: string; cedula: string };
@@ -257,8 +268,18 @@ function EditorFormato({
 
   if (!f) return <p className="p-4 text-sm text-slate-500">Cargando…</p>;
   const sellado = firmas.length > 0 || f.cerrado;
-  const falta = faltantes(f.plantilla.campos, f.respuestas, porCampo);
-  const faltanFirmas = firmasQueFaltan(f.plantilla.firmas, firmas);
+  const lista = f.tecnicosEnObra ?? [];
+  const conTecnicos = f.plantilla.firmas.some((p) => p.rol === "tecnico");
+  // Formato de antes de la 83 que ya tenía firmas y no tiene lista: sigue la regla vieja (una firma).
+  const legado = sellado && !f.tecnicosEnObra;
+  const falta = [
+    ...faltantes(f.plantilla.campos, f.respuestas, porCampo),
+    ...(!sellado && pideTecnicos(f.plantilla.firmas) && lista.length === 0 ? ["los técnicos que estuvieron en la obra"] : []),
+  ];
+  const sinFirmar = tecnicosSinFirmar(lista, firmas);
+  const faltanFirmas = lista.length
+    ? [...firmasQueFaltan(f.plantilla.firmas.filter((p) => p.rol !== "tecnico"), firmas), ...sinFirmar.map((t) => t.nombre)]
+    : firmasQueFaltan(f.plantilla.firmas, firmas);
 
   const vistaArchivos: Record<string, ArchivoVista[]> = {};
   for (const a of archivos) (vistaArchivos[a.campoId] ??= []).push({ id: a.id, url: urls[a.id] ?? null, pendiente: !a.subida });
@@ -403,6 +424,16 @@ function EditorFormato({
         />
       </section>
 
+      {conTecnicos && !legado && (
+        <ListaTecnicos
+          lista={lista}
+          personal={personal}
+          bloqueado={sellado}
+          firmados={lista.filter((t) => !sinFirmar.includes(t))}
+          onCambio={(nueva) => persistir({ ...f, tecnicosEnObra: nueva, actualizadoEn: new Date().toISOString() })}
+        />
+      )}
+
       <section className="space-y-3 rounded-lg border border-slate-200 bg-white p-3">
         <h2 className="text-base font-bold">Firmas</h2>
         {!sellado && falta.length > 0 && (
@@ -411,7 +442,9 @@ function EditorFormato({
         {!sellado && falta.length === 0 && <p className="text-xs text-slate-500">Al firmar el primero, el contenido queda sellado: revisa que todo esté bien.</p>}
         {f.plantilla.firmas.map((p) => {
           const hechas = firmas.filter((x) => x.rol === p.rol);
-          const puedeOtra = !f.cerrado && falta.length === 0 && (ROL_LISTA[p.rol] || hechas.length === 0);
+          // Técnicos con lista: un botón por cada uno que falta (no se firma a nombre de otro).
+          const porLista = p.rol === "tecnico" && lista.length > 0;
+          const puedeOtra = !porLista && !f.cerrado && falta.length === 0 && (ROL_LISTA[p.rol] || hechas.length === 0);
           return (
             <div key={p.rol + p.etiqueta} className="rounded-md border border-slate-200 p-2">
               <p className="text-sm font-semibold">
@@ -430,6 +463,31 @@ function EditorFormato({
                   </span>
                 </div>
               ))}
+              {porLista &&
+                !f.cerrado &&
+                falta.length === 0 &&
+                sinFirmar.map((t) =>
+                  agregando === `tec:${docComparable(t.documento)}` ? (
+                    <FormDatosFirma
+                      key={t.documento}
+                      pedida={p}
+                      yo={yo}
+                      personal={personal}
+                      fijo={t}
+                      onCancelar={() => setAgregando(null)}
+                      onListo={(datos) => setFirmando({ tipo: "cierre", pedida: p, datos })}
+                    />
+                  ) : (
+                    <button
+                      key={t.documento}
+                      type="button"
+                      onClick={() => setAgregando(`tec:${docComparable(t.documento)}`)}
+                      className="mt-2 flex min-h-11 w-full items-center justify-center rounded-lg border-2 border-slate-400 text-sm font-semibold"
+                    >
+                      ✍ Firma {t.nombre}
+                    </button>
+                  ),
+                )}
               {agregando === p.rol + p.etiqueta ? (
                 <FormDatosFirma
                   pedida={p}
@@ -475,19 +533,22 @@ function FormDatosFirma({
   pedida,
   yo,
   personal,
+  fijo,
   onCancelar,
   onListo,
 }: {
   pedida: FirmaPedida;
   yo: Yo;
   personal: string[];
+  /** Técnico de la lista: nombre y cédula ya anotados (no se cambian al firmar). */
+  fijo?: TecnicoEnObra;
   onCancelar: () => void;
   onListo: (d: DatosFirma) => void;
 }) {
   const esCliente = pedida.rol === "sst_cliente";
   const [d, setD] = useState<DatosFirma>({
-    nombre: pedida.rol === "responsable_sst" ? yo.nombre : "",
-    documento: pedida.rol === "responsable_sst" ? yo.cedula : "",
+    nombre: fijo?.nombre ?? (pedida.rol === "responsable_sst" ? yo.nombre : ""),
+    documento: fijo?.documento ?? (pedida.rol === "responsable_sst" ? yo.cedula : ""),
     cargo: "",
     empresa: esCliente ? "" : "Servielectro SAS",
   });
@@ -497,7 +558,7 @@ function FormDatosFirma({
     <div className="mt-2 space-y-2 rounded-md bg-slate-50 p-2">
       <label className="block text-sm">
         Nombre completo
-        <input value={d.nombre} onChange={(e) => setD({ ...d, nombre: e.target.value })} list={pedida.rol === "tecnico" ? lista : undefined} className={CAMPO} />
+        <input disabled={!!fijo} value={d.nombre} onChange={(e) => setD({ ...d, nombre: e.target.value })} list={pedida.rol === "tecnico" ? lista : undefined} className={CAMPO} />
         {pedida.rol === "tecnico" && (
           <datalist id={lista}>
             {personal.map((n) => (
@@ -508,8 +569,9 @@ function FormDatosFirma({
       </label>
       <label className="block text-sm">
         Cédula
-        <input value={d.documento} onChange={(e) => setD({ ...d, documento: e.target.value })} inputMode="numeric" className={CAMPO} />
+        <input disabled={!!fijo} value={d.documento} onChange={(e) => setD({ ...d, documento: e.target.value })} inputMode="numeric" className={CAMPO} />
       </label>
+      {fijo && <p className="text-xs text-slate-500">Nombre y cédula vienen de la lista de técnicos en obra.</p>}
       <label className="block text-sm">
         Cargo
         <input value={d.cargo} onChange={(e) => setD({ ...d, cargo: e.target.value })} className={CAMPO} />
@@ -528,5 +590,97 @@ function FormDatosFirma({
       </div>
       {falta && <p className="text-xs text-slate-500">{falta}</p>}
     </div>
+  );
+}
+
+/** Quién estuvo en la obra ese día: se anota antes de la primera firma y firman todos. */
+function ListaTecnicos({
+  lista,
+  personal,
+  bloqueado,
+  firmados,
+  onCambio,
+}: {
+  lista: TecnicoEnObra[];
+  personal: string[];
+  bloqueado: boolean;
+  firmados: TecnicoEnObra[];
+  onCambio: (l: TecnicoEnObra[]) => void;
+}) {
+  const [nombre, setNombre] = useState("");
+  const [doc, setDoc] = useState("");
+  const falta = !nombre.trim()
+    ? "Para agregar, escribe el nombre."
+    : !docComparable(doc)
+      ? "Para agregar, escribe la cédula."
+      : lista.some((t) => docComparable(t.documento) === docComparable(doc))
+        ? "Esa cédula ya está en la lista."
+        : null;
+  return (
+    <section className="space-y-2 rounded-lg border border-slate-200 bg-white p-3">
+      <h2 className="text-base font-bold">Técnicos que estuvieron en la obra</h2>
+      <p className="text-xs text-slate-500">
+        Firman todos los de esta lista: el formato no se cierra hasta que firme cada uno. Se anota antes de la primera firma; después queda sellada.
+      </p>
+      {lista.length === 0 ? (
+        <p className="text-sm text-slate-500">Nadie anotado todavía.</p>
+      ) : (
+        <ul className="divide-y divide-slate-100 text-sm">
+          {lista.map((t) => {
+            const firmo = firmados.includes(t);
+            return (
+              <li key={t.documento} className="flex min-h-11 items-center gap-2 py-1">
+                <span className="flex-1">
+                  {t.nombre} · CC {t.documento}
+                  <span className={`block text-xs ${firmo ? "text-green-700" : "text-slate-500"}`}>{firmo ? "✓ Firmó" : "Falta su firma"}</span>
+                </span>
+                {!bloqueado && (
+                  <button
+                    type="button"
+                    aria-label={`Quitar a ${t.nombre}`}
+                    onClick={() => onCambio(lista.filter((x) => x !== t))}
+                    className="min-h-11 min-w-11 rounded-lg border border-slate-300 text-sm"
+                  >
+                    ✕
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {bloqueado ? (
+        <p className="text-xs text-slate-500">La lista quedó sellada con la primera firma.</p>
+      ) : (
+        <div className="space-y-2 rounded-md bg-slate-50 p-2">
+          <label className="block text-sm">
+            Nombre completo
+            <input value={nombre} onChange={(e) => setNombre(e.target.value)} list="personal-obra" className={CAMPO} />
+            <datalist id="personal-obra">
+              {personal.map((n) => (
+                <option key={n} value={n} />
+              ))}
+            </datalist>
+          </label>
+          <label className="block text-sm">
+            Cédula
+            <input value={doc} onChange={(e) => setDoc(e.target.value)} inputMode="numeric" className={CAMPO} />
+          </label>
+          <button
+            type="button"
+            disabled={!!falta}
+            onClick={() => {
+              onCambio([...lista, { nombre: nombre.trim(), documento: doc.trim() }]);
+              setNombre("");
+              setDoc("");
+            }}
+            className="min-h-11 w-full rounded-lg bg-slate-900 text-sm font-semibold text-white disabled:opacity-40"
+          >
+            Agregar a la lista
+          </button>
+          {falta && <p className="text-xs text-slate-500">{falta}</p>}
+        </div>
+      )}
+    </section>
   );
 }

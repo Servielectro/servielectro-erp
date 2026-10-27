@@ -1,6 +1,6 @@
 import { FormularioSst } from "@/components/sst/FormularioSst";
 import { fechaHora, type FormatoCompleto } from "@/lib/sst/formato-servidor";
-import { ESTADO_FORMATO } from "@/lib/sst/plantillas";
+import { ESTADO_FORMATO, tecnicosSinFirmar } from "@/lib/sst/plantillas";
 
 const ROL: Record<string, string> = { tecnico: "Técnico", responsable_sst: "Responsable en sitio", sst_cliente: "SST del cliente", otro: "Otro" };
 
@@ -30,6 +30,9 @@ export function VistaFormato({ f, imprimir }: { f: FormatoCompleto; imprimir?: b
 
       <section className={imprimir ? "break-inside-avoid" : "rounded-lg border border-slate-200 bg-white p-3"}>
         <h2 className="mb-2 text-base font-bold">Firmas</h2>
+        {f.tecnicos_en_obra && (
+          <TecnicosEnObra lista={f.tecnicos_en_obra} faltan={tecnicosSinFirmar(f.tecnicos_en_obra, f.firmas)} />
+        )}
         {f.firmas.length === 0 ? (
           <p className="text-sm text-slate-500">Sin firmas todavía.</p>
         ) : (
@@ -90,6 +93,22 @@ function Sello({ f }: { f: FormatoCompleto }) {
     <div className="rounded-lg border border-red-400 bg-red-50 px-3 py-2 text-sm text-red-900">
       <p className="font-semibold">✗ El contenido NO coincide con lo que se firmó</p>
       <p>Alguien lo cambió por fuera del ERP después del sello. Este documento no sirve como evidencia tal como está: avisa a la gestión SST.</p>
+    </div>
+  );
+}
+
+function TecnicosEnObra({ lista, faltan }: { lista: { nombre: string; documento: string }[]; faltan: { documento: string }[] }) {
+  return (
+    <div className="mb-3 text-sm">
+      <p className="font-semibold">Técnicos que estuvieron en la obra ({lista.length}) — firman todos</p>
+      <ul className="mt-1 space-y-0.5">
+        {lista.map((t) => (
+          <li key={t.documento}>
+            {t.nombre} · CC {t.documento} ·{" "}
+            {faltan.some((x) => x.documento === t.documento) ? <span className="text-amber-800">falta su firma</span> : <span className="text-green-700">firmó</span>}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

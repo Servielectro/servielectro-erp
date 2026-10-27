@@ -2,7 +2,7 @@
 // misma cola de subida: src/lib/tecnico). Se borra la imagen solo cuando el servidor la confirmó.
 
 import type { Ubicacion } from "@/lib/tecnico/db";
-import type { Campo, FirmaPedida, RolFirma } from "./plantillas";
+import type { Campo, FirmaPedida, RolFirma, TecnicoEnObra } from "./plantillas";
 
 /** La plantilla tal como se usó (versión exacta), para llenar sin señal. */
 export interface PlantillaLocal {
@@ -23,6 +23,8 @@ export interface SstFormatoLocal {
   lugar: string;
   fecha: string;
   respuestas: Record<string, unknown>;
+  /** Los técnicos que estuvieron en la obra (firman todos). Falta en borradores de antes de la 83. */
+  tecnicosEnObra?: TecnicoEnObra[];
   creadoEn: string;
   actualizadoEn: string;
   /** Cerrado en el celular (con todas las firmas): sube como "firmado". */

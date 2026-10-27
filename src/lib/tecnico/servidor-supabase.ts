@@ -129,6 +129,8 @@ export function servidorSupabase(supabase: SupabaseClient): Servidor {
           lugar: f.lugar || null,
           fecha: f.fecha,
           respuestas: f.respuestas,
+          // Sin lista (borrador de antes de la 83) no se manda: la base deja lo que tenga.
+          ...(f.tecnicosEnObra ? { tecnicos_en_obra: f.tecnicosEnObra.length ? f.tecnicosEnObra : null } : {}),
         },
         { onConflict: "id" },
       );

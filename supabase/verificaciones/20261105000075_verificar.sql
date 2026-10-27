@@ -134,6 +134,12 @@ select '2d llena las respuestas y sube la foto', 'aceptado (1 filas) / aceptado 
     where id = '00000000-0000-0000-0000-0000000075f1'$q$) || ' / ' ||
   pg_temp.intentar($q$insert into sst_formato_archivos (formato_id, campo_id, path, sha256) values
     ('00000000-0000-0000-0000-0000000075f1', 'foto_area', 'formatos/00000000-0000-0000-0000-0000000075f1/foto_area-1.jpg', repeat('b', 64))$q$);
+-- Desde la migración 83, antes de firmar se anotan los técnicos que estuvieron en la obra.
+do $g$ begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'sst_formatos' and column_name = 'tecnicos_en_obra') then
+    execute $x$update sst_formatos set tecnicos_en_obra = '[{"nombre": "Camilo García", "documento": "1000"}]' where id = '00000000-0000-0000-0000-0000000075f1'$x$;
+  end if;
+end $g$;
 insert into resultado (prueba, esperado, resultado)
 select '2e firma el técnico: la base pone quién, cuándo y el hash del contenido', 'S / sí / sí',
   pg_temp.valor($q$with n as (insert into sst_formato_firmas (formato_id, rol, nombre, documento, imagen_path, imagen_sha256, firmada_en_dispositivo, dispositivo, gps_estado, lat, lng, registrada_por, hash_contenido)
@@ -179,6 +185,12 @@ select '2l2 otro formato, listo para firmar', 'aceptado (1 filas) / aceptado (1 
   insert into sst_formatos (id, plantilla_id, respuestas) values ('00000000-0000-0000-0000-0000000075f2', '00000000-0000-0000-0000-0000000075e1', '{"trabajo": "x"}')$q$) || ' / ' || pg_temp.intentar($q$
   insert into sst_formato_archivos (formato_id, campo_id, path, sha256) values
   ('00000000-0000-0000-0000-0000000075f2', 'foto_area', 'formatos/00000000-0000-0000-0000-0000000075f2/a.jpg', repeat('1', 64))$q$);
+-- Desde la migración 83, antes de firmar se anotan los técnicos que estuvieron en la obra.
+do $g$ begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'sst_formatos' and column_name = 'tecnicos_en_obra') then
+    execute $x$update sst_formatos set tecnicos_en_obra = '[{"nombre": "X", "documento": "9"}]' where id = '00000000-0000-0000-0000-0000000075f2'$x$;
+  end if;
+end $g$;
 insert into resultado (prueba, esperado, resultado)
 select '2m firma con la hora del celular adelantada', 'contiene: está adelantada', pg_temp.intentar($q$
   insert into sst_formato_firmas (formato_id, rol, nombre, documento, imagen_path, imagen_sha256, firmada_en_dispositivo)
