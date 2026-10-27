@@ -4,6 +4,7 @@ import { getAccesoRrhh } from "@/lib/supabase/rrhh-acceso";
 import { FiltrosRrhh, MarcoRrhh } from "@/components/rrhh/FiltrosRrhh";
 import { COLUMNAS_ABONO, pesos, type Abono } from "@/lib/rrhh-registros";
 import { hoyColombia } from "@/lib/crm";
+import { COLUMNAS_CORRECCION, correccionesPorRegistro, type Correccion } from "@/lib/correcciones";
 import { AbonosRrhh } from "./AbonosRrhh";
 
 const FILTROS = [
@@ -40,6 +41,11 @@ export default async function AbonosRrhhPage({ searchParams }: { searchParams: P
   if (filtro === "desembolsado") q = q.eq("estado", "desembolsado");
   const { data, error } = await q;
   const abonos = (data ?? []) as Abono[];
+  // Migración 84: las correcciones de los desembolsados (el antes no se pierde).
+  const desembolsados = abonos.filter((a) => a.estado === "desembolsado").map((a) => a.id);
+  const { data: corr } = desembolsados.length
+    ? await supabase.from("correcciones").select(COLUMNAS_CORRECCION).eq("tabla", "abonos").in("registro_id", desembolsados)
+    : { data: [] };
   // Lo que se descuenta es lo APROBADO (migración 72); lo pendiente de decidir va aparte, por lo solicitado.
   const aprobado = abonos.filter((a) => a.estado === "aprobado" || a.estado === "desembolsado").reduce((s, a) => s + Number(a.monto_aprobado ?? a.monto), 0);
   const porDecidir = abonos.filter((a) => a.estado === "solicitado").reduce((s, a) => s + Number(a.monto), 0);
@@ -64,6 +70,7 @@ export default async function AbonosRrhhPage({ searchParams }: { searchParams: P
             yo={user.id}
             hoy={hoyColombia()}
             aprueba={acceso.apruebaAbonos}
+            correcciones={correccionesPorRegistro((corr ?? []) as Correccion[])}
           />
         </>
       )}

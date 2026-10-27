@@ -7,8 +7,10 @@ import { AbrirArchivo } from "@/components/rrhh/archivos";
 import { CAMPO, ETIQUETA, TARJETA } from "@/components/rrhh/PantallaPerfil";
 import { abonoRecortado, ESTADO_ABONO, REGLA_ABONO_FECHA, fechaCorta, leerMonto, motivoAbonoBloqueado, nombreQuincena, pesos, type Abono } from "@/lib/rrhh-registros";
 import { sumarDias } from "@/lib/tareas";
+import { CorreccionesRegistro } from "@/components/rrhh/CorreccionesRegistro";
+import type { Correccion } from "@/lib/correcciones";
 
-export function AbonosTecnico({ yo, hoy, abonos }: { yo: string; hoy: string; abonos: Abono[] }) {
+export function AbonosTecnico({ yo, hoy, abonos, correcciones }: { yo: string; hoy: string; abonos: Abono[]; correcciones: Record<string, Correccion[]> }) {
   const router = useRouter();
   const manana = sumarDias(hoy, 1);
   const [abierto, setAbierto] = useState(false);
@@ -159,6 +161,7 @@ export function AbonosTecnico({ yo, hoy, abonos }: { yo: string; hoy: string; ab
                     Transferido el {fechaCorta(a.fecha_desembolso)} · se descuenta en la {nombreQuincena(a.quincena_descuento)}
                   </p>
                   {a.pantallazo_path && <AbrirArchivo path={a.pantallazo_path}>📎 Ver comprobante</AbrirArchivo>}
+                  <CorreccionesRegistro lista={correcciones[a.id]} grande />
                 </div>
               )}
               {a.estado === "rechazado" && a.motivo_rechazo && (

@@ -6,6 +6,9 @@ import { createClient } from "@/lib/supabase/client";
 import { AbrirArchivo, ElegirArchivo, subirSoporte } from "@/components/rrhh/archivos";
 import { inicioQuincena } from "@/lib/supabase/rrhh-acceso";
 import { abonoRecortado, ESTADO_ABONO, fechaCorta, leerMonto, nombreQuincena, pesos, type Abono } from "@/lib/rrhh-registros";
+import { CAMPOS_ABONO, type CampoAbono, type Correccion } from "@/lib/correcciones";
+import { CorreccionesRegistro } from "@/components/rrhh/CorreccionesRegistro";
+import { corregirAbono } from "./corregir-actions";
 
 export function AbonosRrhh({
   abonos,
@@ -13,24 +16,40 @@ export function AbonosRrhh({
   yo,
   hoy,
   aprueba,
+  correcciones,
 }: {
   abonos: Abono[];
   personas: Record<string, string>;
   yo: string;
   hoy: string;
   aprueba: boolean;
+  correcciones: Record<string, Correccion[]>;
 }) {
   if (abonos.length === 0) return <p className="text-sm text-slate-500">No hay abonos en este filtro.</p>;
   return (
     <ul className="space-y-2 lg:grid lg:grid-cols-2 lg:items-start lg:gap-2 lg:space-y-0">
       {abonos.map((a) => (
-        <FilaAbono key={a.id} a={a} persona={personas[a.persona_id] ?? "—"} yo={yo} hoy={hoy} aprueba={aprueba} />
+        <FilaAbono key={a.id} a={a} persona={personas[a.persona_id] ?? "—"} yo={yo} hoy={hoy} aprueba={aprueba} correcciones={correcciones[a.id]} />
       ))}
     </ul>
   );
 }
 
-function FilaAbono({ a, persona, yo, hoy, aprueba }: { a: Abono; persona: string; yo: string; hoy: string; aprueba: boolean }) {
+function FilaAbono({
+  a,
+  persona,
+  yo,
+  hoy,
+  aprueba,
+  correcciones,
+}: {
+  a: Abono;
+  persona: string;
+  yo: string;
+  hoy: string;
+  aprueba: boolean;
+  correcciones: Correccion[] | undefined;
+}) {
   const router = useRouter();
   const [modo, setModo] = useState<"nada" | "rechazar" | "desembolsar">("nada");
   const [motivo, setMotivo] = useState("");
@@ -135,6 +154,9 @@ function FilaAbono({ a, persona, yo, hoy, aprueba }: { a: Abono; persona: string
             Transferido el {fechaCorta(a.fecha_desembolso)} · <span className="font-semibold">se descuenta en la {nombreQuincena(a.quincena_descuento)}</span>
           </p>
           {a.pantallazo_path && <AbrirArchivo path={a.pantallazo_path}>📎 Pantallazo de la transferencia</AbrirArchivo>}
+          <CorreccionesRegistro lista={correcciones} />
+          {aprueba && !propio && <CorregirAbono a={a} persona={persona} hoy={hoy} />}
+          {aprueba && propio && <p className="mt-1 text-slate-500">Es tu propio abono: si quedó mal, lo corrige otro aprobador.</p>}
         </div>
       )}
       {a.motivo_rechazo && <p className="mt-1 text-xs text-red-800">Rechazado: {a.motivo_rechazo}</p>}
@@ -218,5 +240,114 @@ function FilaAbono({ a, persona, yo, hoy, aprueba }: { a: Abono; persona: string
         </div>
       )}
     </li>
+  );
+}
+
+/**
+ * Corregir un abono ya desembolsado (migración 84): solo lo aprobado o la fecha, con motivo y
+ * contraseña. No es editar: el valor anterior queda a la vista y a la persona le llega un aviso.
+ */
+function CorregirAbono({ a, persona, hoy }: { a: Abono; persona: string; hoy: string }) {
+  const router = useRouter();
+  const [abierto, setAbierto] = useState(false);
+  const [campo, setCampo] = useState<CampoAbono>("monto_aprobado");
+  const [monto, setMonto] = useState("");
+  const [fecha, setFecha] = useState(a.fecha_desembolso ?? hoy);
+  const [motivo, setMotivo] = useState("");
+  const [contrasena, setContrasena] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pendiente, empezar] = useTransition();
+
+  if (!abierto) {
+    return (
+      <button type="button" onClick={() => setAbierto(true)} className="mt-2 min-h-9 rounded-md border border-slate-300 px-3 text-xs font-semibold text-slate-700">
+        ✎ Corregir este abono…
+      </button>
+    );
+  }
+
+  const nuevoMonto = leerMonto(monto);
+  const falta =
+    campo === "monto_aprobado"
+      ? nuevoMonto === null
+        ? "Escribe lo que realmente se aprobó y se giró."
+        : nuevoMonto > Number(a.monto)
+          ? `No puede ser más de lo solicitado (${pesos(Number(a.monto))}).`
+          : nuevoMonto === Number(a.monto_aprobado)
+            ? "Ese ya es el valor aprobado: no hay nada que corregir."
+            : null
+      : !fecha
+        ? "Escribe la fecha real del desembolso."
+        : fecha > hoy
+          ? "La fecha no puede ser futura."
+          : fecha < a.fecha_solicitud
+            ? "La fecha no puede ser antes de la solicitud."
+            : fecha === a.fecha_desembolso
+              ? "Esa ya es la fecha del desembolso: no hay nada que corregir."
+              : null;
+  const faltaTodo = falta ?? (!motivo.trim() ? "Escribe el motivo (lo ven RRHH y la persona)." : !contrasena ? "Confirma con tu contraseña." : null);
+
+  function corregir() {
+    empezar(async () => {
+      setError(null);
+      const r = await corregirAbono(a.id, campo, campo === "monto_aprobado" ? String(nuevoMonto) : fecha, motivo, contrasena);
+      setContrasena("");
+      if (!r.ok) return setError(r.error);
+      setAbierto(false);
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="mt-2 space-y-2 rounded-md border border-slate-300 bg-slate-50 p-2 text-xs">
+      <p className="font-semibold text-slate-900">Corregir el abono de {persona}</p>
+      <p className="text-slate-600">
+        No se edita: se corrige. El valor anterior queda a la vista con el motivo y tu nombre, y a {persona} le llega un aviso. Lo solicitado, el pantallazo y el
+        estado no se corrigen.
+      </p>
+      <fieldset className="space-y-1">
+        <legend className="text-slate-600">Qué está mal</legend>
+        {(Object.keys(CAMPOS_ABONO) as CampoAbono[]).map((c) => (
+          <label key={c} className="flex min-h-9 items-center gap-2">
+            <input type="radio" name={`campo-${a.id}`} checked={campo === c} onChange={() => setCampo(c)} />
+            {CAMPOS_ABONO[c]}
+          </label>
+        ))}
+      </fieldset>
+      {campo === "monto_aprobado" ? (
+        <label className="block text-slate-600">
+          Lo que realmente se aprobó (hoy dice {pesos(Number(a.monto_aprobado))}; pidió {pesos(Number(a.monto))})
+          <input value={monto} onChange={(e) => setMonto(e.target.value)} inputMode="numeric" className="mt-0.5 block w-full rounded-md border border-slate-300 px-2 py-1 text-sm" />
+        </label>
+      ) : (
+        <label className="block text-slate-600">
+          La fecha real del desembolso (hoy dice {fechaCorta(a.fecha_desembolso)})
+          <input type="date" value={fecha} max={hoy} min={a.fecha_solicitud} onChange={(e) => setFecha(e.target.value)} className="mt-0.5 block w-full rounded-md border border-slate-300 px-2 py-1 text-sm" />
+          {fecha && inicioQuincena(fecha) !== a.quincena_descuento && (
+            <span className="mt-0.5 block font-semibold text-amber-800">
+              Cambia la quincena del descuento: de la {nombreQuincena(a.quincena_descuento)} a la {nombreQuincena(inicioQuincena(fecha))}.
+            </span>
+          )}
+        </label>
+      )}
+      <label className="block text-slate-600">
+        Motivo (obligatorio)
+        <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} className="mt-0.5 block w-full rounded-md border border-slate-300 px-2 py-1 text-sm" />
+      </label>
+      <label className="block text-slate-600">
+        Tu contraseña (se pide cada vez)
+        <input type="password" autoComplete="current-password" value={contrasena} onChange={(e) => setContrasena(e.target.value)} className="mt-0.5 block w-full rounded-md border border-slate-300 px-2 py-1 text-sm" />
+      </label>
+      <div className="flex gap-2">
+        <button type="button" onClick={() => setAbierto(false)} className="min-h-9 flex-1 rounded-md border border-slate-300 font-semibold">
+          Cancelar
+        </button>
+        <button type="button" disabled={pendiente || faltaTodo !== null} onClick={corregir} className="min-h-9 flex-1 rounded-md bg-slate-900 font-semibold text-white disabled:opacity-40">
+          {pendiente ? "Corrigiendo…" : "Corregir"}
+        </button>
+      </div>
+      {faltaTodo && !pendiente && <p className="text-slate-500">{faltaTodo}</p>}
+      {error && <p className="rounded-md bg-red-50 px-2 py-1 text-red-800">{error}</p>}
+    </div>
   );
 }
