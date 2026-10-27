@@ -149,6 +149,7 @@ export function FormTarea({
   const porId = useMemo(() => new Map(tareas.map((t) => [t.id, t])), [tareas]);
   const nombreDe = (id: string) => porId.get(id)?.titulo ?? "una tarea que no puedes ver";
   const nombrePersona = useMemo(() => new Map(personas.map((p) => [p.id, p.nombre])), [personas]);
+  const [avisoGrupo, setAvisoGrupo] = useState<string | null>(null);
   const cambiar = <K extends keyof BorradorTarea>(k: K, v: BorradorTarea[K]) => setB((p) => ({ ...p, [k]: v }));
 
   function agregarSubtarea() {
@@ -382,6 +383,42 @@ export function FormTarea({
           {!planificacion && puedeAsignar && !soloMover && (
             <div>
               <span className={ETIQUETA}>Asignar a</span>
+              {/* Un grupo agrega a cada uno de sus miembros como asignado: cada técnico la ve como suya
+                  y marca su avance (una tarea "del grupo" sin responsable concreto no la hace nadie). */}
+              {grupos.some((g) => g.miembrosIds?.length) && (
+                <div className="mt-1">
+                  <p className="text-xs text-slate-500">Grupos: tocar uno agrega a todos sus miembros (después puedes quitar a alguien).</p>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {grupos
+                      .filter((g) => g.miembrosIds?.length)
+                      .map((g) => {
+                        const asignables = (g.miembrosIds ?? []).filter((id) => nombrePersona.has(id));
+                        const faltan = asignables.filter((id) => !b.asignados.includes(id));
+                        return (
+                          <button
+                            key={g.id}
+                            type="button"
+                            disabled={!faltan.length}
+                            onClick={() => {
+                              cambiar("asignados", [...b.asignados, ...faltan]);
+                              const fuera = (g.miembrosIds ?? []).length - asignables.length;
+                              setAvisoGrupo(
+                                fuera > 0
+                                  ? `Del grupo ${g.nombre} se agregaron ${faltan.length}; ${fuera} no pueden recibir tareas de obra (no tienen Técnico ni Operativo).`
+                                  : `Se agregaron los ${faltan.length} del grupo ${g.nombre}.`,
+                              );
+                            }}
+                            className="min-h-11 rounded-full border-2 border-dashed border-slate-500 px-3 text-sm disabled:opacity-50"
+                          >
+                            👥 {g.nombre} ({asignables.length}){!faltan.length && asignables.length ? " · ya están" : ""}
+                          </button>
+                        );
+                      })}
+                  </div>
+                  {avisoGrupo && <p className="mt-1 text-xs text-slate-600">{avisoGrupo}</p>}
+                </div>
+              )}
+              <p className="mt-2 text-xs text-slate-500">Personas:</p>
               <div className="mt-1 flex flex-wrap gap-2">
                 {personas.map((p) => {
                   const activo = b.asignados.includes(p.id);
@@ -399,6 +436,11 @@ export function FormTarea({
                   );
                 })}
               </div>
+              <p className={`mt-2 rounded-md px-3 py-2 text-sm ${b.asignados.length ? "bg-slate-100 text-slate-800" : "bg-amber-50 text-amber-900"}`}>
+                {b.asignados.length === 0
+                  ? "Sin asignar: nadie la va a ver como suya."
+                  : `Se asigna a ${b.asignados.length} ${b.asignados.length === 1 ? "persona" : "personas"}: ${b.asignados.map((id) => nombrePersona.get(id) ?? "—").join(", ")}. A cada una le llega el aviso.`}
+              </p>
             </div>
           )}
 

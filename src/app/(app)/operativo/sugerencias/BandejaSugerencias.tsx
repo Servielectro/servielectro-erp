@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { diasEntre, ETIQUETA_ESTADO, fechaCorta, hoyBogota, type Obra, type Tarea } from "@/lib/tareas";
 import { borradorVacio } from "@/lib/tareas-guardar";
 import { FormTarea } from "@/components/tareas/FormTarea";
+import type { GrupoCompartir } from "@/lib/supabase/tareas";
 
 export interface SugerenciaBandeja {
   id: string;
@@ -57,6 +58,7 @@ export function BandejaSugerencias({
   tareasIniciales,
   obras,
   personas,
+  grupos = [],
 }: {
   sugerenciasIniciales: SugerenciaBandeja[];
   puedeComercial: boolean;
@@ -67,6 +69,8 @@ export function BandejaSugerencias({
   tareasIniciales: Tarea[];
   obras: Obra[];
   personas: { id: string; nombre: string }[];
+  /** Para asignar la tarea a todos los de un grupo (cada uno queda asignado). */
+  grupos?: GrupoCompartir[];
 }) {
   const supabase = useMemo(() => createClient(), []);
   const hoy = hoyBogota();
@@ -328,6 +332,7 @@ export function BandejaSugerencias({
           yo={yo}
           puedeAsignar={puedeOperativo}
           personas={personas}
+          grupos={grupos}
           obras={obras}
           tareas={tareas}
           onCerrar={() => setTareaDesde(null)}

@@ -91,6 +91,7 @@ export default async function SugerenciasPage() {
           tareasIniciales={datosTareas.tareas}
           obras={datosTareas.obras}
           personas={datosTareas.personas}
+          grupos={datosTareas.grupos}
         />
       )}
     </div>

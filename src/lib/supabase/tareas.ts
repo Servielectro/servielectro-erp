@@ -15,6 +15,11 @@ export interface GrupoCompartir {
   miembros: number | null;
   /** Miembros sin Planificación: no la van a ver. null si la 55 no está corrida. */
   sinPlanificacion: number | null;
+  /**
+   * Operativo: quiénes son, para asignar la tarea a cada uno (no al grupo). Solo los que la base
+   * deja ver a quien asigna (grupo_miembros: Configuración "responsable" o miembros del grupo).
+   */
+  miembrosIds?: string[];
 }
 
 export interface DatosTareas {
@@ -59,6 +64,21 @@ export async function cargarGrupos(supabase: Cliente): Promise<GrupoCompartir[]>
   return ((directo.data ?? []) as { id: string; nombre: string }[]).map((g) => ({ ...g, miembros: null, sinPlanificacion: null }));
 }
 
+/** Operativo: los grupos con sus miembros, para asignar una tarea a cada uno de ellos. */
+export async function cargarGruposAsignables(supabase: Cliente): Promise<GrupoCompartir[]> {
+  const [gruposRes, miembrosRes] = await Promise.all([
+    supabase.from("grupos").select("id, nombre").eq("archivado", false).order("nombre"),
+    supabase.from("grupo_miembros").select("grupo_id, perfil_id"),
+  ]);
+  const miembros = (miembrosRes.data ?? []) as { grupo_id: string; perfil_id: string }[];
+  return ((gruposRes.data ?? []) as { id: string; nombre: string }[])
+    .map((g) => {
+      const ids = miembros.filter((m) => m.grupo_id === g.id).map((m) => m.perfil_id);
+      return { id: g.id, nombre: g.nombre, miembros: ids.length, sinPlanificacion: null, miembrosIds: ids };
+    })
+    .filter((g) => g.miembrosIds.length > 0);
+}
+
 /**
  * Lo que necesitan el tablero y la agenda. Todo con la sesión del usuario: la RLS decide
  * qué tareas ve. Las obras: los proyectos salen de fn_proyectos_para_tareas() (solo id,
@@ -92,7 +112,7 @@ export async function cargarDatosTareas(
       : modo === "operativo"
         ? supabase.rpc("fn_personas_asignables")
         : supabase.rpc("fn_personas_planificacion"),
-    modo === "planificacion" && puedeAsignar ? cargarGrupos(supabase) : Promise.resolve([] as GrupoCompartir[]),
+    !puedeAsignar ? Promise.resolve([] as GrupoCompartir[]) : modo === "planificacion" ? cargarGrupos(supabase) : cargarGruposAsignables(supabase),
   ]);
 
   const obras: Obra[] = [

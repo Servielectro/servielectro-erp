@@ -44,6 +44,7 @@ export default async function TareasPage() {
           conResponsable={datos.conResponsable}
           obras={datos.obras}
           personas={datos.personas}
+          grupos={datos.grupos}
         />
       )}
     </>
