@@ -2,20 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCotizacionesListado } from "@/lib/supabase/cotizaciones";
 import { formatCOP } from "@/lib/pricing";
-
-const ESTADO_LABEL: Record<string, string> = {
-  BORRADOR: "Borrador",
-  ENVIADA: "Enviada",
-  APROBADA: "Aprobada",
-  RECHAZADA: "Rechazada",
-};
-
-const ESTADO_CLASE: Record<string, string> = {
-  BORRADOR: "bg-slate-100 text-slate-700",
-  ENVIADA: "bg-blue-100 text-blue-700",
-  APROBADA: "bg-green-100 text-green-700",
-  RECHAZADA: "bg-red-100 text-red-700",
-};
+import { avisos, ESTADO_COTIZACION, type AlertaCotizacion } from "@/lib/cotizaciones/seguimiento";
 
 export default async function CotizacionesListadoPage() {
   const supabase = await createClient();
@@ -27,6 +14,9 @@ export default async function CotizacionesListadoPage() {
   } catch (err) {
     error = err instanceof Error ? err.message : "Error desconocido";
   }
+  // Alertas del seguimiento (migración 99): validez vencida, paso vencido, sin paso. Sin la 99, nada.
+  const alertasRes = await supabase.from("v_cotizaciones_alertas").select("*");
+  const alertas = new Map(((alertasRes.error ? [] : alertasRes.data) as AlertaCotizacion[]).map((a) => [a.cotizacion_id, a]));
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
@@ -68,11 +58,17 @@ export default async function CotizacionesListadoPage() {
                 <p className="text-sm text-slate-600">{c.descripcion}</p>
               </div>
               <span
-                className={`shrink-0 rounded-full px-2 py-1 text-xs font-medium ${ESTADO_CLASE[c.estado] ?? "bg-slate-100 text-slate-700"}`}
+                className={`shrink-0 rounded-full px-2 py-1 text-xs font-medium ${ESTADO_COTIZACION[c.estado]?.clase ?? "bg-slate-100 text-slate-700"}`}
               >
-                {ESTADO_LABEL[c.estado] ?? c.estado}
+                {ESTADO_COTIZACION[c.estado]?.etiqueta ?? c.estado}
               </span>
             </div>
+            {avisos(alertas.get(c.id)).map((a) => (
+              <p key={a.texto} className={`mt-1 text-xs ${a.grave ? "font-semibold text-red-700" : "text-amber-800"}`}>
+                {a.grave ? "⚠ " : ""}
+                {a.texto}
+              </p>
+            ))}
             <div className="mt-2 flex items-center justify-between text-sm">
               <span className="text-slate-600">
                 {new Date(c.fechaEmision).toLocaleDateString("es-CO")} ·{" "}

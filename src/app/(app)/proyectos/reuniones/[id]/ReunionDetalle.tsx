@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { fechaHoraCo } from "@/lib/fecha-hora";
 import {
   ESTADO_REUNION,
-  PLANTILLA_ACTA_REUNION,
+  CODIGO_ACTA_REUNION,
   respuestasDesdeActa,
   type Acta,
   type Asistente,
@@ -403,10 +403,21 @@ function Firma({ r, acta, avisoNombre, trabaja }: { r: Reunion; acta: Acta; avis
           empezar(async () => {
             setError(null);
             const supabase = createClient();
+            // La versión publicada vigente de la plantilla (por código, no por id).
+            const { data: plantilla, error: e0 } = await supabase
+              .from("sst_plantillas")
+              .select("id")
+              .eq("codigo", CODIGO_ACTA_REUNION)
+              .eq("estado", "publicada")
+              .order("version", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (e0) return setError(e0.message);
+            if (!plantilla) return setError("No hay una plantilla \"Acta de reunión\" publicada: publícala en Actas → Plantillas.");
             const id = crypto.randomUUID();
             const { error: e1 } = await supabase.from("sst_formatos").insert({
               id,
-              plantilla_id: PLANTILLA_ACTA_REUNION,
+              plantilla_id: plantilla.id,
               proyecto_id: r.proyecto_id,
               fecha: r.fecha,
               lugar: r.lugar,

@@ -80,8 +80,12 @@ export interface Reunion {
 export const COLUMNAS_REUNION =
   "id, proyecto_id, titulo, lugar, fecha, aviso_grabacion, aviso_por, aviso_en, asistentes, audio_path, audio_mime, audio_bytes, duracion_s, estado, error, transcripcion, acta, acta_revisada, aprobada_por, aprobada_en, formato_id, motivo_anulacion, creada_en";
 
-/** Id de la plantilla "Acta de reunión" que siembra la migración 86. */
-export const PLANTILLA_ACTA_REUNION = "00000000-0000-4000-8000-0000000086a1";
+/**
+ * Código de la plantilla "Acta de reunión" (migración 86). Se busca por código y estado
+ * publicada, no por id: si Jhojan saca una versión nueva, la anterior se archiva y un id escrito
+ * aquí dejaría de servir.
+ */
+export const CODIGO_ACTA_REUNION = "PRY-ACTA-REUNION";
 
 const lista = (v: unknown): string[] => (Array.isArray(v) ? v.map((x) => String(x ?? "")).filter((x) => x.trim()) : []);
 const texto = (v: unknown): string => (typeof v === "string" ? v : "");
