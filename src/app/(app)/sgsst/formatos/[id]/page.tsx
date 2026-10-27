@@ -5,11 +5,18 @@ import { tienePermiso } from "@/lib/permisos";
 import { leerFormato } from "@/lib/sst/formato-servidor";
 import { VistaFormato } from "@/components/sst/VistaFormato";
 import { AccionesFormato } from "./AccionesFormato";
+import { DescartarBorrador } from "@/components/DescartarBorrador";
 
 export default async function FormatoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const [f, gestiona] = await Promise.all([leerFormato(supabase, id), tienePermiso("sgsst", "responsable")]);
+  const [f, gestiona, porQueNo] = await Promise.all([
+    leerFormato(supabase, id),
+    tienePermiso("sgsst", "responsable"),
+    // Migración 92: null = se puede descartar. Sin la 92, error → no se ofrece.
+    supabase.rpc("fn_formato_por_que_no_descartar", { p_formato_id: id }),
+  ]);
+  const descartable = !porQueNo.error && porQueNo.data === null;
   if (!f) notFound();
   if (f.ambito === "proyectos") redirect(`/proyectos/actas/${id}`);
   return (
@@ -23,6 +30,7 @@ export default async function FormatoPage({ params }: { params: Promise<{ id: st
         </Link>
       </div>
       <VistaFormato f={f} />
+      {descartable && <DescartarBorrador funcion="fn_descartar_formato" id={id} que="el formato" volverA="/sgsst/formatos" />}
       <AccionesFormato id={id} estado={f.estado} gestiona={gestiona} />
     </div>
   );

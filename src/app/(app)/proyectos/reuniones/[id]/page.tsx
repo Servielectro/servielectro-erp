@@ -4,17 +4,21 @@ import { createClient } from "@/lib/supabase/server";
 import { tienePermiso } from "@/lib/permisos";
 import { COLUMNAS_REUNION, type Reunion } from "@/lib/reuniones/acta";
 import { ReunionDetalle } from "./ReunionDetalle";
+import { DescartarBorrador } from "@/components/DescartarBorrador";
 
 export default async function ReunionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const [{ data }, trabaja, gestiona, asigna] = await Promise.all([
+  const [{ data }, trabaja, gestiona, asigna, porQueNo] = await Promise.all([
     supabase.from("reuniones").select(COLUMNAS_REUNION).eq("id", id).maybeSingle(),
     tienePermiso("proyectos", "trabajar"),
     tienePermiso("proyectos", "responsable"),
     tienePermiso("operativo", "trabajar"),
+    // Migración 92: null = se puede descartar. Sin la 92, error → no se ofrece.
+    supabase.rpc("fn_reunion_por_que_no_descartar", { p_reunion_id: id }),
   ]);
   if (!data) notFound();
+  const descartable = !porQueNo.error && porQueNo.data === null;
   const r = data as Reunion;
   const [obraRes, perfilesRes, tareasRes, personasRes, audioRes] = await Promise.all([
     supabase.from("proyectos").select("codigo, nombre").eq("id", r.proyecto_id).maybeSingle(),
@@ -44,6 +48,9 @@ export default async function ReunionPage({ params }: { params: Promise<{ id: st
         personas={(personasRes.data ?? []) as { id: string; nombre: string }[]}
         puedeAsignar={asigna}
       />
+      {descartable && (
+        <DescartarBorrador funcion="fn_descartar_reunion" id={r.id} que="la reunión" volverA={`/proyectos/reuniones?proyecto=${r.proyecto_id}`} />
+      )}
     </div>
   );
 }
