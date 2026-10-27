@@ -34,7 +34,7 @@ export function RutCliente({ clienteId, ruts, sube }: { clienteId: string; ruts:
       const supabase = createClient();
       const yo = (await supabase.auth.getUser()).data.user?.id ?? null;
       const nombre = archivo.name.replace(/[^\w.\-]+/g, "_");
-      // La misma carpeta que usa la cotización (subirYLeerRut): clientes/{id}/rut/.
+      // La misma carpeta que usa la lectura del RUT (src/lib/rut): clientes/{id}/rut/.
       const path = `clientes/${clienteId}/rut/${Date.now()}-${nombre}`;
       const { error: eSubida } = await supabase.storage.from(BUCKET).upload(path, archivo, { contentType: mime, upsert: false });
       if (eSubida) return setError(`No se pudo subir: ${eSubida.message}`);

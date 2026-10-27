@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { crearCliente } from "@/app/(app)/comercial/clientes-actions";
-import type {
-  CamposConfirmadosRut,
-  RutLeidoSinCliente,
-} from "@/app/(app)/comercial/cotizaciones/documentos-actions";
-import { RutUploader } from "@/components/cotizacion/RutUploader";
+import { crearCliente, type RutParaCliente } from "@/app/(app)/comercial/clientes-actions";
 import type { ClienteResumen } from "@/lib/supabase/clientes";
+import { LectorRut } from "@/components/rut/LectorRut";
+import { SelectorMunicipio } from "@/components/rut/SelectorMunicipio";
+import { useCatalogoResponsabilidades } from "@/components/rut/Responsabilidades";
+import { cargarMunicipios, describirResponsabilidad } from "@/lib/rut/catalogos";
+import { armarPropuesta, type PropuestaRut } from "@/lib/rut/propuesta";
+import type { RutLeido } from "@/lib/rut/useLecturaRut";
 
 export interface UbicacionCliente {
   latitud: number;
@@ -42,8 +43,39 @@ export function NuevoClienteModal({
   // Responsable de IVA: lo dice el RUT de ESTE cliente (casilla 53, código 48). Sin RUT,
   // se marca a mano; nunca se deduce por el tipo de cliente.
   const [responsableIva, setResponsableIva] = useState<"" | "si" | "no">("");
-  const [rut, setRut] = useState<{ campos: CamposConfirmadosRut; archivo: RutLeidoSinCliente } | null>(null);
-  const [leyendoRut, setLeyendoRut] = useState(false);
+  // Lo leído del RUT (el mismo lector de Administrativo → Clientes): propuesta que se revisa aquí.
+  const [rut, setRut] = useState<{ archivo: RutParaCliente; propuesta: PropuestaRut; proveedor: string } | null>(null);
+  const [avisoRut, setAvisoRut] = useState<string | null>(null);
+  const [lugar, setLugar] = useState({ municipio: "", departamento: "", municipio_dane: "" });
+  const [declarante, setDeclarante] = useState<"" | "si" | "no">("");
+  const { catalogo } = useCatalogoResponsabilidades();
+
+  async function aplicarRut(r: RutLeido) {
+    setAvisoRut(null);
+    if (!r.resultado.extraccion.es_documento_rut) {
+      setAvisoRut(`Ese archivo no parece un RUT${r.resultado.extraccion.tipo_documento_detectado ? ` (parece: ${r.resultado.extraccion.tipo_documento_detectado})` : ""}. No se cambió nada.`);
+      return;
+    }
+    let municipios: Awaited<ReturnType<typeof cargarMunicipios>> = [];
+    try {
+      municipios = await cargarMunicipios();
+    } catch {
+      // el municipio queda escrito y el código se elige a mano
+    }
+    const p = armarPropuesta(r.resultado, municipios, catalogo);
+    if (p.nombre) setNombre(p.nombre);
+    if (p.nit) setNit(p.dv ? `${p.nit}-${p.dv}` : p.nit);
+    if (p.direccion) setDireccion(p.direccion);
+    if (p.email) setEmail(p.email);
+    if (p.telefono) setTelefono(p.telefono);
+    if (p.contacto) setContacto(p.contacto);
+    if (p.municipio || p.municipio_dane) setLugar({ municipio: p.municipio, departamento: p.departamento, municipio_dane: p.municipio_dane ?? "" });
+    setRut({
+      archivo: { storagePath: r.storagePath, nombreArchivo: r.nombreArchivo, extraccion: r.resultado.extraccion, costoEstimadoUsd: r.resultado.costoEstimadoUsd },
+      propuesta: p,
+      proveedor: r.proveedor,
+    });
+  }
   const [ubicacion, setUbicacion] = useState<UbicacionCliente | null>(null);
   const [tomandoUbicacion, setTomandoUbicacion] = useState(false);
   const [avisoUbicacion, setAvisoUbicacion] = useState<string | null>(null);
@@ -95,7 +127,17 @@ export function NuevoClienteModal({
       email,
       contacto,
       telefono,
-      rut,
+      rut: rut?.archivo ?? null,
+      fiscales: {
+        tipoDocumento: rut ? "31" : null,
+        tipoPersona: rut?.propuesta.tipo_persona ?? null,
+        dv: rut?.propuesta.dv || null,
+        municipio: lugar.municipio || null,
+        departamento: lugar.departamento || null,
+        municipioDane: lugar.municipio_dane || null,
+        responsabilidadesRut: rut?.propuesta.responsabilidades_rut ?? [],
+        declaranteRenta: declarante === "" ? null : declarante === "si",
+      },
       ubicacion,
       responsableIva: responsableIva === "" ? null : responsableIva === "si",
     });
@@ -105,26 +147,6 @@ export function NuevoClienteModal({
       return;
     }
     onCreado(res.cliente, res.yaExistia);
-  }
-
-  if (leyendoRut) {
-    return (
-      <RutUploader
-        clienteNombre={nombre}
-        onCerrar={() => setLeyendoRut(false)}
-        onLeidoClienteNuevo={(campos, archivo) => {
-          if (campos.razonSocial) setNombre(campos.razonSocial);
-          setNit(campos.nit ? (campos.dv ? `${campos.nit}-${campos.dv}` : campos.nit) : "");
-          if (campos.direccion) setDireccion(campos.direccion);
-          if (campos.correo) setEmail(campos.correo);
-          if (campos.telefono) setTelefono(campos.telefono);
-          if (campos.representanteLegal) setContacto(campos.representanteLegal);
-          setResponsableIva(campos.responsableIva === null ? "" : campos.responsableIva ? "si" : "no");
-          setRut({ campos, archivo });
-          setLeyendoRut(false);
-        }}
-      />
-    );
   }
 
   const etiqueta = "block text-xs font-medium text-slate-700";
@@ -181,30 +203,62 @@ export function NuevoClienteModal({
             className={campo}
           >
             <option value="">No se sabe</option>
-            <option value="si">Sí (código 48 en el RUT)</option>
+            <option value="si">Sí</option>
             <option value="no">No</option>
           </select>
-          {rut && (
-            <span className="mt-1 block text-xs font-normal text-slate-500">
-              Leído del RUT
-              {rut.campos.responsabilidades.length > 0 &&
-                ` — responsabilidades (casilla 53): ${rut.campos.responsabilidades.join(", ")}`}
+          {rut?.propuesta.responsable_iva && responsableIva !== (rut.propuesta.responsable_iva.valor ? "si" : "no") && (
+            <span className="mt-1 block rounded-md bg-sky-50 px-2 py-1 text-xs font-normal text-sky-950">
+              Sugerencia: <b>{rut.propuesta.responsable_iva.valor ? "Sí" : "No"}</b>, {rut.propuesta.responsable_iva.porque}.{" "}
+              <button type="button" onClick={() => setResponsableIva(rut.propuesta.responsable_iva!.valor ? "si" : "no")} className="min-h-9 font-semibold underline">
+                Usar la sugerencia
+              </button>
             </span>
           )}
         </label>
+        <label className={`${etiqueta} mt-2.5 md:mt-3`}>
+          ¿Declarante de renta?
+          <select value={declarante} onChange={(e) => setDeclarante(e.target.value as "" | "si" | "no")} className={campo}>
+            <option value="">No se sabe</option>
+            <option value="si">Sí</option>
+            <option value="no">No</option>
+          </select>
+          {rut?.propuesta.declarante_renta && declarante !== (rut.propuesta.declarante_renta.valor ? "si" : "no") && (
+            <span className="mt-1 block rounded-md bg-sky-50 px-2 py-1 text-xs font-normal text-sky-950">
+              Sugerencia: <b>{rut.propuesta.declarante_renta.valor ? "Sí" : "No"}</b>, {rut.propuesta.declarante_renta.porque}.{" "}
+              <button type="button" onClick={() => setDeclarante(rut.propuesta.declarante_renta!.valor ? "si" : "no")} className="min-h-9 font-semibold underline">
+                Usar la sugerencia
+              </button>
+            </span>
+          )}
+        </label>
+        <div className="mt-2.5 md:mt-3">
+          <SelectorMunicipio valor={lugar} onCambio={setLugar} />
+        </div>
+        {rut && rut.propuesta.responsabilidades_rut.length > 0 && (
+          <div className="mt-2.5 rounded-md bg-slate-50 p-2 text-xs text-slate-700">
+            <p className="font-semibold">Responsabilidades del RUT (se guardan todas):</p>
+            <ul className="mt-1 list-disc pl-4">
+              {rut.propuesta.responsabilidades_rut.map((c) => (
+                <li key={c}>{describirResponsabilidad(c, catalogo)}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {/* ---- Atajos opcionales: RUT y ubicación ---- */}
         <div className="mt-4 space-y-2 rounded-lg bg-slate-50 p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Opcional</p>
 
-          <button
-            type="button"
-            onClick={() => setLeyendoRut(true)}
-            className="w-full rounded-md border border-dashed border-slate-400 bg-white px-3 py-2 text-left text-xs font-medium text-slate-700"
-          >
-            📄 {rut ? "Volver a leer el RUT" : "¿Tienes el RUT? Súbelo y llena los campos solo"}
-          </button>
-          {rut && <p className="text-xs text-green-700">✓ Datos leídos del RUT. Revísalos arriba antes de guardar.</p>}
+          <LectorRut texto={rut ? "📄 Volver a leer el RUT" : "📄 ¿Tienes el RUT? Súbelo y llena los campos solo"} onLeido={(r) => void aplicarRut(r)} />
+          {rut && (
+            <div className="space-y-0.5 text-xs">
+              <p className="text-green-700">✓ Leído con {rut.proveedor}. Es una propuesta: revísala arriba antes de guardar.</p>
+              {rut.propuesta.revisar.length > 0 && <p className="text-amber-800">Revisa a mano: {rut.propuesta.revisar.join(", ")}.</p>}
+              {rut.propuesta.nit_coincide === false && <p className="font-semibold text-red-800">El DV leído no corresponde al NIT: revísalos en el RUT.</p>}
+              {rut.propuesta.dane_aviso && <p className="text-amber-800">{rut.propuesta.dane_aviso}</p>}
+            </div>
+          )}
+          {avisoRut && <p className="text-xs text-amber-800">{avisoRut}</p>}
 
           <button
             type="button"

@@ -10,7 +10,6 @@ import {
   leerCelda,
   NOMBRE_CAMPO,
   nitBase,
-  nombreResponsabilidad,
   sugerirCampo,
   TIPO_DOCUMENTO_DIAN,
   TIPO_PERSONA,
@@ -18,6 +17,7 @@ import {
   type ClienteFicha,
   type ValorImportado,
 } from "@/lib/clientes-dian";
+import { cargarMunicipios, resolverDane, type Municipio } from "@/lib/rut/catalogos";
 
 type Celda = string | number | boolean | null;
 interface Hoja {
@@ -38,6 +38,8 @@ interface FilaPrevia {
   nit: string | null;
   tipo: Tipo;
   errores: string[];
+  /** El código DANE no venía en el Excel: se resolvió por el nombre del municipio (DIVIPOLA). */
+  danePorNombre: boolean;
   cambios: Cambio[];
   valores: Partial<Record<CampoImportable, ValorImportado>>;
   existente: ClienteFicha | null;
@@ -46,7 +48,7 @@ interface FilaPrevia {
 const mostrar = (campo: CampoImportable, v: unknown): string => {
   if (v === null || v === undefined || v === "") return "(vacío)";
   if (typeof v === "boolean") return v ? "Sí" : "No";
-  if (Array.isArray(v)) return v.length ? v.map(nombreResponsabilidad).join(", ") : "(vacío)";
+  if (Array.isArray(v)) return v.length ? v.join(", ") : "(vacío)";
   if (campo === "tipo_documento") return `${v} — ${TIPO_DOCUMENTO_DIAN[String(v)] ?? ""}`;
   if (campo === "tipo_persona") return TIPO_PERSONA[v as "natural" | "juridica"] ?? String(v);
   return String(v);
@@ -70,6 +72,7 @@ export function ImportarSiigo() {
   const [mapeo, setMapeo] = useState<Mapeo>({});
   const [paso, setPaso] = useState<"subir" | "columnas" | "previa" | "listo">("subir");
   const [existentes, setExistentes] = useState<ClienteFicha[] | null>(null);
+  const [municipios, setMunicipios] = useState<Municipio[]>([]);
   const [excluidas, setExcluidas] = useState<Set<number>>(new Set());
   const [ver, setVer] = useState<Tipo | "todas">("todas");
   const [cuantas, setCuantas] = useState(100);
@@ -137,6 +140,11 @@ export function ImportarSiigo() {
     setTrabajando(false);
     if (e) return setError(`No se pudieron leer los clientes actuales para comparar: ${e.message}`);
     setExistentes((data ?? []) as ClienteFicha[]);
+    try {
+      setMunicipios(await cargarMunicipios());
+    } catch {
+      setMunicipios([]); // sin la tabla, no se propone el código: queda como venga
+    }
     setExcluidas(new Set());
     setVer("todas");
     setCuantas(100);
@@ -161,6 +169,15 @@ export function ImportarSiigo() {
         if ("error" in r) errores.push(`${NOMBRE_CAMPO[campo]}: ${r.error}`);
         else if (r.valor !== null) valores[campo] = r.valor;
       });
+      // Sin código DANE pero con municipio: se busca en la DIVIPOLA (solo si hay uno solo con ese nombre).
+      let danePorNombre = false;
+      if (!valores.municipio_dane && valores.municipio && municipios.length) {
+        const m = resolverDane(municipios, String(valores.municipio), valores.departamento ? String(valores.departamento) : null);
+        if (m) {
+          valores.municipio_dane = m.codigo;
+          danePorNombre = true;
+        }
+      }
       const base = nitBase(valores.nit as string | undefined);
       const existente = base ? (porNit.get(base) ?? null) : null;
       if (!base) errores.push("Sin NIT o documento: no se importa (crearía un cliente repetido cada vez).");
@@ -183,9 +200,9 @@ export function ImportarSiigo() {
         });
       }
       const tipo: Tipo = errores.length ? "error" : !existente ? "nuevo" : cambios.length ? "actualiza" : "igual";
-      return { n, nombre: String(valores.nombre ?? existente?.nombre ?? "(sin nombre)"), nit: base, tipo, errores, cambios, valores, existente };
+      return { n, nombre: String(valores.nombre ?? existente?.nombre ?? "(sin nombre)"), nit: base, tipo, errores, danePorNombre, cambios, valores, existente };
     });
-  }, [paso, existentes, datos, mapeo, encabezado]);
+  }, [paso, existentes, datos, mapeo, encabezado, municipios]);
 
   const aImportar = previa.filter((f) => (f.tipo === "nuevo" || f.tipo === "actualiza") && !excluidas.has(f.n));
   const cuenta = (t: Tipo) => previa.filter((f) => f.tipo === t).length;
@@ -431,6 +448,7 @@ export function ImportarSiigo() {
                       .filter((c) => c !== "nombre" && c !== "nit")
                       .map((c) => `${NOMBRE_CAMPO[c]}: ${mostrar(c, f.valores[c])}`)
                       .join(" · ") || "Solo nombre y NIT."}
+                    {f.danePorNombre && " · (código DANE resuelto por el nombre del municipio)"}
                   </p>
                 )}
                 {(f.tipo === "nuevo" || f.tipo === "actualiza") && (

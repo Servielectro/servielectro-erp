@@ -28,6 +28,7 @@ export interface ResultadoExtraccionRut {
   costoEstimadoUsd: number;
   tokensEntrada: number;
   tokensSalida: number;
+  proveedor: "OpenAI" | "Gemini";
 }
 
 function mimeDesdeNombre(nombreArchivo: string): string {
@@ -55,6 +56,7 @@ const ESQUEMA_JSON = (() => {
 export async function extraerRut(
   archivoBuffer: Buffer,
   nombreArchivo: string,
+  solo?: "OpenAI" | "Gemini",
 ): Promise<ResultadoExtraccionRut> {
   const mime = mimeDesdeNombre(nombreArchivo);
   if (mime === "application/octet-stream") {
@@ -76,6 +78,7 @@ export async function extraerRut(
     // Tope por proveedor. Con un cliente al frente: si no respondió en 20 s, se pasa al otro
     // (y la pantalla deja cancelar y llenar a mano en cualquier momento).
     20_000,
+    solo,
   );
 
   let crudo: unknown;
@@ -114,5 +117,6 @@ export async function extraerRut(
     costoEstimadoUsd,
     tokensEntrada,
     tokensSalida,
+    proveedor: respuesta.proveedor,
   };
 }

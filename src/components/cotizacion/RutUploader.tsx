@@ -2,15 +2,15 @@
 
 import { useRef, useState } from "react";
 import {
-  subirYLeerRut,
   confirmarRut,
-  leerRutClienteNuevo,
+  registrarRutLeido,
   type CamposConfirmadosRut,
   type RutLeidoSinCliente,
 } from "@/app/(app)/comercial/cotizaciones/documentos-actions";
+import { useLecturaRut } from "@/lib/rut/useLecturaRut";
+import { ProgresoLectura } from "@/components/rut/LectorRut";
 import type { ResultadoExtraccionRut } from "@/lib/documentos/extraer-rut";
 import type { Confianza } from "@/lib/documentos/rut-schema";
-import { EsperaIA } from "@/components/ia/EsperaIA";
 
 interface Props {
   clienteNombre: string;
@@ -57,6 +57,8 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado, onLeidoClie
   const [error, setError] = useState<string | null>(null);
   // Cada lectura tiene su número: si se canceló, la respuesta que llegue tarde se ignora.
   const lectura = useRef(0);
+  // La misma lectura que Administrativo y Nuevo cliente: subida directa y un proveedor a la vez.
+  const lector = useLecturaRut();
 
   async function onArchivoSeleccionado(file: File) {
     if (!clienteNuevo && !clienteNombre.trim()) {
@@ -66,24 +68,31 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado, onLeidoClie
     setError(null);
     setEstado({ paso: "leyendo" });
 
-    const formData = new FormData();
-    formData.append("archivo", file);
-    formData.append("clienteNombre", clienteNombre);
-
     const mia = ++lectura.current;
-    const res = clienteNuevo ? await leerRutClienteNuevo(formData) : await subirYLeerRut(formData);
+    const leido = await lector.leer(file, {});
     if (mia !== lectura.current) return; // se canceló: se sigue a mano
-
-    if (!res.ok) {
-      setError(res.error);
+    if (!leido) {
+      // El hook ya dejó el motivo en pantalla (ProgresoLectura).
       setEstado({ paso: "elegir_archivo" });
       return;
     }
-
-    const { resultado } = res;
-    const documentoId = "documentoId" in res ? res.documentoId : "";
-    const clienteId = "clienteId" in res ? res.clienteId : "";
-    const rutPendiente = "rut" in res ? res.rut : undefined;
+    const { resultado } = leido;
+    let documentoId = "";
+    let clienteId = "";
+    let rutPendiente: RutLeidoSinCliente | undefined;
+    if (clienteNuevo) {
+      rutPendiente = { storagePath: leido.storagePath, nombreArchivo: leido.nombreArchivo, extraccion: resultado.extraccion, costoEstimadoUsd: resultado.costoEstimadoUsd };
+    } else {
+      const reg = await registrarRutLeido(clienteNombre, leido.storagePath, leido.nombreArchivo, resultado);
+      if (mia !== lectura.current) return;
+      if (!reg.ok) {
+        setError(reg.error);
+        setEstado({ paso: "elegir_archivo" });
+        return;
+      }
+      documentoId = reg.documentoId;
+      clienteId = reg.clienteId;
+    }
 
     if (!resultado.extraccion.es_documento_rut) {
       setEstado({
@@ -164,6 +173,11 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado, onLeidoClie
           </p>
         )}
 
+        {estado.paso === "elegir_archivo" && lector.estado.fase === "error" && (
+          <div className="mb-3">
+            <ProgresoLectura estado={lector.estado} onCancelar={lector.limpiar} />
+          </div>
+        )}
         {estado.paso === "elegir_archivo" && (
           <div className="space-y-3">
             <label className="block cursor-pointer rounded-lg border-2 border-dashed border-slate-300 bg-white/70 p-6 text-center text-sm text-slate-600">
@@ -192,15 +206,14 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado, onLeidoClie
 
         {estado.paso === "leyendo" && (
           <div className="py-10 text-center">
-            <p className="text-sm text-slate-600">
-              <EsperaIA
-                texto="Leyendo el RUT con IA…"
-                onCancelar={() => {
-                  lectura.current++;
-                  onCerrar();
-                }}
-              />
-            </p>
+            <ProgresoLectura
+              estado={lector.estado}
+              onCancelar={() => {
+                lectura.current++;
+                lector.cancelar();
+                onCerrar();
+              }}
+            />
           </div>
         )}
 

@@ -22,30 +22,13 @@ export type TipoPersona = "natural" | "juridica";
 export const TIPO_PERSONA: Record<TipoPersona, string> = { natural: "Persona natural", juridica: "Persona jurídica" };
 
 /**
- * Responsabilidades del RUT (casilla 53). Se guardan con el código crudo de la casilla, igual que
- * las que lee la IA del RUT (migración 40): "13", "48"… Las que SIIGO escribe "O-13" se pasan a
- * "13"; "R-99-PN" (no aplica) se guarda tal cual.
+ * Responsabilidades fiscales (migración 80): dos codificaciones de la DIAN, cada una en su columna.
+ *   - responsabilidades_rut: códigos numéricos de la casilla 53 del RUT ("07", "42", "55"), tal
+ *     como vienen del RUT. Todos, estén o no en el catálogo.
+ *   - responsabilidades_fe: los de la factura electrónica ("O-13", "R-99-PN"), los que exporta SIIGO.
+ * Los nombres salen del catálogo responsabilidades_fiscales (src/lib/rut/catalogos.ts), no de aquí.
  */
-export const RESPONSABILIDADES_FE: { codigo: string; nombre: string }[] = [
-  { codigo: "13", nombre: "O-13 Gran contribuyente" },
-  { codigo: "15", nombre: "O-15 Autorretenedor" },
-  { codigo: "23", nombre: "O-23 Agente de retención IVA" },
-  { codigo: "47", nombre: "O-47 Régimen simple de tributación" },
-  { codigo: "R-99-PN", nombre: "R-99-PN No aplica / otros" },
-];
-const OTRAS_RESPONSABILIDADES: Record<string, string> = {
-  "05": "05 Renta régimen ordinario",
-  "07": "07 Retención en la fuente a título de renta",
-  "09": "09 Retención en la fuente en el IVA",
-  "14": "14 Informante de exógena",
-  "42": "42 Obligado a llevar contabilidad",
-  "48": "48 Responsable de IVA",
-  "49": "49 No responsable de IVA",
-  "52": "52 Facturador electrónico",
-};
-export function nombreResponsabilidad(codigo: string): string {
-  return RESPONSABILIDADES_FE.find((r) => r.codigo === codigo)?.nombre ?? OTRAS_RESPONSABILIDADES[codigo] ?? codigo;
-}
+export const ES_CODIGO_FE = /^[A-Z]-\d{2}(-[A-Z]{2})?$/;
 
 export interface ClienteFicha {
   id: string;
@@ -65,6 +48,7 @@ export interface ClienteFicha {
   municipio_dane: string | null;
   responsable_iva: boolean | null;
   responsabilidades_rut: string[] | null;
+  responsabilidades_fe: string[] | null;
   declarante_renta: boolean | null;
   notas: string | null;
   activo: boolean;
@@ -73,7 +57,7 @@ export interface ClienteFicha {
   actualizado_desde_siigo_en: string | null;
 }
 export const COLUMNAS_CLIENTE =
-  "id, nombre, nit, dv, tipo_documento, tipo_persona, tipo_contribuyente, email, email_encargado_proyecto, contacto, telefono, direccion, municipio, departamento, municipio_dane, responsable_iva, responsabilidades_rut, declarante_renta, notas, activo, latitud, longitud, actualizado_desde_siigo_en";
+  "id, nombre, nit, dv, tipo_documento, tipo_persona, tipo_contribuyente, email, email_encargado_proyecto, contacto, telefono, direccion, municipio, departamento, municipio_dane, responsable_iva, responsabilidades_rut, responsabilidades_fe, declarante_renta, notas, activo, latitud, longitud, actualizado_desde_siigo_en";
 
 export interface Sede {
   id: string;
@@ -93,13 +77,13 @@ export interface Sede {
 export const COLUMNAS_SEDE = "id, cliente_id, nombre, direccion, municipio, municipio_dane, contacto, telefono, email, latitud, longitud, notas, activa";
 
 /** Lo que le falta a la ficha para facturar electrónicamente (lo que pide la DIAN). */
-export function faltanParaFacturar(c: Pick<ClienteFicha, "nit" | "tipo_documento" | "email" | "municipio_dane" | "responsabilidades_rut">): string[] {
+export function faltanParaFacturar(c: Pick<ClienteFicha, "nit" | "tipo_documento" | "email" | "municipio_dane" | "responsabilidades_fe">): string[] {
   const f: string[] = [];
   if (!c.tipo_documento) f.push("tipo de documento");
   if (!c.nit) f.push("NIT o documento");
   if (!c.email) f.push("correo de facturación");
   if (!c.municipio_dane) f.push("código DANE del municipio");
-  if (!c.responsabilidades_rut?.length) f.push("responsabilidades del RUT");
+  if (!c.responsabilidades_fe?.length) f.push("responsabilidad fiscal para la factura electrónica (mínimo R-99-PN)");
   return f;
 }
 
@@ -146,6 +130,7 @@ export type CampoImportable =
   | "tipo_contribuyente"
   | "responsable_iva"
   | "responsabilidades_rut"
+  | "responsabilidades_fe"
   | "declarante_renta"
   | "notas";
 
@@ -169,7 +154,8 @@ export const CAMPOS_IMPORTABLES: { id: CampoImportable; nombre: string; parecido
   { id: "municipio_dane", nombre: "Código DANE del municipio", parecidos: ["codigo ciudad", "codigo municipio", "codigo dane", "dane", "cod ciudad"] },
   { id: "tipo_contribuyente", nombre: "Tipo de contribuyente", parecidos: ["tipo contribuyente", "regimen"] },
   { id: "responsable_iva", nombre: "Responsable de IVA (sí/no)", parecidos: ["responsable iva", "responsable de iva", "regimen iva"] },
-  { id: "responsabilidades_rut", nombre: "Responsabilidades fiscales (RUT)", parecidos: ["responsabilidad fiscal", "responsabilidades fiscales", "responsabilidades", "responsabilidad"] },
+  { id: "responsabilidades_fe", nombre: "Responsabilidades para factura electrónica (O-13, R-99-PN…)", parecidos: ["responsabilidad fiscal", "responsabilidades fiscales", "responsabilidades", "responsabilidad"] },
+  { id: "responsabilidades_rut", nombre: "Responsabilidades del RUT (casilla 53, códigos numéricos)", parecidos: ["responsabilidades rut", "casilla 53", "responsabilidades del rut"] },
   { id: "declarante_renta", nombre: "Declarante de renta (sí/no)", parecidos: ["declarante", "declarante renta", "declarante de renta"] },
   { id: "notas", nombre: "Notas", parecidos: ["observaciones", "notas", "comentarios"] },
 ];
@@ -239,13 +225,21 @@ export function leerCelda(campo: CampoImportable, crudo: unknown): { valor: Valo
       if (/^(no|n|false|0|falso|no responsable)$/.test(n) || n.startsWith("no ")) return { valor: false };
       return { error: `“${t}”: se esperaba sí o no` };
     case "responsabilidades_rut": {
+      // Casilla 53 del RUT: códigos numéricos. Un "O-13" aquí es de factura electrónica: otro campo.
+      const codigos = t.split(/[;,/|\s]+/).map((p) => p.trim()).filter(Boolean);
+      const fe = codigos.filter((c) => ES_CODIGO_FE.test(c.toUpperCase()));
+      if (fe.length) return { error: `“${fe.join(", ")}” son códigos de factura electrónica: empareja esa columna con “Responsabilidades para factura electrónica”` };
+      const malos = codigos.filter((c) => !/^\d{1,3}$/.test(c));
+      return malos.length ? { error: `“${malos.join(", ")}” no parece un código de la casilla 53 del RUT` } : { valor: [...new Set(codigos.map((c) => c.padStart(2, "0")))] };
+    }
+    case "responsabilidades_fe": {
+      // Factura electrónica, tal cual ("O-13", "R-99-PN"). SIIGO a veces los escribe "O13" o con espacios.
       const codigos = t
-        .split(/[;,/|]+|\s+(?=[OoRr]-)/)
-        .map((p) => p.trim().toUpperCase())
-        .filter(Boolean)
-        .map((p) => (p.startsWith("R-99") ? "R-99-PN" : p.replace(/^O-?/, "").match(/^\d{1,2}/)?.[0]?.padStart(2, "0") ?? p));
-      const malos = codigos.filter((c) => c !== "R-99-PN" && !/^\d{2}$/.test(c));
-      return malos.length ? { error: `“${malos.join(", ")}” no parece un código de responsabilidad del RUT` } : { valor: [...new Set(codigos)] };
+        .split(/[;,/|]+|\s+(?=[OoRr]-?\d)/)
+        .map((p) => p.trim().toUpperCase().replace(/^([OR])-?(\d{2})(-?PN)?$/, (_m, l, n, pn) => `${l}-${n}${pn ? "-PN" : ""}`))
+        .filter(Boolean);
+      const malos = codigos.filter((c) => !ES_CODIGO_FE.test(c));
+      return malos.length ? { error: `“${malos.join(", ")}” no parece un código de factura electrónica (O-13, O-15, O-23, O-47, R-99-PN)` } : { valor: [...new Set(codigos)] };
     }
     case "municipio_dane": {
       const d = t.replace(/\D/g, "");

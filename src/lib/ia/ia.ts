@@ -45,9 +45,14 @@ export interface RespuestaIA {
  * @param timeoutMs tope por proveedor. Peor caso total: OpenAI (timeoutMs) + Gemini (timeoutMs
  *                  y hasta ~6 s de reintentos solo si está saturado de verdad).
  */
-export async function generarConIA(p: PeticionIA, timeoutMs: number): Promise<RespuestaIA> {
+export async function generarConIA(p: PeticionIA, timeoutMs: number, solo?: "OpenAI" | "Gemini"): Promise<RespuestaIA> {
   const fallos: ErrorIA[] = [];
-  for (const proveedor of [generarConOpenAI, generarConGemini]) {
+  // `solo`: la pantalla va proveedor por proveedor para decir con cuál está intentando.
+  const todos = [
+    { nombre: "OpenAI" as const, f: generarConOpenAI },
+    { nombre: "Gemini" as const, f: generarConGemini },
+  ];
+  for (const { f: proveedor } of todos.filter((x) => !solo || x.nombre === solo)) {
     try {
       return await proveedor(p, timeoutMs);
     } catch (e) {
@@ -60,4 +65,11 @@ export async function generarConIA(p: PeticionIA, timeoutMs: number): Promise<Re
   const conCausa = fallos.filter((f) => !(f.causa === "config" && /falta la clave/.test(f.message)));
   const motivos = (conCausa.length ? conCausa : fallos).map(explicar).join("; ");
   throw new Error(`No se pudo ${p.para} con IA (${motivos}). Llena los datos a mano.`);
+}
+
+/** Proveedores con clave cargada, en el orden en que se prueban (solo nombres, nunca la clave). */
+export function proveedoresConfigurados(): ("OpenAI" | "Gemini")[] {
+  return [process.env.OPENAI_API_KEY ? ("OpenAI" as const) : null, process.env.GEMINI_API_KEY ? ("Gemini" as const) : null].filter(
+    (x): x is "OpenAI" | "Gemini" => !!x,
+  );
 }

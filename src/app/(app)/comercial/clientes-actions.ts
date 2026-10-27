@@ -4,10 +4,26 @@ import { createClient } from "@/lib/supabase/server";
 import { tienePermiso } from "@/lib/permisos";
 import { nitBase } from "@/lib/clientes/nit";
 import type { ClienteResumen } from "@/lib/supabase/clientes";
-import type {
-  CamposConfirmadosRut,
-  RutLeidoSinCliente,
-} from "@/app/(app)/comercial/cotizaciones/documentos-actions";
+
+/** Lo leído del RUT que ya subió el celular (src/lib/rut): se registra como RUT del cliente. */
+export interface RutParaCliente {
+  storagePath: string;
+  nombreArchivo: string;
+  extraccion: unknown;
+  costoEstimadoUsd: number | null;
+}
+
+/** Lo que viene del RUT (propuesta revisada en la ventana) además de los campos de siempre. */
+export interface DatosFiscalesCliente {
+  tipoDocumento: string | null;
+  tipoPersona: "natural" | "juridica" | null;
+  dv: string | null;
+  municipio: string | null;
+  departamento: string | null;
+  municipioDane: string | null;
+  responsabilidadesRut: string[];
+  declaranteRenta: boolean | null;
+}
 
 const COLUMNAS = "id, nombre, nit, direccion, email, contacto, telefono";
 
@@ -33,13 +49,15 @@ export async function crearCliente(input: {
   email: string;
   contacto: string;
   telefono: string;
-  rut?: { campos: CamposConfirmadosRut; archivo: RutLeidoSinCliente } | null;
+  rut?: RutParaCliente | null;
+  fiscales?: DatosFiscalesCliente | null;
   ubicacion?: { latitud: number; longitud: number; precisionM: number | null } | null;
   responsableIva?: boolean | null;
 }): Promise<
   { ok: true; cliente: ClienteResumen; yaExistia: boolean } | { ok: false; error: string }
 > {
-  if (!(await tienePermiso("comercial", "trabajar"))) {
+  // Crean clientes Comercial y Administrativo (migración 70), y quien asigna visitas.
+  if (!(await tienePermiso("comercial", "trabajar")) && !(await tienePermiso("administrativo", "trabajar")) && !(await tienePermiso("operativo", "trabajar"))) {
     return { ok: false, error: "No tienes permiso para crear clientes" };
   }
   const nombre = input.nombre.trim();
@@ -74,21 +92,23 @@ export async function crearCliente(input: {
       email: input.email.trim() || null,
       contacto: input.contacto.trim() || null,
       telefono: input.telefono.trim() || null,
-      ...(input.rut
+      ...(input.fiscales
         ? {
-            municipio: input.rut.campos.municipio || null,
-            departamento: input.rut.campos.departamento || null,
-            tipo_contribuyente: input.rut.campos.tipoContribuyente,
+            tipo_documento: input.fiscales.tipoDocumento,
+            tipo_persona: input.fiscales.tipoPersona,
+            tipo_contribuyente: input.fiscales.tipoPersona === "natural" ? "NATURAL" : input.fiscales.tipoPersona === "juridica" ? "JURIDICA" : null,
+            dv: input.fiscales.dv,
+            municipio: input.fiscales.municipio,
+            departamento: input.fiscales.departamento,
+            municipio_dane: input.fiscales.municipioDane,
+            declarante_renta: input.fiscales.declaranteRenta,
           }
         : {}),
       // Lo que quedó en el formulario (leído del RUT o marcado a mano).
       responsable_iva: input.responsableIva ?? null,
   };
-  // Códigos crudos de la casilla 53 (migración 40): opcionales.
-  const columnasRut =
-    input.rut && input.rut.campos.responsabilidades.length > 0
-      ? { responsabilidades_rut: input.rut.campos.responsabilidades }
-      : {};
+  // Códigos de la casilla 53: TODOS los leídos, estén o no en el catálogo (migración 80).
+  const columnasRut = input.fiscales?.responsabilidadesRut.length ? { responsabilidades_rut: input.fiscales.responsabilidadesRut } : {};
 
   let { data, error } = await supabase
     .from("clientes")
@@ -121,12 +141,12 @@ export async function crearCliente(input: {
     const { error: errDoc } = await supabase.from("documentos").insert({
       tipo_documento: "RUT",
       cliente_id: data.id,
-      storage_path: input.rut.archivo.storagePath,
-      nombre_archivo: input.rut.archivo.nombreArchivo,
+      storage_path: input.rut.storagePath,
+      nombre_archivo: input.rut.nombreArchivo,
       estado: "CONFIRMADO",
-      extraccion_json: input.rut.archivo.extraccion,
-      valores_confirmados_json: input.rut.campos,
-      costo_estimado_usd: input.rut.archivo.costoEstimadoUsd,
+      extraccion_json: input.rut.extraccion,
+      valores_confirmados_json: { ...fila, ...columnasRut },
+      costo_estimado_usd: input.rut.costoEstimadoUsd,
       subido_por: user?.id ?? null,
       confirmado_por: user?.id ?? null,
       confirmado_en: new Date().toISOString(),

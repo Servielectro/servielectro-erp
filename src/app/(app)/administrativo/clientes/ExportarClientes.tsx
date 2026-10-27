@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { nombreResponsabilidad, TIPO_DOCUMENTO_DIAN, TIPO_PERSONA, type ClienteFicha } from "@/lib/clientes-dian";
+import { TIPO_DOCUMENTO_DIAN, TIPO_PERSONA, type ClienteFicha } from "@/lib/clientes-dian";
 
 const siNo = (v: boolean | null) => (v === null ? "" : v ? "Sí" : "No");
 
@@ -32,7 +32,8 @@ export function ExportarClientes({ clientes }: { clientes: ClienteFicha[] }) {
             Departamento: c.departamento ?? "",
             "Código DANE": c.municipio_dane ?? "",
             "Responsable de IVA": siNo(c.responsable_iva),
-            "Responsabilidades RUT": (c.responsabilidades_rut ?? []).map(nombreResponsabilidad).join("; "),
+            "Responsabilidades factura electrónica": (c.responsabilidades_fe ?? []).join("; "),
+            "Responsabilidades RUT (casilla 53)": (c.responsabilidades_rut ?? []).join("; "),
             "Declarante de renta": siNo(c.declarante_renta),
             Notas: c.notas ?? "",
           }));

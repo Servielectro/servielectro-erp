@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Sede } from "@/lib/clientes-dian";
+import { SelectorMunicipio } from "@/components/rut/SelectorMunicipio";
 
 const CAMPO = "mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-base";
 
@@ -163,14 +164,12 @@ function FormSede({ clienteId, sede, onListo }: { clienteId: string; sede?: Sede
           Dirección
           <input value={b.direccion} onChange={(e) => poner("direccion", e.target.value)} className={CAMPO} />
         </label>
-        <label className="block text-sm font-medium">
-          Municipio
-          <input value={b.municipio} onChange={(e) => poner("municipio", e.target.value)} className={CAMPO} />
-        </label>
-        <label className="block text-sm font-medium">
-          Código DANE
-          <input value={b.municipio_dane} onChange={(e) => poner("municipio_dane", e.target.value)} inputMode="numeric" maxLength={5} className={CAMPO} />
-        </label>
+        <div className="sm:col-span-2">
+          <SelectorMunicipio
+            valor={{ municipio: b.municipio, departamento: "", municipio_dane: b.municipio_dane }}
+            onCambio={(v) => setB((x) => ({ ...x, municipio: v.municipio, municipio_dane: v.municipio_dane }))}
+          />
+        </div>
         <label className="block text-sm font-medium">
           Contacto en la sede
           <input value={b.contacto} onChange={(e) => poner("contacto", e.target.value)} className={CAMPO} />
