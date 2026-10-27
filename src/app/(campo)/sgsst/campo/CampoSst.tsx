@@ -1,0 +1,532 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { FormularioSst, type ArchivoVista } from "@/components/sst/FormularioSst";
+import { FirmaPantallaCompleta } from "@/app/(campo)/tecnico/FirmaPantallaCompleta";
+import { comprimirFoto, hoyBogota, obtenerUbicacion, sha256 } from "@/lib/tecnico/captura";
+import { dePadre, guardarYEncolar, leer, leerMeta, guardarMeta, todos } from "@/lib/tecnico/db";
+import { useCola, nuevoId } from "@/lib/sst/campo";
+import { dispositivoActual, type PlantillaLocal, type SstArchivoLocal, type SstFirmaLocal, type SstFormatoLocal } from "@/lib/sst/local";
+import { COLUMNAS_PLANTILLA, faltantes, firmasQueFaltan, ROL_LISTA, type FirmaPedida, type Plantilla } from "@/lib/sst/plantillas";
+
+const CAMPO = "mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-base disabled:bg-slate-50 disabled:text-slate-800";
+type Yo = { id: string; nombre: string; cedula: string };
+
+/**
+ * Llenar un formato de SG-SST en la obra, con o sin señal. Todo se guarda primero en el celular y
+ * sube por la cola del técnico: contenido → fotos → firmas → cierre. La base sella el formato con
+ * la primera firma; aquí también se bloquea el contenido en ese momento, para que el celular y la
+ * base digan lo mismo.
+ */
+export function CampoSst({ yo }: { yo: Yo }) {
+  const [plantillas, setPlantillas] = useState<PlantillaLocal[]>([]);
+  const [proyectos, setProyectos] = useState<{ id: string; nombre: string }[]>([]);
+  const [personal, setPersonal] = useState<string[]>([]);
+  const [formatos, setFormatos] = useState<SstFormatoLocal[]>([]);
+  const [abierto, setAbierto] = useState<string | null>(null);
+  const [eligiendo, setEligiendo] = useState(false);
+
+  const recargarLocales = useCallback(async () => {
+    const fs = await todos<SstFormatoLocal>("sst_formatos");
+    fs.sort((a, b) => b.actualizadoEn.localeCompare(a.actualizadoEn));
+    setFormatos(fs);
+  }, []);
+
+  // Con señal: baja las plantillas publicadas, las obras y los nombres del personal.
+  const bajar = useCallback(async () => {
+    const { createClient } = await import("@/lib/supabase/client");
+    const supabase = createClient();
+    const [p, o, g] = await Promise.all([
+      supabase.from("sst_plantillas").select(COLUMNAS_PLANTILLA).eq("estado", "publicada").order("codigo"),
+      supabase.rpc("fn_proyectos_nombres"),
+      supabase.rpc("fn_sst_personal"),
+    ]);
+    if (!p.error) {
+      const ps = ((p.data ?? []) as Plantilla[]).map((x) => ({ id: x.id, codigo: x.codigo, nombre: x.nombre, version: x.version, descripcion: x.descripcion, campos: x.campos, firmas: x.firmas }));
+      await guardarMeta("sst_plantillas", ps);
+      setPlantillas(ps);
+    }
+    if (!o.error) {
+      const os = ((o.data ?? []) as { id: string; codigo: string; nombre: string; estado: string }[]).map((x) => ({ id: x.id, nombre: `${x.codigo} · ${x.nombre}` }));
+      await guardarMeta("sst_proyectos", os);
+      setProyectos(os);
+    }
+    if (!g.error) {
+      const ns = ((g.data ?? []) as { nombre: string; estado_laboral: string }[]).filter((x) => x.estado_laboral !== "retirado").map((x) => x.nombre);
+      await guardarMeta("sst_personal", ns);
+      setPersonal(ns);
+    }
+  }, []);
+
+  const cola = useCola("/sgsst/campo", bajar);
+
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      setPlantillas((await leerMeta<PlantillaLocal[]>("sst_plantillas")) ?? []);
+      setProyectos((await leerMeta<{ id: string; nombre: string }[]>("sst_proyectos")) ?? []);
+      setPersonal((await leerMeta<string[]>("sst_personal")) ?? []);
+      await recargarLocales();
+    }, 0);
+    return () => clearTimeout(t);
+  }, [recargarLocales]);
+
+  async function nuevo(p: PlantillaLocal) {
+    const ahora = new Date().toISOString();
+    const f: SstFormatoLocal = { id: nuevoId(), plantilla: p, proyectoId: null, proyectoNombre: null, lugar: "", fecha: hoyBogota(), respuestas: {}, creadoEn: ahora, actualizadoEn: ahora, cerrado: false };
+    await guardarYEncolar("sst_formatos", f, { id: f.id, tipo: "sst_formato", visitaId: f.id });
+    setEligiendo(false);
+    await recargarLocales();
+    setAbierto(f.id);
+    void cola.refrescar();
+  }
+
+  const pendientesDe = (id: string) => cola.pendientes.filter((c) => c.visitaId === id).length;
+  const rechazadosDe = (id: string) => cola.rechazados.filter((c) => c.visitaId === id);
+
+  if (abierto) {
+    return (
+      <EditorFormato
+        key={abierto}
+        id={abierto}
+        yo={yo}
+        proyectos={proyectos}
+        personal={personal}
+        pendientes={pendientesDe(abierto)}
+        rechazados={rechazadosDe(abierto)}
+        onVolver={async () => {
+          setAbierto(null);
+          await recargarLocales();
+          void cola.subir();
+        }}
+        onCambio={() => void cola.refrescar()}
+      />
+    );
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-xl space-y-4 p-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-bold text-slate-900">Formatos SG-SST en sitio</h1>
+        <Link href="/sgsst" className="text-sm text-slate-600 underline">
+          Oficina
+        </Link>
+      </div>
+      <BarraCola cola={cola} />
+
+      {eligiendo ? (
+        <section className="space-y-2 rounded-lg border border-slate-300 bg-white p-3">
+          <p className="text-sm font-semibold">¿Qué formato vas a llenar?</p>
+          {plantillas.length === 0 ? (
+            <p className="text-sm text-slate-600">
+              {cola.enLinea
+                ? "Todavía no hay plantillas publicadas. Las arma la gestión SST."
+                : "Sin señal y sin plantillas guardadas en este celular: abre esta pantalla una vez con señal."}
+            </p>
+          ) : (
+            plantillas.map((p) => (
+              <button key={p.id} type="button" onClick={() => void nuevo(p)} className="flex min-h-14 w-full flex-col justify-center rounded-lg border border-slate-300 px-3 text-left">
+                <span className="text-base font-semibold">{p.nombre}</span>
+                <span className="text-xs text-slate-500">
+                  {p.codigo} · versión {p.version}
+                </span>
+              </button>
+            ))
+          )}
+          <button type="button" onClick={() => setEligiendo(false)} className="min-h-11 w-full rounded-lg border border-slate-300 text-sm">
+            Cancelar
+          </button>
+        </section>
+      ) : (
+        <button type="button" onClick={() => setEligiendo(true)} className="min-h-12 w-full rounded-lg bg-slate-900 text-base font-semibold text-white">
+          + Llenar un formato
+        </button>
+      )}
+
+      <section>
+        <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">En este celular</h2>
+        {formatos.length === 0 ? (
+          <p className="text-sm text-slate-500">No has llenado formatos en este celular.</p>
+        ) : (
+          <ul className="space-y-2">
+            {formatos.map((f) => {
+              const pend = pendientesDe(f.id);
+              const rech = rechazadosDe(f.id).length;
+              return (
+                <li key={f.id}>
+                  <button type="button" onClick={() => setAbierto(f.id)} className="block w-full rounded-lg border border-slate-200 bg-white p-3 text-left">
+                    <span className="block font-semibold text-slate-900">{f.plantilla.nombre}</span>
+                    <span className="block text-sm text-slate-600">
+                      {f.fecha} · {f.proyectoNombre ?? (f.lugar || "sin lugar")}
+                    </span>
+                    <span className={`block text-xs font-semibold ${rech ? "text-red-800" : f.cerrado ? "text-green-800" : "text-amber-800"}`}>
+                      {rech ? "Rechazado por la base: ábrelo para ver por qué" : f.cerrado ? (pend ? `Cerrado · ${pend} por subir` : "Cerrado y subido") : pend ? `En llenado · ${pend} por subir` : "En llenado"}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function BarraCola({ cola }: { cola: ReturnType<typeof useCola> }) {
+  return (
+    <div className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm ${cola.enLinea ? "bg-slate-100 text-slate-700" : "bg-amber-50 text-amber-900"}`}>
+      <span>
+        {cola.enLinea ? "Con señal" : "Sin señal: todo se guarda en el celular"}
+        {cola.pendientes.length > 0 && ` · ${cola.pendientes.length} por subir`}
+        {cola.rechazados.length > 0 && ` · ${cola.rechazados.length} rechazados`}
+      </span>
+      {cola.enLinea && cola.pendientes.length > 0 && (
+        <button type="button" disabled={cola.subiendo} onClick={() => void cola.subir()} className="min-h-11 shrink-0 font-semibold underline disabled:opacity-50">
+          {cola.subiendo ? "Subiendo…" : "Subir ahora"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function EditorFormato({
+  id,
+  yo,
+  proyectos,
+  personal,
+  pendientes,
+  rechazados,
+  onVolver,
+  onCambio,
+}: {
+  id: string;
+  yo: Yo;
+  proyectos: { id: string; nombre: string }[];
+  personal: string[];
+  pendientes: number;
+  rechazados: { ultimoError: string | null }[];
+  onVolver: () => void;
+  onCambio: () => void;
+}) {
+  const [f, setF] = useState<SstFormatoLocal | null>(null);
+  const [archivos, setArchivos] = useState<SstArchivoLocal[]>([]);
+  const [firmas, setFirmas] = useState<SstFirmaLocal[]>([]);
+  const [urls, setUrls] = useState<Record<string, string>>({});
+  const [firmando, setFirmando] = useState<{ tipo: "campo"; campoId: string; etiqueta: string } | { tipo: "cierre"; pedida: FirmaPedida; datos: DatosFirma } | null>(null);
+  const [agregando, setAgregando] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const espera = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const recargar = useCallback(async () => {
+    setF((await leer<SstFormatoLocal>("sst_formatos", id)) ?? null);
+    const as = await dePadre<SstArchivoLocal>("sst_archivos", id);
+    const fs = await dePadre<SstFirmaLocal>("sst_firmas", id);
+    setArchivos(as);
+    setFirmas(fs);
+    setUrls((prev) => {
+      const nuevo: Record<string, string> = { ...prev };
+      for (const x of [...as, ...fs]) if (x.blob && !nuevo[x.id]) nuevo[x.id] = URL.createObjectURL(x.blob);
+      return nuevo;
+    });
+  }, [id]);
+
+  useEffect(() => {
+    const t = setTimeout(() => void recargar(), 0);
+    return () => clearTimeout(t);
+  }, [recargar]);
+
+  // Guardado con un respiro (no se encola en cada letra).
+  const persistir = useCallback(
+    (nuevo: SstFormatoLocal) => {
+      setF(nuevo);
+      if (espera.current) clearTimeout(espera.current);
+      espera.current = setTimeout(async () => {
+        await guardarYEncolar("sst_formatos", nuevo, { id: nuevo.id, tipo: "sst_formato", visitaId: nuevo.id });
+        onCambio();
+      }, 600);
+    },
+    [onCambio],
+  );
+
+  const porCampo = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const a of archivos) m[a.campoId] = (m[a.campoId] ?? 0) + 1;
+    return m;
+  }, [archivos]);
+
+  if (!f) return <p className="p-4 text-sm text-slate-500">Cargando…</p>;
+  const sellado = firmas.length > 0 || f.cerrado;
+  const falta = faltantes(f.plantilla.campos, f.respuestas, porCampo);
+  const faltanFirmas = firmasQueFaltan(f.plantilla.firmas, firmas);
+
+  const vistaArchivos: Record<string, ArchivoVista[]> = {};
+  for (const a of archivos) (vistaArchivos[a.campoId] ??= []).push({ id: a.id, url: urls[a.id] ?? null, pendiente: !a.subida });
+
+  async function agregarArchivo(campoId: string, blob: Blob, mime: string) {
+    if (!f || sellado) return;
+    const a: SstArchivoLocal = { id: nuevoId(), formatoId: f.id, campoId, blob, mime, sha256: await sha256(blob), tomadaEn: new Date().toISOString(), ubicacion: await obtenerUbicacion() };
+    await guardarYEncolar("sst_archivos", a, { id: a.id, tipo: "sst_archivo", visitaId: f.id });
+    await recargar();
+    onCambio();
+  }
+
+  async function guardarFirmaCierre(pedida: FirmaPedida, datos: DatosFirma, png: Blob) {
+    if (!f) return;
+    // Lo último escrito tiene que estar en la cola ANTES de la primera firma (sella el contenido).
+    if (espera.current) {
+      clearTimeout(espera.current);
+      espera.current = null;
+      await guardarYEncolar("sst_formatos", f, { id: f.id, tipo: "sst_formato", visitaId: f.id });
+    }
+    const firma: SstFirmaLocal = {
+      id: nuevoId(),
+      formatoId: f.id,
+      rol: pedida.rol,
+      nombre: datos.nombre.trim(),
+      documento: datos.documento.trim(),
+      cargo: datos.cargo.trim(),
+      empresa: datos.empresa.trim(),
+      blob: png,
+      sha256: await sha256(png),
+      firmadaEn: new Date().toISOString(),
+      ubicacion: await obtenerUbicacion(),
+      dispositivo: dispositivoActual(),
+    };
+    await guardarYEncolar("sst_firmas", firma, { id: firma.id, tipo: "sst_firma", visitaId: f.id });
+    setFirmando(null);
+    setAgregando(null);
+    setAviso(`Firmó ${firma.nombre}.`);
+    await recargar();
+    onCambio();
+  }
+
+  async function cerrar() {
+    if (!f || faltanFirmas.length) return;
+    const cerrado = { ...f, cerrado: true, actualizadoEn: new Date().toISOString() };
+    await guardarYEncolar("sst_formatos", cerrado, { id: `cerrar-${f.id}`, tipo: "sst_cerrar", visitaId: f.id });
+    setAviso("Formato cerrado. Sube con la señal; en la oficina queda sellado y por aprobar.");
+    await recargar();
+    onCambio();
+  }
+
+  if (firmando?.tipo === "campo") {
+    return (
+      <FirmaPantallaCompleta
+        titulo={firmando.etiqueta}
+        onCancelar={() => setFirmando(null)}
+        onListo={async (png) => {
+          await agregarArchivo(firmando.campoId, png, "image/png");
+          setFirmando(null);
+        }}
+      />
+    );
+  }
+  if (firmando?.tipo === "cierre") {
+    return (
+      <FirmaPantallaCompleta
+        titulo={`${firmando.pedida.etiqueta} — ${firmando.datos.nombre}`}
+        onCancelar={() => setFirmando(null)}
+        onListo={(png) => void guardarFirmaCierre(firmando.pedida, firmando.datos, png)}
+      />
+    );
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-xl space-y-4 p-4 pb-24">
+      <button type="button" onClick={onVolver} className="min-h-11 text-sm text-slate-600 underline">
+        ← Mis formatos
+      </button>
+      <div>
+        <h1 className="text-lg font-bold text-slate-900">{f.plantilla.nombre}</h1>
+        <p className="text-xs text-slate-500">
+          {f.plantilla.codigo} · versión {f.plantilla.version}
+          {pendientes > 0 ? ` · ${pendientes} por subir` : " · todo subido"}
+        </p>
+        {f.plantilla.descripcion && <p className="mt-1 text-sm text-slate-600">{f.plantilla.descripcion}</p>}
+      </div>
+      {rechazados.length > 0 && (
+        <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-900">
+          {rechazados.map((r, i) => (
+            <p key={i}>{r.ultimoError}</p>
+          ))}
+        </div>
+      )}
+
+      <section className="space-y-3 rounded-lg border border-slate-200 bg-white p-3">
+        <label className="block text-sm font-medium">
+          Obra
+          <select
+            disabled={sellado}
+            value={f.proyectoId ?? ""}
+            onChange={(e) => {
+              const p = proyectos.find((x) => x.id === e.target.value);
+              persistir({ ...f, proyectoId: p?.id ?? null, proyectoNombre: p?.nombre ?? null, actualizadoEn: new Date().toISOString() });
+            }}
+            className={CAMPO}
+          >
+            <option value="">— Sin obra / otra —</option>
+            {proyectos.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm font-medium">
+          Lugar exacto
+          <input disabled={sellado} value={f.lugar} onChange={(e) => persistir({ ...f, lugar: e.target.value, actualizadoEn: new Date().toISOString() })} placeholder="Ej.: Torre 2, cubierta" className={CAMPO} />
+        </label>
+        <label className="block text-sm font-medium">
+          Fecha
+          <input disabled={sellado} type="date" value={f.fecha} onChange={(e) => persistir({ ...f, fecha: e.target.value, actualizadoEn: new Date().toISOString() })} className={CAMPO} />
+        </label>
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-3">
+        <FormularioSst
+          campos={f.plantilla.campos}
+          respuestas={f.respuestas}
+          onCambio={(cid, v) => persistir({ ...f, respuestas: { ...f.respuestas, [cid]: v }, actualizadoEn: new Date().toISOString() })}
+          archivos={vistaArchivos}
+          onFoto={async (cid, archivo) => agregarArchivo(cid, await comprimirFoto(archivo), "image/jpeg")}
+          onFirmaCampo={(cid, etiqueta) => setFirmando({ tipo: "campo", campoId: cid, etiqueta })}
+          onUbicacion={async (cid) => {
+            const u = await obtenerUbicacion();
+            persistir({
+              ...f,
+              respuestas: { ...f.respuestas, [cid]: u.estado === "concedido" ? { lat: u.lat, lng: u.lng, precision: u.precisionM } : { estado: u.estado } },
+              actualizadoEn: new Date().toISOString(),
+            });
+          }}
+          bloqueadoPor={sellado ? "Ya hay firmas: el contenido quedó sellado y no se edita. Todos firman lo mismo." : null}
+        />
+      </section>
+
+      <section className="space-y-3 rounded-lg border border-slate-200 bg-white p-3">
+        <h2 className="text-base font-bold">Firmas</h2>
+        {!sellado && falta.length > 0 && (
+          <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">Antes de la primera firma falta llenar: {falta.join(", ")}.</p>
+        )}
+        {!sellado && falta.length === 0 && <p className="text-xs text-slate-500">Al firmar el primero, el contenido queda sellado: revisa que todo esté bien.</p>}
+        {f.plantilla.firmas.map((p) => {
+          const hechas = firmas.filter((x) => x.rol === p.rol);
+          const puedeOtra = !f.cerrado && falta.length === 0 && (ROL_LISTA[p.rol] || hechas.length === 0);
+          return (
+            <div key={p.rol + p.etiqueta} className="rounded-md border border-slate-200 p-2">
+              <p className="text-sm font-semibold">
+                {p.etiqueta}
+                {p.obligatoria === false && <span className="font-normal text-slate-500"> · opcional</span>}
+              </p>
+              {hechas.length === 0 && <p className="text-sm text-slate-500">Sin firmar.</p>}
+              {hechas.map((h) => (
+                <div key={h.id} className="mt-1 flex items-center gap-2 text-sm">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {urls[h.id] ? <img src={urls[h.id]} alt="" className="h-10 w-20 rounded border border-slate-200 bg-white object-contain" /> : <span className="text-xs text-slate-500">✓</span>}
+                  <span>
+                    {h.nombre} · CC {h.documento}
+                    {h.cargo ? ` · ${h.cargo}` : ""}
+                    <span className="block text-xs text-slate-500">{h.subida ? "Subida" : "Por subir"}</span>
+                  </span>
+                </div>
+              ))}
+              {agregando === p.rol + p.etiqueta ? (
+                <FormDatosFirma
+                  pedida={p}
+                  yo={yo}
+                  personal={personal}
+                  onCancelar={() => setAgregando(null)}
+                  onListo={(datos) => setFirmando({ tipo: "cierre", pedida: p, datos })}
+                />
+              ) : (
+                puedeOtra && (
+                  <button type="button" onClick={() => setAgregando(p.rol + p.etiqueta)} className="mt-2 flex min-h-11 w-full items-center justify-center rounded-lg border-2 border-slate-400 text-sm font-semibold">
+                    ✍ {hechas.length && ROL_LISTA[p.rol] ? "Firma otro técnico" : "Firmar"}
+                  </button>
+                )
+              )}
+            </div>
+          );
+        })}
+        {f.cerrado ? (
+          <p className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-900">Cerrado en este celular{pendientes ? `: falta subir ${pendientes}.` : " y subido."}</p>
+        ) : (
+          <>
+            <button type="button" disabled={faltanFirmas.length > 0} onClick={() => void cerrar()} className="min-h-12 w-full rounded-lg bg-green-700 text-base font-semibold text-white disabled:opacity-40">
+              Cerrar formato
+            </button>
+            {faltanFirmas.length > 0 && <p className="text-center text-sm text-slate-600">Para cerrarlo faltan las firmas de: {faltanFirmas.join(", ")}.</p>}
+          </>
+        )}
+        {aviso && <p className="text-sm text-green-800">{aviso}</p>}
+      </section>
+    </div>
+  );
+}
+
+interface DatosFirma {
+  nombre: string;
+  documento: string;
+  cargo: string;
+  empresa: string;
+}
+
+function FormDatosFirma({
+  pedida,
+  yo,
+  personal,
+  onCancelar,
+  onListo,
+}: {
+  pedida: FirmaPedida;
+  yo: Yo;
+  personal: string[];
+  onCancelar: () => void;
+  onListo: (d: DatosFirma) => void;
+}) {
+  const esCliente = pedida.rol === "sst_cliente";
+  const [d, setD] = useState<DatosFirma>({
+    nombre: pedida.rol === "responsable_sst" ? yo.nombre : "",
+    documento: pedida.rol === "responsable_sst" ? yo.cedula : "",
+    cargo: "",
+    empresa: esCliente ? "" : "Servielectro SAS",
+  });
+  const falta = !d.nombre.trim() ? "Escribe el nombre de quien firma." : !d.documento.trim() ? "Escribe su número de cédula." : esCliente && !d.empresa.trim() ? "Escribe la empresa del cliente." : null;
+  const lista = `personal-${pedida.rol}`;
+  return (
+    <div className="mt-2 space-y-2 rounded-md bg-slate-50 p-2">
+      <label className="block text-sm">
+        Nombre completo
+        <input value={d.nombre} onChange={(e) => setD({ ...d, nombre: e.target.value })} list={pedida.rol === "tecnico" ? lista : undefined} className={CAMPO} />
+        {pedida.rol === "tecnico" && (
+          <datalist id={lista}>
+            {personal.map((n) => (
+              <option key={n} value={n} />
+            ))}
+          </datalist>
+        )}
+      </label>
+      <label className="block text-sm">
+        Cédula
+        <input value={d.documento} onChange={(e) => setD({ ...d, documento: e.target.value })} inputMode="numeric" className={CAMPO} />
+      </label>
+      <label className="block text-sm">
+        Cargo
+        <input value={d.cargo} onChange={(e) => setD({ ...d, cargo: e.target.value })} className={CAMPO} />
+      </label>
+      <label className="block text-sm">
+        Empresa
+        <input value={d.empresa} onChange={(e) => setD({ ...d, empresa: e.target.value })} className={CAMPO} />
+      </label>
+      <div className="flex gap-2">
+        <button type="button" onClick={onCancelar} className="min-h-11 flex-1 rounded-lg border border-slate-300 text-sm">
+          Cancelar
+        </button>
+        <button type="button" disabled={!!falta} onClick={() => onListo(d)} className="min-h-11 flex-1 rounded-lg bg-slate-900 text-sm font-semibold text-white disabled:opacity-40">
+          Pasar a firmar
+        </button>
+      </div>
+      {falta && <p className="text-xs text-slate-500">{falta}</p>}
+    </div>
+  );
+}

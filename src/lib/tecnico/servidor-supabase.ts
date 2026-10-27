@@ -3,6 +3,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { FirmaLocal, FotoLocal, JornadaLocal, SugerenciaLocal, TareaLocal, VisitaLocal } from "./db";
+import type { SstArchivoLocal, SstFirmaLocal, SstFormatoLocal, SstReporteFotoLocal, SstReporteLocal } from "@/lib/sst/local";
 import { guardar, leer } from "./db";
 import { ErrorPermanente, SinConexionError, type Servidor } from "./sync";
 
@@ -30,7 +31,7 @@ function revisar(error: { message: string; code?: string; statusCode?: string | 
   const sinPermiso =
     error.code === "42501" || estadoHttp === "403" || /row-level security|permission denied/i.test(mensaje);
   if (sinPermiso) {
-    throw new ErrorPermanente(`No se subió: no tienes permiso sobre esta visita (¿te la reasignaron?).${AVISAR}`);
+    throw new ErrorPermanente(`No se subió: no tienes permiso sobre este registro (¿te reasignaron la visita o cambiaron tu acceso?).${AVISAR}`);
   }
   if (error.code === "P0001") {
     // Mensaje del candado o de una regla, ya escrito en palabras en la base.
@@ -110,6 +111,102 @@ export function servidorSupabase(supabase: SupabaseClient): Servidor {
       // Reintento de algo que ya había subido: no es error.
       if (error && /already exists|duplicate|409/i.test(`${error.message} ${(error as { statusCode?: string }).statusCode ?? ""}`)) return;
       revisar(error as { message: string; statusCode?: string } | null);
+    },
+
+    // ---------------------------------------------------------------- SG-SST
+    async subirArchivoSst(ruta, blob, tipo) {
+      const { error } = await supabase.storage.from("sgsst").upload(ruta, blob, { contentType: tipo, upsert: false });
+      if (error && /already exists|duplicate|409/i.test(`${error.message} ${(error as { statusCode?: string }).statusCode ?? ""}`)) return;
+      revisar(error as { message: string; statusCode?: string } | null);
+    },
+
+    async guardarFormatoSst(f: SstFormatoLocal) {
+      const { error } = await supabase.from("sst_formatos").upsert(
+        {
+          id: f.id,
+          plantilla_id: f.plantilla.id,
+          proyecto_id: f.proyectoId,
+          lugar: f.lugar || null,
+          fecha: f.fecha,
+          respuestas: f.respuestas,
+        },
+        { onConflict: "id" },
+      );
+      revisar(error);
+    },
+
+    async registrarArchivoSst(a: SstArchivoLocal, ruta) {
+      const { error } = await supabase.from("sst_formato_archivos").upsert(
+        {
+          id: a.id,
+          formato_id: a.formatoId,
+          campo_id: a.campoId,
+          path: ruta,
+          sha256: a.sha256,
+          mime: a.mime,
+          tomada_en: a.tomadaEn,
+          lat: a.ubicacion.lat,
+          lng: a.ubicacion.lng,
+        },
+        { onConflict: "id", ignoreDuplicates: true },
+      );
+      revisar(error);
+    },
+
+    async registrarFirmaSst(f: SstFirmaLocal, ruta) {
+      const { error } = await supabase.from("sst_formato_firmas").upsert(
+        {
+          id: f.id,
+          formato_id: f.formatoId,
+          rol: f.rol,
+          nombre: f.nombre,
+          documento: f.documento,
+          cargo: f.cargo || null,
+          empresa: f.empresa || null,
+          imagen_path: ruta,
+          imagen_sha256: f.sha256,
+          firmada_en_dispositivo: f.firmadaEn,
+          dispositivo: f.dispositivo || null,
+          gps_estado: f.ubicacion.estado,
+          lat: f.ubicacion.lat,
+          lng: f.ubicacion.lng,
+          // hash_contenido lo pone la base; este valor se reemplaza.
+          hash_contenido: "lo-pone-la-base",
+        },
+        { onConflict: "id", ignoreDuplicates: true },
+      );
+      revisar(error);
+    },
+
+    async cerrarFormatoSst(formatoId) {
+      // Si ya estaba cerrado (reintento), no cambia nada y no es error.
+      const { error } = await supabase.from("sst_formatos").update({ estado: "firmado" }).eq("id", formatoId).eq("estado", "borrador");
+      revisar(error);
+    },
+
+    async guardarReporteSst(r: SstReporteLocal) {
+      const { error } = await supabase.from("sst_reportes_inseguros").upsert(
+        {
+          id: r.id,
+          tipo: r.tipo,
+          descripcion: r.descripcion,
+          lugar: r.lugar || null,
+          proyecto_id: r.proyectoId,
+          gps_estado: r.ubicacion.estado,
+          lat: r.ubicacion.lat,
+          lng: r.ubicacion.lng,
+          observado_en_dispositivo: r.observadoEn,
+        },
+        { onConflict: "id", ignoreDuplicates: true },
+      );
+      revisar(error);
+    },
+
+    async registrarFotoReporteSst(f: SstReporteFotoLocal, ruta) {
+      const { error } = await supabase
+        .from("sst_reporte_fotos")
+        .upsert({ id: f.id, reporte_id: f.reporteId, path: ruta, sha256: f.sha256 }, { onConflict: "id", ignoreDuplicates: true });
+      revisar(error);
     },
 
     async registrarFoto(f: FotoLocal, ruta) {

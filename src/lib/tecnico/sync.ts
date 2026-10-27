@@ -14,6 +14,7 @@
 //     ve en palabras qué pasó. Se reintenta a mano cuando la oficina lo resuelve.
 //   - Cualquier otro error del servidor (caído, sesión vencida): se anota y se reintenta.
 
+import type { SstArchivoLocal, SstFirmaLocal, SstFormatoLocal, SstReporteFotoLocal, SstReporteLocal } from "@/lib/sst/local";
 import {
   borrar,
   deVisita,
@@ -40,6 +41,14 @@ export interface Servidor {
   subirArchivo(ruta: string, blob: Blob, tipo: string): Promise<void>;
   registrarFoto(f: FotoLocal, ruta: string): Promise<void>;
   registrarFirma(f: FirmaLocal, ruta: string): Promise<void>;
+  // SG-SST: todo a la carpeta del bucket sgsst; la base sella y valida.
+  subirArchivoSst(ruta: string, blob: Blob, tipo: string): Promise<void>;
+  guardarFormatoSst(f: SstFormatoLocal): Promise<void>;
+  registrarArchivoSst(a: SstArchivoLocal, ruta: string): Promise<void>;
+  registrarFirmaSst(f: SstFirmaLocal, ruta: string): Promise<void>;
+  cerrarFormatoSst(formatoId: string): Promise<void>;
+  guardarReporteSst(r: SstReporteLocal): Promise<void>;
+  registrarFotoReporteSst(f: SstReporteFotoLocal, ruta: string): Promise<void>;
 }
 
 /** Error de red (sin señal): corta la vuelta entera. */
@@ -56,6 +65,10 @@ export function esErrorDeRed(e: unknown): boolean {
 
 export const rutaFoto = (f: { visitaId: string; id: string }) => `${f.visitaId}/${f.id}.jpg`;
 export const rutaFirma = (f: { visitaId: string; tipo: string }) => `${f.visitaId}/firma-${f.tipo}.png`;
+export const rutaArchivoSst = (a: { formatoId: string; campoId: string; id: string; mime: string }) =>
+  `formatos/${a.formatoId}/${a.campoId}-${a.id}.${a.mime === "image/png" ? "png" : "jpg"}`;
+export const rutaFirmaSst = (f: { formatoId: string; id: string }) => `formatos/${f.formatoId}/firma-${f.id}.png`;
+export const rutaFotoReporte = (f: { reporteId: string; id: string }) => `reportes/${f.reporteId}/${f.id}.jpg`;
 
 const PRIORIDAD: Record<EnvioPendiente["tipo"], number> = {
   estado_visita: 0,
@@ -64,6 +77,23 @@ const PRIORIDAD: Record<EnvioPendiente["tipo"], number> = {
   sugerencia: 2,
   foto: 3,
   firma: 4,
+  sst_formato: 1,
+  sst_reporte: 1,
+  sst_archivo: 3,
+  sst_reporte_foto: 3,
+  sst_firma: 4,
+  sst_cerrar: 5,
+};
+
+/**
+ * SG-SST: la primera firma SELLA el formato en la base. Por eso una firma no sube mientras falte
+ * el contenido o una foto de ese formato, y el cierre va solo cuando ya no queda nada de él. La
+ * foto de un reporte espera a que suba el reporte.
+ */
+const ESPERA_A: Partial<Record<EnvioPendiente["tipo"], EnvioPendiente["tipo"][] | "todo">> = {
+  sst_firma: ["sst_formato", "sst_archivo"],
+  sst_cerrar: "todo",
+  sst_reporte_foto: ["sst_reporte"],
 };
 
 export interface ResultadoSync {
@@ -108,6 +138,13 @@ async function vuelta(servidor: Servidor): Promise<ResultadoSync> {
     // Rechazado de forma permanente: no se reintenta solo (ver reintentarRechazados).
     if (envio.permanente) continue;
     try {
+      const espera = ESPERA_A[envio.tipo];
+      if (espera) {
+        const resto = (await todos<EnvioPendiente>("cola")).filter(
+          (c) => c.visitaId === envio.visitaId && c.id !== envio.id && (espera === "todo" || espera.includes(c.tipo)),
+        );
+        if (resto.length > 0) continue;
+      }
       if (envio.tipo === "firma" && firmas.get(envio.id)?.tipo === "cliente") {
         // Solo cuando no queda nada más de esa visita en la cola.
         const resto = (await todos<EnvioPendiente>("cola")).filter(
@@ -197,6 +234,49 @@ async function enviarUno(servidor: Servidor, envio: EnvioPendiente) {
       await servidor.subirArchivo(ruta, f.blob, "image/png");
       await servidor.registrarFirma(f, ruta);
       await guardar("firmas", { ...f, blob: null, subida: true });
+      return;
+    }
+    case "sst_formato": {
+      const f = await leer<SstFormatoLocal>("sst_formatos", envio.id);
+      if (f) await servidor.guardarFormatoSst(f);
+      return;
+    }
+    case "sst_archivo": {
+      const a = await leer<SstArchivoLocal>("sst_archivos", envio.id);
+      if (!a || !a.blob) return;
+      const ruta = rutaArchivoSst(a);
+      await servidor.subirArchivoSst(ruta, a.blob, a.mime);
+      await servidor.registrarArchivoSst(a, ruta);
+      await guardar("sst_archivos", { ...a, blob: null, subida: true });
+      return;
+    }
+    case "sst_firma": {
+      const f = await leer<SstFirmaLocal>("sst_firmas", envio.id);
+      if (!f || !f.blob) return;
+      const ruta = rutaFirmaSst(f);
+      await servidor.subirArchivoSst(ruta, f.blob, "image/png");
+      await servidor.registrarFirmaSst(f, ruta);
+      await guardar("sst_firmas", { ...f, blob: null, subida: true });
+      return;
+    }
+    case "sst_cerrar": {
+      await servidor.cerrarFormatoSst(envio.visitaId);
+      return;
+    }
+    case "sst_reporte": {
+      const r = await leer<SstReporteLocal>("sst_reportes", envio.id);
+      if (!r) return;
+      await servidor.guardarReporteSst(r);
+      await guardar("sst_reportes", { ...r, subido: true });
+      return;
+    }
+    case "sst_reporte_foto": {
+      const f = await leer<SstReporteFotoLocal>("sst_reporte_fotos", envio.id);
+      if (!f || !f.blob) return;
+      const ruta = rutaFotoReporte(f);
+      await servidor.subirArchivoSst(ruta, f.blob, "image/jpeg");
+      await servidor.registrarFotoReporteSst(f, ruta);
+      await guardar("sst_reporte_fotos", { ...f, blob: null, subida: true });
       return;
     }
   }

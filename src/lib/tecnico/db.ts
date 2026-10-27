@@ -110,7 +110,21 @@ export interface TareaLocal {
 /** Una entrada de la cola: qué falta subir. El dato en sí vive en su almacén. */
 export interface EnvioPendiente {
   id: string; // = id del registro (jornada, foto, …): un registro, una entrada
-  tipo: "estado_visita" | "estado_tarea" | "jornada" | "foto" | "sugerencia" | "firma";
+  tipo:
+    | "estado_visita"
+    | "estado_tarea"
+    | "jornada"
+    | "foto"
+    | "sugerencia"
+    | "firma"
+    // SG-SST (migraciones 75 y 77): misma cola, mismo orden de seguridad.
+    | "sst_formato"
+    | "sst_archivo"
+    | "sst_firma"
+    | "sst_cerrar"
+    | "sst_reporte"
+    | "sst_reporte_foto";
+  /** El "padre" que agrupa: la visita, o en SG-SST el formato o el reporte. */
   visitaId: string;
   creadoEn: string;
   intentos: number;
@@ -126,8 +140,34 @@ export interface EnvioPendiente {
 const NOMBRE = "se-erp-tecnico";
 // v2 (2026-10-22): almacén "tareas" (Mis tareas). Subir la versión crea solo lo que falta:
 // lo que ya estaba guardado en el celular no se toca.
-const VERSION = 2;
-export const ALMACENES = ["visitas", "jornadas", "fotos", "sugerencias", "firmas", "cola", "meta", "tareas"] as const;
+// v3 (2026-10-27): almacenes de SG-SST (formatos llenados en sitio y reportes de condición insegura).
+const VERSION = 3;
+export const ALMACENES = [
+  "visitas",
+  "jornadas",
+  "fotos",
+  "sugerencias",
+  "firmas",
+  "cola",
+  "meta",
+  "tareas",
+  "sst_formatos",
+  "sst_archivos",
+  "sst_firmas",
+  "sst_reportes",
+  "sst_reporte_fotos",
+] as const;
+/** El índice de cada almacén (por su padre). Los de la v1 conservan "visitaId". */
+const INDICE: Partial<Record<(typeof ALMACENES)[number], string>> = {
+  jornadas: "visitaId",
+  fotos: "visitaId",
+  sugerencias: "visitaId",
+  firmas: "visitaId",
+  cola: "visitaId",
+  sst_archivos: "formatoId",
+  sst_firmas: "formatoId",
+  sst_reporte_fotos: "reporteId",
+};
 export type Almacen = (typeof ALMACENES)[number];
 
 let abierta: Promise<IDBDatabase> | null = null;
@@ -141,9 +181,8 @@ function abrir(): Promise<IDBDatabase> {
       for (const nombre of ALMACENES) {
         if (db.objectStoreNames.contains(nombre)) continue;
         const almacen = db.createObjectStore(nombre, { keyPath: nombre === "meta" ? "clave" : "id" });
-        if (nombre !== "visitas" && nombre !== "meta" && nombre !== "tareas") {
-          almacen.createIndex("visitaId", "visitaId", { unique: false });
-        }
+        const indice = INDICE[nombre];
+        if (indice) almacen.createIndex(indice, indice, { unique: false });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -189,8 +228,14 @@ export function todos<T>(almacen: Almacen): Promise<T[]> {
   return enTransaccion<T[]>(almacen, "readonly", (s) => s.getAll() as IDBRequest<T[]>);
 }
 
-export function deVisita<T>(almacen: Exclude<Almacen, "visitas" | "meta" | "tareas">, visitaId: string): Promise<T[]> {
+export function deVisita<T>(almacen: "jornadas" | "fotos" | "sugerencias" | "firmas" | "cola", visitaId: string): Promise<T[]> {
   return enTransaccion<T[]>(almacen, "readonly", (s) => s.index("visitaId").getAll(visitaId) as IDBRequest<T[]>);
+}
+
+/** Los hijos de un formato o un reporte de SG-SST (fotos, firmas). */
+export function dePadre<T>(almacen: "sst_archivos" | "sst_firmas" | "sst_reporte_fotos", padreId: string): Promise<T[]> {
+  const indice = INDICE[almacen] as string;
+  return enTransaccion<T[]>(almacen, "readonly", (s) => s.index(indice).getAll(padreId) as IDBRequest<T[]>);
 }
 
 export function borrar(almacen: Almacen, id: string): Promise<void> {

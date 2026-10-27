@@ -1512,6 +1512,8 @@ function MiPerfil({ enLinea, tieneCajaMenor }: { enLinea: boolean; tieneCajaMeno
     { href: "/tecnico/permisos", icono: "🗓️", nombre: "Permisos" },
     { href: "/tecnico/abonos", icono: "💵", nombre: "Abonos de nómina" },
     { href: "/tecnico/documentos", icono: "📄", nombre: "Documentos y certificados" },
+    // SG-SST (migración 77): el canal para reportar; funciona sin señal (se guarda y sube después).
+    { href: "/reportar", icono: "🦺", nombre: "Reportar condición insegura" },
   ];
   return (
     <section className="px-4 pt-6">

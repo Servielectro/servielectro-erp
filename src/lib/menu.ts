@@ -123,6 +123,25 @@ export function seccionesMenu(a: AccesosMenu): SeccionMenu[] {
       ],
     });
   }
+  if (a.modulos.includes("sgsst")) {
+    s.push({
+      id: "sgsst",
+      nombre: "SG-SST",
+      href: "/sgsst",
+      palabras: "seguridad y salud en el trabajo sst",
+      hijos: [
+        ...(a.sgsstTrabajar
+          ? [{ nombre: "Llenar formato en sitio", href: "/sgsst/campo", palabras: "ats permiso de trabajo alturas inspección escaleras herramientas trabajo en caliente firmar llenar" }]
+          : []),
+        { nombre: "Formatos llenados", href: "/sgsst/formatos", palabras: "ats permiso inspección firmado aprobar pdf sellado íntegro" },
+        { nombre: "Plantillas de formatos", href: "/sgsst/plantillas", palabras: "armar armador formato plantilla campos" },
+        { nombre: "Actos y condiciones inseguras", href: "/sgsst/reportes", palabras: "reporte riesgo inseguro condición acto" },
+        { nombre: "Accidentes e incidentes", href: "/sgsst/eventos", palabras: "accidente incidente arl eps furat investigación" },
+        { nombre: "Plan de trabajo", href: "/sgsst/plan", palabras: "estándares mínimos 0312 avance evidencias auditoría" },
+        { nombre: "Plazos de reporte", href: "/sgsst/plazos", palabras: "plazo días arl eps investigación" },
+      ],
+    });
+  }
   if (a.modulos.includes("licitaciones")) {
     s.push({ id: "licitaciones", nombre: "Licitaciones", nota: "en construcción", href: "/licitaciones", palabras: "licitación secop pliegos", hijos: [] });
   }

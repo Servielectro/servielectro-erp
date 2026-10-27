@@ -30,6 +30,8 @@ export interface AccesosMenu {
   configResponsable: boolean;
   /** administrativo/trabajar: importar clientes de SIIGO (lo que exige esa pantalla). */
   administrativoTrabajar: boolean;
+  /** sgsst/trabajar: llenar formatos en sitio (lo que exige /sgsst/campo). */
+  sgsstTrabajar: boolean;
 }
 
 export function MenuPrincipal({
@@ -471,6 +473,13 @@ export function MenuPrincipal({
 
         {/* Al fondo y aparte: no son módulos (Jhojan: "el registrar problema… al menú hamburguesa al fondo"). */}
         <div className="mt-auto border-t border-slate-200 pt-3">
+          <Link
+            href="/reportar"
+            onClick={onCerrar}
+            className="flex min-h-11 items-center rounded-md px-3 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            🦺 Reportar acto o condición insegura
+          </Link>
           <Link
             href="/notificaciones"
             onClick={onCerrar}

@@ -1,4 +1,6 @@
-// Service worker del ERP: SOLO hace que la app del técnico (/tecnico) abra sin señal.
+// Service worker del ERP: SOLO hace que las pantallas de campo abran sin señal: la app del
+// técnico (/tecnico), el llenado de formatos de SG-SST (/sgsst/campo) y el reporte de un acto
+// o condición insegura (/reportar).
 // El resto del ERP sigue igual (siempre de la red).
 //
 //   - /tecnico (navegación): primero la red, con 4 s de espera (en un sótano la red
@@ -9,7 +11,8 @@
 
 const CACHE = "se-tecnico-v1"; // no cambiar a la ligera: cambiarlo borra la copia guardada de /tecnico
 const estatico = (pathname) => pathname.startsWith("/_next/static/") || pathname.startsWith("/_next/image");
-const PAGINA = "/tecnico";
+const PAGINAS = ["/tecnico", "/sgsst/campo", "/reportar"];
+const esPagina = (pathname) => PAGINAS.includes(pathname);
 const MAX_ARCHIVOS = 200;
 const ESPERA_RED_MS = 4000;
 
@@ -47,22 +50,23 @@ async function recortar(cache) {
   for (let i = 0; i < sobran; i++) await cache.delete(claves[i]);
 }
 
-async function paginaTecnico(request) {
+async function paginaDeCampo(request) {
   const cache = await caches.open(CACHE);
+  const pagina = new URL(request.url).pathname;
   try {
     const respuesta = await conTiempo(fetch(request), ESPERA_RED_MS);
     // Solo se guarda la página real (no la redirección al login de alguien sin sesión).
-    if (respuesta.ok && !respuesta.redirected && new URL(respuesta.url).pathname === PAGINA) {
-      await cache.put(PAGINA, respuesta.clone());
+    if (respuesta.ok && !respuesta.redirected && new URL(respuesta.url).pathname === pagina) {
+      await cache.put(pagina, respuesta.clone());
     }
     return respuesta;
   } catch {
-    const copia = await cache.match(PAGINA);
+    const copia = await cache.match(pagina);
     if (copia) return copia;
     return new Response(
       "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'>" +
         "<body style='font-family:sans-serif;padding:24px'><h1>Sin conexión</h1>" +
-        "<p>Abre la app del técnico una vez con señal para que quede guardada en este celular.</p>",
+        "<p>Abre esta pantalla una vez con señal para que quede guardada en este celular.</p>",
       { status: 503, headers: { "Content-Type": "text/html; charset=utf-8" } },
     );
   }
@@ -76,7 +80,7 @@ async function archivoEstatico(event) {
   if (respuesta.ok) {
     // Solo los que pide la app del técnico: el resto del ERP no llena el celular.
     const cliente = event.clientId ? await self.clients.get(event.clientId) : null;
-    const desdeTecnico = !cliente || new URL(cliente.url).pathname.startsWith(PAGINA);
+    const desdeTecnico = !cliente || PAGINAS.some((p) => new URL(cliente.url).pathname.startsWith(p));
     if (desdeTecnico) {
       await cache.put(event.request, respuesta.clone());
       recortar(cache);
@@ -97,8 +101,8 @@ self.addEventListener("message", (event) => {
         try {
           const url = new URL(u, self.location.origin);
           if (url.origin !== self.location.origin) continue;
-          if (!estatico(url.pathname) && url.pathname !== PAGINA) continue;
-          const clave = url.pathname === PAGINA ? PAGINA : url.href;
+          if (!estatico(url.pathname) && !esPagina(url.pathname)) continue;
+          const clave = esPagina(url.pathname) ? url.pathname : url.href;
           if (await cache.match(clave)) continue;
           const r = await fetch(url.href, { credentials: "same-origin" });
           if (r.ok && !r.redirected) await cache.put(clave, r);
@@ -117,8 +121,8 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  if (request.mode === "navigate" && url.pathname === PAGINA) {
-    event.respondWith(paginaTecnico(request));
+  if (request.mode === "navigate" && esPagina(url.pathname)) {
+    event.respondWith(paginaDeCampo(request));
     return;
   }
   if (estatico(url.pathname)) {

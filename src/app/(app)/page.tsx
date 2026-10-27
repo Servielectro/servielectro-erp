@@ -17,6 +17,7 @@ const MODULOS = [
   { id: "proyectos", nombre: "Proyectos", icono: "🏗️", href: "/proyectos", activo: true },
   { id: "operativo", nombre: "Operativo", icono: "⚙️", href: "/operativo", activo: true },
   { id: "planificacion", nombre: "Planificación", icono: "📅", href: "/planificacion", activo: true },
+  { id: "sgsst", nombre: "SG-SST", icono: "🦺", href: "/sgsst", activo: true },
 ] as const;
 
 export default async function Home() {
