@@ -145,15 +145,24 @@ select '3a SG-SST no ve el acta, ni sus firmas, ni su hash, ni su lista de técn
                           (select count(*) from sst_formato_firmas where formato_id = '00000000-0000-0000-0000-0000000085f1')::text$q$) || ' / ' ||
   pg_temp.valor($q$select fn_sst_hash_formato('00000000-0000-0000-0000-0000000085f1')$q$) || ' / ' ||
   pg_temp.valor($q$select fn_sst_tecnicos_de('00000000-0000-0000-0000-0000000085f1')::text$q$);
--- Otra acta, en borrador, para probar los archivos (se siembra como admin).
-reset role;
-insert into sst_formatos (id, plantilla_id, proyecto_id, creado_por) values
-  ('00000000-0000-0000-0000-0000000085f2', '00000000-0000-0000-0000-0000000085d1', '00000000-0000-0000-0000-0000000085e0', '00000000-0000-0000-0000-0000000085b0')
-on conflict (id) do nothing;
-set local role authenticated;
-select pg_temp.como('00000000-0000-0000-0000-0000000085c0');
+-- Otra acta, en borrador, para probar los archivos. La crea quien llena actas (Proyectos
+-- "trabajar"), como en la obra, no el admin.
+select pg_temp.como('00000000-0000-0000-0000-0000000085b0');
 insert into resultado (prueba, esperado, resultado)
-select '3b SG-SST no firma un acta de Proyectos (ni en borrador: ni la ve)', 'contiene: RECHAZADO',
+select '3b0 Proyectos crea otra acta: queda en borrador y en Proyectos', 'borrador / proyectos',
+  pg_temp.valor($q$with n as (insert into sst_formatos (id, plantilla_id, proyecto_id) values
+    ('00000000-0000-0000-0000-0000000085f2', '00000000-0000-0000-0000-0000000085d1', '00000000-0000-0000-0000-0000000085e0')
+    returning estado, ambito) select estado || ' / ' || ambito from n$q$);
+select pg_temp.como('00000000-0000-0000-0000-0000000085c0');
+-- El aislamiento por ámbito se prueba con lo que SG-SST VE: el acta en borrador no le aparece.
+insert into resultado (prueba, esperado, resultado)
+select '3b1 SG-SST no ve el acta en borrador de Proyectos', '0',
+  pg_temp.valor($q$select count(*)::text from sst_formatos where id = '00000000-0000-0000-0000-0000000085f2'$q$);
+-- La firma se rechaza. Con la 85 el mensaje es "El formato ya está cerrado" (mentira: está en
+-- borrador; fn_sst_firma_reglas corre como quien firma y no lo ve). La 88 lo cambia por
+-- "No tienes permiso para firmar formatos de Proyectos" y su verificación aprieta el esperado.
+insert into resultado (prueba, esperado, resultado)
+select '3b SG-SST no firma un acta de Proyectos en borrador', 'contiene: RECHAZADO',
   pg_temp.intentar(pg_temp.firma('00000000-0000-0000-0000-0000000085f2', 'otro', 'X', '9', 9));
 insert into resultado (prueba, esperado, resultado)
 select '3c SG-SST no sube archivos a un acta (borrador) de Proyectos', 'contiene: row-level security', pg_temp.intentar($q$

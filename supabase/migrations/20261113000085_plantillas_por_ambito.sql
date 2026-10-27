@@ -262,6 +262,10 @@ as $$
   select f.tecnicos_en_obra from sst_formatos f where f.id = p_formato_id and fn_plantillas_permiso(f.ambito, 'consultar');
 $$;
 
+-- AGREGADO DESPUÉS de correrla (así entró en producción): create or replace no puede cambiar
+-- la firma de la función de la 77, hace falta el drop. El drop se lleva los permisos, por eso
+-- el revoke/grant de abajo (sin él quedaba ejecutable por PUBLIC).
+drop function if exists public.fn_sst_personal();
 create or replace function public.fn_sst_personal()
 returns table (id uuid, perfil_id uuid, nombre text, cargo text, estado_laboral text)
 language sql
@@ -269,11 +273,13 @@ stable
 security definer
 set search_path = public
 as $$
-  select e.id, e.perfil_id, trim(e.primer_nombre || ' ' || e.primer_apellido || coalesce(' ' || e.segundo_apellido, '')), e.cargo, e.estado_laboral
+  select e.id, e.perfil_id, trim(e.primer_nombre || ' ' || e.primer_apellido || coalesce(' ' || e.segundo_apellido, '')), e.cargo, e.estado_laboral::text
   from empleados e
   where fn_tiene_permiso('sgsst', 'consultar') or fn_tiene_permiso('proyectos', 'consultar')
   order by 3;
 $$;
+revoke all on function public.fn_sst_personal() from public, anon;
+grant execute on function public.fn_sst_personal() to authenticated, service_role;
 
 -- ============================================================ 4) políticas por ámbito
 drop policy if exists sst_plantillas_select on public.sst_plantillas;
