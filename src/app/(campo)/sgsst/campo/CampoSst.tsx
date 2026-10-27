@@ -691,7 +691,7 @@ function FormDatosFirma({
     cargo: "",
     empresa: esCliente ? "" : "Servielectro SAS",
   });
-  const falta = !d.nombre.trim() ? "Escribe el nombre de quien firma." : !d.documento.trim() ? "Escribe su número de cédula." : esCliente && !d.empresa.trim() ? "Escribe la empresa del cliente." : null;
+  const falta = !d.nombre.trim() ? "Escribe el nombre de quien firma." : !d.cargo.trim() ? "Escribe su cargo." : !d.documento.trim() ? "Escribe su número de cédula." : esCliente && !d.empresa.trim() ? "Escribe la empresa del cliente." : null;
   const lista = `personal-${pedida.rol}`;
   return (
     <div className="mt-2 space-y-2 rounded-md bg-slate-50 p-2">
@@ -707,14 +707,14 @@ function FormDatosFirma({
         )}
       </label>
       <label className="block text-sm">
+        Cargo
+        <input value={d.cargo} onChange={(e) => setD({ ...d, cargo: e.target.value })} className={CAMPO} />
+      </label>
+      <label className="block text-sm">
         Cédula
         <input disabled={!!fijo} value={d.documento} onChange={(e) => setD({ ...d, documento: e.target.value })} inputMode="numeric" className={CAMPO} />
       </label>
       {fijo && <p className="text-xs text-slate-500">Nombre y cédula vienen de la lista de técnicos en obra.</p>}
-      <label className="block text-sm">
-        Cargo
-        <input value={d.cargo} onChange={(e) => setD({ ...d, cargo: e.target.value })} className={CAMPO} />
-      </label>
       <label className="block text-sm">
         Empresa
         <input value={d.empresa} onChange={(e) => setD({ ...d, empresa: e.target.value })} className={CAMPO} />

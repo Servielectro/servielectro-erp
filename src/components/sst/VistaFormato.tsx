@@ -42,11 +42,10 @@ export function VistaFormato({ f, imprimir }: { f: FormatoCompleto; imprimir?: b
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 {x.url ? <img src={x.url} alt={`Firma de ${x.nombre}`} className="my-1 h-20 w-full object-contain" /> : <p className="my-1 text-xs text-slate-500">(imagen no disponible)</p>}
                 <p className="font-semibold">{x.nombre}</p>
-                <p>
-                  CC {x.documento}
-                  {x.cargo ? ` · ${x.cargo}` : ""}
-                  {x.empresa ? ` · ${x.empresa}` : ""}
-                </p>
+                {/* Nombre, cargo y cédula, cada uno en su renglón (Jhojan, acta de inicio). */}
+                <p>Cargo: {x.cargo || "—"}</p>
+                <p>C.C. {x.documento}</p>
+                {x.empresa && <p>{x.empresa}</p>}
                 <p className="mt-1 text-xs text-slate-600">
                   Firmó: {fechaHora(x.firmada_en_dispositivo)} (en el dispositivo) · recibida {fechaHora(x.recibida_en)}
                 </p>
