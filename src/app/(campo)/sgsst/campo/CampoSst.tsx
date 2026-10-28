@@ -5,7 +5,7 @@ import Link from "next/link";
 import { FormularioSst, type ArchivoVista } from "@/components/sst/FormularioSst";
 import { FirmaPantallaCompleta } from "@/app/(campo)/tecnico/FirmaPantallaCompleta";
 import { comprimirFoto, hoyBogota, obtenerUbicacion, sha256 } from "@/lib/tecnico/captura";
-import { dePadre, guardar, guardarYEncolar, leer, leerMeta, guardarMeta, todos } from "@/lib/tecnico/db";
+import { dePadre, deVisita, guardar, guardarYEncolar, leer, leerMeta, guardarMeta, todos } from "@/lib/tecnico/db";
 import { useCola, nuevoId } from "@/lib/sst/campo";
 import { dispositivoActual, type PlantillaLocal, type SstArchivoLocal, type SstFirmaLocal, type SstFormatoLocal } from "@/lib/sst/local";
 import { iniciaMismoDia, sumarDiasHabiles } from "@/lib/fechas/dias-habiles";
@@ -149,7 +149,19 @@ export function CampoSst({
       setFestivos((await leerMeta<string[]>(`${k}_festivos`)) ?? null);
       await recargarLocales();
       if (formatoInicial) {
-        if (await leer<SstFormatoLocal>("sst_formatos", formatoInicial)) {
+        const local = await leer<SstFormatoLocal>("sst_formatos", formatoInicial);
+        // La copia de ESTE dispositivo manda solo si tiene algo por subir o ya tiene firmas; si no,
+        // se trae la del servidor: pudo seguirse llenando en otro celular o tablet.
+        const sinPendientes = local && !local.cerrado
+          && (await deVisita<unknown>("cola", formatoInicial)).length === 0
+          && (await dePadre<unknown>("sst_firmas", formatoInicial)).length === 0;
+        if (local && !(sinPendientes && navigator.onLine)) {
+          setAbierto(formatoInicial);
+        } else if (local) {
+          const r = await traerFormato(formatoInicial, (await leerMeta<{ id: string; nombre: string }[]>(`${k}_proyectos`)) ?? []);
+          // Sin poder traerla (sin señal, ya firmada en otro lado), se abre la del dispositivo y se dice.
+          setAvisoTraer(r.aviso);
+          await recargarLocales();
           setAbierto(formatoInicial);
         } else {
           setAvisoTraer("Trayendo el documento para firmar…");
