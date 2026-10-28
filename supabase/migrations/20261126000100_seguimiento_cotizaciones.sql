@@ -28,9 +28,9 @@
 --   7. Siembra: la CSE-26-157 pasa a EN_EVALUACION (el cliente la está evaluando) con un paso
 --      abierto SIN tipo y SIN fecha.
 --
--- Requiere la 98 confirmada. Idempotente.
--- Verificación: supabase/verificaciones/20261126000099_verificar.sql
--- Rollback:     supabase/rollbacks/20261126000099_seguimiento_cotizaciones_down.sql
+-- Requiere la 99 confirmada. Idempotente.
+-- Verificación: supabase/verificaciones/20261126000100_verificar.sql
+-- Rollback:     supabase/rollbacks/20261126000100_seguimiento_cotizaciones_down.sql
 
 -- ============================================================ 1) validez y fecha de envío
 alter table public.cotizaciones add column if not exists validez_dias int not null default 10;

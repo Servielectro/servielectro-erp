@@ -14,7 +14,7 @@ export default async function CotizacionesListadoPage() {
   } catch (err) {
     error = err instanceof Error ? err.message : "Error desconocido";
   }
-  // Alertas del seguimiento (migración 99): validez vencida, paso vencido, sin paso. Sin la 99, nada.
+  // Alertas del seguimiento (migración 100): validez vencida, paso vencido, sin paso. Sin la 100, nada.
   const alertasRes = await supabase.from("v_cotizaciones_alertas").select("*");
   const alertas = new Map(((alertasRes.error ? [] : alertasRes.data) as AlertaCotizacion[]).map((a) => [a.cotizacion_id, a]));
 

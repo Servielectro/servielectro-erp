@@ -1,4 +1,4 @@
--- Verificación de las migraciones 98 y 99 (EN_EVALUACION y seguimiento de cotizaciones). Correr
+-- Verificación de las migraciones 99 y 100 (EN_EVALUACION y seguimiento de cotizaciones). Correr
 -- DESPUÉS de las dos, todo junto. Crea un usuario de Comercial, un técnico, un cliente y tres
 -- cotizaciones de prueba; BORRA todo al final. Todas las filas deben decir OK.
 -- Cada cambio y su comprobación van en statements separados.

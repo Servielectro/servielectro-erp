@@ -1,8 +1,8 @@
--- Estado EN_EVALUACION de la cotización (2026-10-27). SOLO esto: el resto del seguimiento va en la 99.
+-- Estado EN_EVALUACION de la cotización (2026-10-27). SOLO esto: el resto del seguimiento va en la 100.
 --
 -- Por qué aparte: un valor nuevo de un enum (alter type … add value) no se puede USAR en la misma
 -- transacción en que se agrega ("unsafe use of new value"), y el editor de SQL de Supabase corre
--- el archivo entero en una sola transacción. La 99 lo usa (reglas de transición, alertas y la
+-- el archivo entero en una sola transacción. La 100 lo usa (reglas de transición, alertas y la
 -- siembra de la CSE-26-157), así que esta tiene que estar confirmada antes.
 --
 -- Nota de diseño (para el que lea esto después): la migración 27 decía "los estados de cotizaciones
@@ -10,6 +10,6 @@
 -- el 2026-10-27 (seguimiento del CRM). El pipeline de oportunidades sigue igual.
 --
 -- No cambia v_cotizaciones_listado ni nada que lea el estado: es un valor más.
--- Idempotente. Verificación: la de la 99. Rollback: no hay forma de quitar un valor de un enum sin
--- recrear el tipo; el de la 99 deja de usarlo.
+-- Idempotente. Verificación: la de la 100. Rollback: no hay forma de quitar un valor de un enum sin
+-- recrear el tipo; el de la 100 deja de usarlo.
 alter type public.estado_cotizacion add value if not exists 'EN_EVALUACION' after 'ENVIADA';

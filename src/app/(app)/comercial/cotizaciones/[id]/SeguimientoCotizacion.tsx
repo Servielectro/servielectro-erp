@@ -33,7 +33,7 @@ const deP = (p: Paso): Borrador => ({
 });
 
 /**
- * El seguimiento de una cotización (migraciones 98 y 99): mover el estado, la validez, el próximo
+ * El seguimiento de una cotización (migraciones 99 y 100): mover el estado, la validez, el próximo
  * paso (qué, cuándo, quién) y cerrarlo con su resultado abriendo el siguiente. La base exige las
  * reglas; si algo no vale, se muestra su mensaje.
  */

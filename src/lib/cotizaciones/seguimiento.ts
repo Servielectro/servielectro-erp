@@ -1,4 +1,4 @@
-// Seguimiento de cotizaciones (migraciones 98 y 99): estados, tipos de próximo paso y alertas.
+// Seguimiento de cotizaciones (migraciones 99 y 100): estados, tipos de próximo paso y alertas.
 // Las reglas (qué transición vale, un paso abierto a la vez, cerrado no se edita) las exige la
 // base; esto es lo que la pantalla necesita para mostrar.
 

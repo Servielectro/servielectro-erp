@@ -24,7 +24,7 @@ export default async function CotizacionDetallePage(
     notFound();
   }
 
-  // Seguimiento (migraciones 98 y 99). Sin ellas corridas, estas consultas fallan y el panel no sale.
+  // Seguimiento (migraciones 99 y 100). Sin ellas corridas, estas consultas fallan y el panel no sale.
   const [segRes, alertaRes, pasosRes, respRes, trabaja] = await Promise.all([
     supabase.from("cotizaciones").select("validez_dias").eq("id", id).maybeSingle(),
     supabase.from("v_cotizaciones_alertas").select("*").eq("cotizacion_id", id).maybeSingle(),
