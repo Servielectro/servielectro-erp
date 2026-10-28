@@ -59,7 +59,7 @@ npx supabase functions deploy respaldar-drive --project-ref <ref>
 
 Antes, correr la migración 91 (y la 89).
 
-**El cron:** en Supabase, **Integrations → Cron → Create job**. Se arma igual que el de `enviar-push`, llamando a la Edge Function `respaldar-drive` con la clave de servicio, **cada 10 minutos**. La primera vez puede tardar varias horas en ponerse al día con el histórico; después, cada vuelta solo sube lo nuevo.
+**El cron:** igual que el de `enviar-push` (migración 103): con `cron.schedule` y la clave leída de Vault (`clave_servicio_cron`), **nunca** escrita en el job ni en Integrations → Cron (queda en texto plano en `cron.job`). Llama a la Edge Function `respaldar-drive` **cada 10 minutos**. La primera vez puede tardar varias horas en ponerse al día con el histórico; después, cada vuelta solo sube lo nuevo.
 
 **Probar:** después de la primera vuelta, revisar `v_respaldo_drive_resumen` y la carpeta en Drive.
 
