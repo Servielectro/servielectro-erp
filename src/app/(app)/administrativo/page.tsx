@@ -24,6 +24,13 @@ export default async function AdministrativoPage() {
             </div>
           </Link>
         )}
+        <Link href="/administrativo/analisis-documentos" className="flex items-center gap-3 rounded-lg border border-slate-300 bg-white p-4 shadow-sm active:bg-slate-50">
+          <span className="text-2xl">🔍</span>
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Análisis de documentos</p>
+            <p className="text-xs text-slate-600">Lo que se envió contra lo que se firmó: qué cambió la contraparte.</p>
+          </div>
+        </Link>
         <div className="flex items-center gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-100 p-4 opacity-70">
           <span className="text-2xl grayscale">🚚</span>
           <div>
