@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requierePermiso, tienePermiso } from "@/lib/permisos";
 import { AppTecnico } from "./AppTecnico";
+import { esDemo, tecnicoVisibleEnDemo } from "@/lib/demo";
 
 // App de campo del técnico. Esta página se guarda en el celular (public/sw.js) y abre
 // sin señal; todo lo demás sale de la base local del celular (src/lib/tecnico).
@@ -37,6 +38,8 @@ export default async function TecnicoPage() {
         cedula: perfil?.cedula ?? "",
         puedeEditarPerfil: await tienePermiso("configuracion", "responsable"),
         tieneCajaMenor,
+        // Demostración (116): las visitas que se bajan son las de Miguel, no las suyas.
+        visitasDe: (await esDemo(supabase)) ? await tecnicoVisibleEnDemo(supabase) : user.id,
       }}
     />
   );

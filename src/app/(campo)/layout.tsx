@@ -1,4 +1,5 @@
 import { AppHeader } from "@/components/AppHeader";
+import { BannerDemo } from "@/components/BannerDemo";
 import { accesosDeMenu, getMisPermisos } from "@/lib/permisos";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,6 +15,7 @@ export default async function CampoLayout({ children }: { children: React.ReactN
   const usuario = (await (await createClient()).auth.getUser()).data.user?.email ?? null;
   return (
     <div className="flex min-h-screen flex-col bg-slate-100 text-base text-slate-900">
+      <BannerDemo />
       <AppHeader accesos={accesos} usuario={usuario} />
       <div className="flex-1">{children}</div>
     </div>

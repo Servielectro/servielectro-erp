@@ -43,6 +43,8 @@ interface Tecnico {
   puedeEditarPerfil?: boolean;
   /** Tiene una caja menor abierta a su nombre (migración 69). Sin ella, el módulo no aparece. */
   tieneCajaMenor?: boolean;
+  /** De quién son las visitas que se bajan (el demo ve las de Miguel). Sin esto, las propias. */
+  visitasDe?: string;
 }
 
 // Avisos de espacio: con tiempo, no cuando ya no cabe.
@@ -118,7 +120,7 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
         await guardarMeta("ultimaSync", ahora);
         setUltimaSync(ahora);
         try {
-          await descargarVisitas(supabase, tecnico.id);
+          await descargarVisitas(supabase, tecnico.visitasDe ?? tecnico.id);
           await descargarTareas(supabase, tecnico.id);
           await enviarVistas();
         } catch {
@@ -129,7 +131,7 @@ export function AppTecnico({ tecnico }: { tecnico: Tecnico }) {
       setSincronizando(false);
       await refrescarEstado();
     }
-  }, [servidor, supabase, tecnico.id, refrescarEstado]);
+  }, [servidor, supabase, tecnico.id, tecnico.visitasDe, refrescarEstado]);
 
   // Arranque: almacenamiento persistente, service worker, datos locales y primera subida.
   useEffect(() => {

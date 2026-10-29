@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { tienePermiso } from "@/lib/permisos";
 import { cargarDatosTareas } from "@/lib/supabase/tareas";
 import { AgendaEquipo, type VisitaAgenda } from "@/components/tareas/AgendaEquipo";
+import { esDemo, tecnicoVisibleEnDemo } from "@/lib/demo";
 
 // Agenda del equipo (el layout de Operativo ya exige operativo/consultar): por día, las
 // tareas de obra y las visitas de cada técnico, con filtro por persona. Las tareas internas
@@ -16,11 +17,14 @@ export default async function AgendaEquipoPage() {
   if (!user) redirect("/login?next=/operativo/agenda");
 
   const puedeAsignar = await tienePermiso("operativo", "trabajar");
+  // Demostración (116): solo la visita de Miguel.
+  const soloDe = (await esDemo(supabase)) ? await tecnicoVisibleEnDemo(supabase) : null;
   const [datos, visitasRes] = await Promise.all([
     cargarDatosTareas(supabase, user.id, puedeAsignar, "operativo"),
-    supabase
-      .from("visitas")
-      .select("id, titulo, cliente_nombre, fecha_programada, estado, tecnico_id")
+    (soloDe
+      ? supabase.from("visitas").select("id, titulo, cliente_nombre, fecha_programada, estado, tecnico_id").eq("tecnico_id", soloDe)
+      : supabase.from("visitas").select("id, titulo, cliente_nombre, fecha_programada, estado, tecnico_id")
+    )
       .in("estado", ["programada", "en_curso"])
       .order("fecha_programada", { ascending: true })
       .limit(300),

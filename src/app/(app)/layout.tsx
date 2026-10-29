@@ -1,4 +1,5 @@
 import { AppHeader } from "@/components/AppHeader";
+import { BannerDemo } from "@/components/BannerDemo";
 import { CierrePorInactividad } from "@/components/CierrePorInactividad";
 import { accesosDeMenu, getMisPermisos } from "@/lib/permisos";
 import { createClient } from "@/lib/supabase/server";
@@ -10,6 +11,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const usuario = (await (await createClient()).auth.getUser()).data.user?.email ?? null;
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 print:block print:min-h-0 print:bg-white">
+      <BannerDemo />
       <AppHeader accesos={accesos} usuario={usuario} />
       <div className="flex flex-1 flex-col">{children}</div>
       <CierrePorInactividad />

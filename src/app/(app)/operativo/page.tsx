@@ -4,6 +4,7 @@ import { tienePermiso } from "@/lib/permisos";
 import { getClientesActivos, type ClienteResumen } from "@/lib/supabase/clientes";
 import { getProyectosNombres, type ProyectoNombre } from "@/lib/supabase/proyectos";
 import { NuevaVisitaForm } from "./NuevaVisitaForm";
+import { esDemo, tecnicoVisibleEnDemo } from "@/lib/demo";
 
 const ESTADO: Record<string, string> = {
   programada: "Programada",
@@ -18,11 +19,14 @@ export default async function OperativoPage() {
   const puedeCrear = await tienePermiso("operativo", "trabajar");
   const veComercial = await tienePermiso("comercial", "consultar");
   const creaClientes = await tienePermiso("comercial", "trabajar");
+  // Demostración (116): solo la visita de Miguel.
+  const soloDe = (await esDemo(supabase)) ? await tecnicoVisibleEnDemo(supabase) : null;
 
   const [{ data: visitas, error }, tecnicosRes, clientes, proyectos] = await Promise.all([
-    supabase
-      .from("visitas")
-      .select("id, titulo, cliente_nombre, direccion, estado, tipo, fecha_programada, tecnico_id")
+    (soloDe
+      ? supabase.from("visitas").select("id, titulo, cliente_nombre, direccion, estado, tipo, fecha_programada, tecnico_id").eq("tecnico_id", soloDe)
+      : supabase.from("visitas").select("id, titulo, cliente_nombre, direccion, estado, tipo, fecha_programada, tecnico_id")
+    )
       .order("fecha_programada", { ascending: false })
       .limit(100),
     puedeCrear ? supabase.rpc("fn_tecnicos_asignables") : Promise.resolve({ data: [], error: null }),
