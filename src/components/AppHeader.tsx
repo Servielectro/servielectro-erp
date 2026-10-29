@@ -277,7 +277,7 @@ export function AppHeader({ accesos, usuario }: { accesos: AccesosMenu; usuario?
                     }}
                     className="flex min-h-11 w-full items-center rounded-md px-3 text-left text-sm text-amber-800 hover:bg-amber-50"
                   >
-                    ⚠ Registrar problema
+                    ⚠ Registrar problema u observación
                   </button>
                   <form action={logout}>
                     <button type="submit" className="flex min-h-11 w-full items-center rounded-md px-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50">

@@ -493,7 +493,7 @@ export function MenuPrincipal({
             onClick={() => setReportando(true)}
             className="flex min-h-11 w-full items-center rounded-md px-3 text-left text-sm font-medium text-amber-800 hover:bg-amber-50"
           >
-            ⚠ Registrar problema
+            ⚠ Registrar problema u observación
           </button>
         </div>
         {reportando && (
