@@ -1,4 +1,4 @@
--- Deshace 20261130000111: fn_sst_equipo_vigente vuelve a la versión de la 109.
+-- Deshace 20261130000114: fn_sst_equipo_vigente vuelve a la versión de la 109.
 create or replace function public.fn_sst_equipo_vigente(p_equipo_id uuid, p_fecha date)
 returns boolean language sql stable security definer set search_path = public as $$
   select e.estado = 'activo'

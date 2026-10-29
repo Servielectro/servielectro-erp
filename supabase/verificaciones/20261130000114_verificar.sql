@@ -1,5 +1,5 @@
--- Verificación de la migración 111. Correr DESPUÉS de la migración, todo junto. Crea dos equipos de
--- prueba y los BORRA al final. Antes de la 111, las pruebas 1 y 2 salen REVISAR.
+-- Verificación de la migración 114. Correr DESPUÉS de la migración, todo junto. Crea dos equipos de
+-- prueba y los BORRA al final. Antes de la 114, las pruebas 1 y 2 salen REVISAR.
 begin;
 
 create temporary table resultado (orden serial, prueba text, esperado text, resultado text) on commit drop;

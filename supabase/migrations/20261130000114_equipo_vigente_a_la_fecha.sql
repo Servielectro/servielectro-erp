@@ -1,4 +1,4 @@
--- fn_sst_equipo_vigente: dos casos donde no respondía "¿servía ESE día?" (2026-10-30). Encontrados al
+-- Migración 114 (era la 111; la 111 la tomaron las sugerencias de SG-SST). fn_sst_equipo_vigente: dos casos donde no respondía "¿servía ESE día?" (2026-10-30). Encontrados al
 -- pasar a archivo las pruebas de la 109.
 --
 --   1. Un "no apto" POSTERIOR no quitaba la vigencia: la 109 busca CUALQUIER inspección no-no_apto
@@ -10,8 +10,8 @@
 --      ('fuera_de_servicio' no trae fecha: sigue contando como no apto desde ya.)
 --
 -- Misma firma y mismos permisos. Idempotente.
--- Verificación: supabase/verificaciones/20261130000111_verificar.sql
--- Rollback:     supabase/rollbacks/20261130000111_equipo_vigente_a_la_fecha_down.sql
+-- Verificación: supabase/verificaciones/20261130000114_verificar.sql
+-- Rollback:     supabase/rollbacks/20261130000114_equipo_vigente_a_la_fecha_down.sql
 
 create or replace function public.fn_sst_equipo_vigente(p_equipo_id uuid, p_fecha date)
 returns boolean language sql stable security definer set search_path = public as $$

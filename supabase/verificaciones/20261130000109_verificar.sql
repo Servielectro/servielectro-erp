@@ -2,7 +2,7 @@
 -- todo junto. Son las pruebas que el orquestador corrió a mano al aplicarla. Crea un equipo de
 -- prueba con sus inspecciones y lo BORRA al final.
 -- (Dos casos que la 109 no cubría —un "no apto" posterior y un equipo retirado después— van en la
--- verificación de la 111, que los corrige.)
+-- verificación de la 114, que los corrige.)
 begin;
 
 create temporary table resultado (orden serial, prueba text, esperado text, resultado text) on commit drop;

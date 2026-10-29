@@ -22,6 +22,8 @@ export default async function SgsstPage() {
     { href: "/sgsst/eventos", icono: "🚑", nombre: "Accidentes e incidentes", ayuda: `${eventosAbiertos.count ?? 0} abiertos` },
     { href: "/sgsst/plan", icono: "📈", nombre: "Plan de trabajo", ayuda: "Estándares, responsables, fechas, evidencias y avance." },
     { href: "/sgsst/plazos", icono: "⏱️", nombre: "Plazos de reporte", ayuda: "ARL, EPS e investigación: los define la responsable SST." },
+    // Último, a propósito (Jhojan: "en la parte de abajo, el último módulo").
+    { href: "/sgsst/sugerencias", icono: "📝", nombre: "Sugerencias para la aplicación", ayuda: "Un cuadro de texto: escribe y guarda." },
   ].filter(Boolean) as { href: string; icono: string; nombre: string; ayuda: string }[];
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6 lg:max-w-6xl">
