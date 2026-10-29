@@ -186,8 +186,15 @@ insert into resultado (prueba, esperado, resultado)
 select '5f S registra una inspección', 'aceptado (1 filas)', pg_temp.intentar($q$
   insert into epp_inspecciones (id, entrega_id, estado, en_uso) values ('00000000-0000-0000-0000-000000107b01', '00000000-0000-0000-0000-000000107d01', 'bueno', true)$q$);
 insert into resultado (prueba, esperado, resultado)
-select '5g una inspección no se cambia', 'contiene: no se cambia', pg_temp.intentar($q$
+-- OJO: epp_inspecciones no tiene política de update, así que la RLS tapa la fila ANTES del trigger
+-- y el update no rebota: afecta 0 filas. Eso prueba la RLS, no la regla del trigger (que se prueba
+-- como admin en 5h).
+select '5g una inspección no se cambia (la RLS no deja tocarla: 0 filas)', 'aceptado (0 filas)', pg_temp.intentar($q$
   update epp_inspecciones set estado = 'malo' where id = '00000000-0000-0000-0000-000000107b01'$q$);
+
+insert into resultado (prueba, esperado, resultado)
+select '5h … porque NADIE tiene política de update en inspecciones (eso es lo que frena, no el 0)', '0',
+  (select count(*)::text from pg_policies where schemaname = 'public' and tablename = 'epp_inspecciones' and cmd in ('UPDATE', 'ALL'));
 
 -- ============================================================ 6) archivos
 insert into resultado (prueba, esperado, resultado)

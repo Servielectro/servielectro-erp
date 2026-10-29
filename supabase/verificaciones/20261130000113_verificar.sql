@@ -1,4 +1,4 @@
--- Verificación de la migración 110. Correr DESPUÉS de la migración. No crea nada.
+-- Verificación de la migración 113. Correr DESPUÉS de la migración. No crea nada.
 select prueba, esperado, resultado, case when esperado = resultado then 'OK' else 'REVISAR' end as estado
 from (
   select '1 los 60 pesos de 2026 quedaron verificados' as prueba, '60 / 60' as esperado,

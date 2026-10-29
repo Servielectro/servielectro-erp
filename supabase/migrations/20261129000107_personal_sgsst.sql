@@ -59,7 +59,10 @@ returns boolean language sql stable set search_path = public as $$
   end;
 $$;
 
--- La ficha de nómina SIN plata, para quien ve el personal.
+-- La ficha de nómina SIN plata, para quien ve el personal. El drop va antes (lo agregó el
+-- orquestador al aplicarla): si una versión futura cambia las columnas que devuelve, create or
+-- replace revienta (pasó con fn_sst_personal en la 85).
+drop function if exists public.fn_sst_personal_ficha();
 create or replace function public.fn_sst_personal_ficha()
 returns table (
   id uuid, perfil_id uuid, nombre text, tipo_documento text, numero_documento text, cargo text, area text,
@@ -78,6 +81,7 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 -- Nombre de los contratistas (sin tarifas ni cuentas), para quien ve el personal.
+drop function if exists public.fn_sst_contratistas();
 create or replace function public.fn_sst_contratistas()
 returns table (id uuid, nombre text, activo boolean)
 language sql stable security definer set search_path = public as $$

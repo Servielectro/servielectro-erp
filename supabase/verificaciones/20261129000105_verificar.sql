@@ -1,4 +1,7 @@
--- Verificación de la migración 105 (actas de obra para SG-SST). Correr DESPUÉS de la migración,
+-- Verificación de la migración 105 (actas de obra para SG-SST).
+-- OJO al tocar fn_sst_hash_formato: el cuerpo del hash quedó byte a byte igual al de la 88 (solo
+-- cambió el where). Cambiar una coma de ese jsonb_build_object marca como alteradas todas las actas
+-- ya selladas. Al aplicarla (2026-10-30) no había actas selladas: la de Tintalá seguía en borrador. Correr DESPUÉS de la migración,
 -- todo junto. Crea una obra, una plantilla de Proyectos y tres actas (firmada, borrador, anulada)
 -- con una firma y una foto, y usuarios de prueba; BORRA todo al final. Todo debe decir OK.
 begin;
@@ -105,7 +108,7 @@ select '1i la integridad le responde (aquí false: el sello de prueba es falso)'
 
 -- ============================================================ 2) solo lectura
 insert into resultado (prueba, esperado, resultado)
-select '2a S no aprueba ni cambia el acta', 'aceptado (0 filas)', pg_temp.intentar($q$
+select '2a S no aprueba ni cambia el acta (sin política de update para ella: 0 filas, ver 2e)', 'aceptado (0 filas)', pg_temp.intentar($q$
   update sst_formatos set estado = 'aprobado' where id = '00000000-0000-0000-0000-0000001050d1'$q$);
 insert into resultado (prueba, esperado, resultado)
 select '2b S no agrega firmas al acta (la regla de firma de la 95 lo frena)', 'contiene: No tienes permiso para firmar', pg_temp.intentar($q$
@@ -117,6 +120,10 @@ select '2c S no sube archivos al acta', 'false',
 insert into resultado (prueba, esperado, resultado)
 select '2d S no crea actas de Proyectos', 'contiene: row-level security', pg_temp.intentar($q$
   insert into sst_formatos (plantilla_id, proyecto_id, fecha, lugar) values ('00000000-0000-0000-0000-0000001050f0', '00000000-0000-0000-0000-0000001050e0', '2026-10-29', 'x')$q$);
+
+insert into resultado (prueba, esperado, resultado)
+select '2e … y es porque ninguna política de update de sst_formatos la incluye (eso frena, no el 0)', 'false',
+  pg_temp.valor($q$select fn_plantillas_permiso('proyectos', 'trabajar')::text$q$);
 
 -- ============================================================ 3) a los demás no les cambia nada
 select pg_temp.como('00000000-0000-0000-0000-0000001050b0');

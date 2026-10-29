@@ -73,10 +73,10 @@ insert into resultado (prueba, esperado, resultado)
 select '1f un tipo que no existe', 'contiene: reportes_problema_tipo', pg_temp.intentar($q$
   insert into reportes_problema (ruta, tipo, que_paso) values ('/sgsst', 'queja', 'x')$q$);
 insert into resultado (prueba, esperado, resultado)
-select '1g no cambia la norma de lo que ya dejó', 'aceptado (0 filas)', pg_temp.intentar($q$
+select '1g no cambia la norma de lo que ya dejó (la RLS no le deja tocar la fila: 0 filas; la regla del trigger se prueba en 2i)', 'aceptado (0 filas)', pg_temp.intentar($q$
   update reportes_problema set norma = 'otra' where id = '00000000-0000-0000-0000-0000001040c1'$q$);
 insert into resultado (prueba, esperado, resultado)
-select '1h la revisora no se acepta sus propias observaciones', 'aceptado (0 filas)', pg_temp.intentar($q$
+select '1h la revisora no se acepta sus propias observaciones (la RLS: solo quien administra actualiza; 0 filas)', 'aceptado (0 filas)', pg_temp.intentar($q$
   update reportes_problema set estado = 'aceptado' where id = '00000000-0000-0000-0000-0000001040c1'$q$);
 
 -- ============================================================ 2) Jhojan decide
