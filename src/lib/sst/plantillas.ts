@@ -15,13 +15,35 @@ export type TipoCampo =
   | "ubicacion"
   | "tabla";
 
-export type TipoColumna = "texto" | "numero" | "si_no" | "lista" | "fecha" | "hora";
+export type TipoColumna = "texto" | "texto_largo" | "numero" | "si_no" | "lista" | "fecha" | "hora";
 
 export interface Columna {
   id: string;
   tipo: TipoColumna;
   etiqueta: string;
   opciones?: string[];
+  /** Migración 112: una lista que en el papel son casillas (SI · NO · N/A): se marca una con X. */
+  marcas?: boolean;
+}
+
+/** Migración 112: fila FIJA de una tabla (los 5 pasos del ATS, los EPP, los ítems de chequeo). */
+export interface FilaFija {
+  id: string;
+  etiqueta: string;
+}
+
+/**
+ * Migración 112: dato que se pide por persona en la lista de técnicos (las columnas del FOR-15).
+ * `esperado` es la respuesta "buena" (en la autodeclaración de acrofobia es NO); si se marca la
+ * otra, la pantalla avisa antes de firmar. `vigencia_de` dice de qué dato de Personal saldrá
+ * después (se evalúa a la fecha de la firma, no a hoy); hoy se marca a mano.
+ */
+export interface ColumnaPersona {
+  id: string;
+  etiqueta: string;
+  tipo: "si_no";
+  esperado?: boolean;
+  vigencia_de?: "aptitud_alturas" | "seguridad_social" | "epcc";
 }
 
 export interface Campo {
@@ -33,6 +55,14 @@ export interface Campo {
   opciones?: string[];
   multiple?: boolean;
   columnas?: Columna[];
+  /** Migración 112: tabla de filas fijas. La respuesta es { fila: { columna: valor } }. */
+  filas?: FilaFija[];
+  /** Migración 112: texto fijo del papel (en una sección), p. ej. la Res. 4272 de 2021, art. 15. */
+  texto?: string;
+  /** Migración 112: unidad que va al lado del número en el papel ("mts."). */
+  unidad?: string;
+  /** Migración 112: lista pintada como casillas (llega desde la columna de una tabla). */
+  marcas?: boolean;
   /**
    * Migración 94: se prellena al crear el acta con este dato de la obra (fn_actas_prellenado:
    * "alcance" del contrato confirmado, "lugar_direccion" de la sede…). Lo que traía queda en
@@ -78,6 +108,25 @@ export function prellenar(campos: Campo[], datos: Record<string, unknown> | unde
   return r;
 }
 
+/** Migración 112: las respuestas por persona que no son la esperada (avisar antes de firmar, no bloquear). */
+export function avisosDePersonas(pedidas: FirmaPedida[], lista: TecnicoEnObra[]): string[] {
+  const cols = pedidas.find((p) => p.rol === "tecnico")?.columnas ?? [];
+  const r: string[] = [];
+  for (const t of lista)
+    for (const c of cols) {
+      const v = t[c.id];
+      if (c.esperado === undefined) continue;
+      if (v === undefined || v === null) r.push(`${t.nombre}: sin marcar "${c.etiqueta}"`);
+      else if (v !== c.esperado) r.push(`${t.nombre}: "${c.etiqueta}" = ${v ? "Sí" : "No"}`);
+    }
+  return r;
+}
+
+/** Día de una firma en Bogotá (aaaa-mm-dd): el de la firma diaria. */
+export function diaDeFirma(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
+}
+
 /** Los requisitos con aviso que no están en "Sí" (para avisar antes de la primera firma). */
 export function avisosDeFirma(campos: Campo[], respuestas: Record<string, unknown>): string[] {
   return campos.filter((c) => c.aviso_firma && respuestas[c.id] !== true).map((c) => c.etiqueta);
@@ -88,6 +137,13 @@ export interface FirmaPedida {
   rol: RolFirma;
   etiqueta: string;
   obligatoria?: boolean;
+  /**
+   * Migración 112: se firma una vez por DÍA (ATS y alturas 2026: de lunes a sábado). El día sale
+   * de la hora de la firma en el dispositivo (Bogotá). El contenido se sella con la primera firma.
+   */
+  diaria?: boolean;
+  /** Migración 112: datos por persona de la lista de técnicos (solo en el bloque "tecnico"). */
+  columnas?: ColumnaPersona[];
 }
 
 export const TIPOS_CAMPO: { id: TipoCampo; nombre: string; ayuda: string }[] = [
@@ -105,7 +161,7 @@ export const TIPOS_CAMPO: { id: TipoCampo; nombre: string; ayuda: string }[] = [
   { id: "tabla", nombre: "Tabla de filas", ayuda: "Ej.: lista de EPP con columnas Elemento / Estado." },
 ];
 export const NOMBRE_TIPO = Object.fromEntries(TIPOS_CAMPO.map((t) => [t.id, t.nombre])) as Record<TipoCampo, string>;
-export const TIPOS_COLUMNA: TipoColumna[] = ["texto", "numero", "si_no", "lista", "fecha", "hora"];
+export const TIPOS_COLUMNA: TipoColumna[] = ["texto", "texto_largo", "numero", "si_no", "lista", "fecha", "hora"];
 
 export const ROLES_FIRMA: { id: RolFirma; nombre: string; lista: boolean }[] = [
   { id: "tecnico", nombre: "Técnicos de Servielectro (firman todos los de la obra)", lista: true },
@@ -174,6 +230,8 @@ export const ROL_LISTA: Record<RolFirma, boolean> = { tecnico: true, responsable
 export interface TecnicoEnObra {
   nombre: string;
   documento: string;
+  /** Migración 112: las columnas por persona de la plantilla (sí/no). */
+  [columna: string]: string | boolean | null | undefined;
 }
 
 /** La cédula como la compara la base (fn_sst_doc): sin puntos, espacios ni guiones. */
@@ -242,6 +300,11 @@ export function problemaCampos(campos: Campo[], firmas: FirmaPedida[]): string |
         idsc.add(col.id);
         if (!col.etiqueta.trim()) return `La tabla "${c.etiqueta}" tiene una columna sin nombre.`;
         if (col.tipo === "lista" && !(col.opciones ?? []).filter((o) => o.trim()).length) return `La columna "${col.etiqueta}" de "${c.etiqueta}" no tiene opciones.`;
+      }
+      const idsf = new Set<string>();
+      for (const fi of c.filas ?? []) {
+        if (!/^[a-z0-9_]{1,40}$/.test(fi.id) || idsf.has(fi.id) || !fi.etiqueta.trim()) return `La tabla "${c.etiqueta}" tiene una fila fija repetida, inválida o sin nombre.`;
+        idsf.add(fi.id);
       }
     }
   }

@@ -1,4 +1,5 @@
 import { FormularioSst } from "@/components/sst/FormularioSst";
+import { HojaFormato, tieneHojaPropia } from "@/components/sst/papel/HojaFormato";
 import { fechaHora, type FormatoCompleto } from "@/lib/sst/formato-servidor";
 import { AMBITO, ESTADO_FORMATO, tecnicosSinFirmar } from "@/lib/sst/plantillas";
 
@@ -23,9 +24,28 @@ export function VistaFormato({ f, imprimir }: { f: FormatoCompleto; imprimir?: b
 
       <Sello f={f} />
 
-      <section className={imprimir ? "" : "rounded-lg border border-slate-200 bg-white p-3"}>
-        <FormularioSst campos={f.plantilla.campos} respuestas={f.respuestas} archivos={f.archivos} />
-      </section>
+      {tieneHojaPropia(f.plantilla.codigo) ? (
+        // Migración 112: el formato como el papel (FOR-14, FOR-15). El registro de firmas va debajo.
+        <section className={imprimir ? "" : "overflow-x-auto rounded-lg border border-slate-200 bg-white"}>
+          <HojaFormato
+            d={{
+              codigo: f.plantilla.codigo,
+              control: f.control,
+              fecha: f.fecha,
+              lugar: f.lugar,
+              proyecto: f.proyecto,
+              respuestas: f.respuestas,
+              tecnicos: f.tecnicos_en_obra ?? [],
+              firmas: f.firmas.map((x) => ({ rol: x.rol, nombre: x.nombre, documento: x.documento, cargo: x.cargo, url: x.url, firmadaEn: x.firmada_en_dispositivo })),
+            }}
+          />
+          {imprimir && <div className="break-before-page" />}
+        </section>
+      ) : (
+        <section className={imprimir ? "" : "rounded-lg border border-slate-200 bg-white p-3"}>
+          <FormularioSst campos={f.plantilla.campos} respuestas={f.respuestas} archivos={f.archivos} />
+        </section>
+      )}
 
       <section className={imprimir ? "break-inside-avoid" : "rounded-lg border border-slate-200 bg-white p-3"}>
         <h2 className="mb-2 text-base font-bold">Firmas</h2>

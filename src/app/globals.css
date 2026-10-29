@@ -163,6 +163,10 @@ select {
     size: letter;
     margin: 0;
   }
+  @page sst-apaisada {
+    size: letter landscape;
+    margin: 8mm;
+  }
   html,
   body {
     print-color-adjust: exact;
@@ -170,6 +174,19 @@ select {
   }
   .formato-cotizacion .salto-pagina {
     break-before: page;
+  }
+  /* Formatos SG-SST con hoja propia (FOR-14 ATS, FOR-15 alturas, migración 112): carta apaisada,
+     como el papel. */
+  .hoja-sst {
+    page: sst-apaisada;
+    width: auto !important;
+    padding: 0 !important;
+  }
+  .hoja-sst .salto-pagina {
+    break-before: page;
+  }
+  .hoja-sst tr {
+    break-inside: avoid;
   }
   .ajuste-ancho > div {
     zoom: 1 !important;

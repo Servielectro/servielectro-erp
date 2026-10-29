@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { seAparto, type Campo, type Columna } from "@/lib/sst/plantillas";
+import { seAparto, type Campo, type Columna, type FilaFija } from "@/lib/sst/plantillas";
 
 const CAMPO = "mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-base disabled:bg-slate-50 disabled:text-slate-800";
 
@@ -45,6 +45,7 @@ export function FormularioSst({
             <h3 key={c.id} className="border-b border-slate-300 pb-1 pt-2 text-base font-bold text-slate-900">
               {c.etiqueta}
               {c.ayuda && <span className="block text-xs font-normal text-slate-500">{c.ayuda}</span>}
+              {c.texto && <span className="mt-1 block whitespace-pre-line text-xs font-normal text-slate-700">{c.texto}</span>}
             </h3>
           );
         }
@@ -139,7 +140,14 @@ function Control({ c, v, dis, onCambio }: { c: Campo; v: unknown; dis: boolean; 
     case "texto_largo":
       return <textarea disabled={dis} value={(v as string) ?? ""} onChange={(e) => onCambio(e.target.value)} rows={3} className={CAMPO} />;
     case "numero":
-      return <input disabled={dis} inputMode="decimal" value={(v as string) ?? ""} onChange={(e) => onCambio(e.target.value)} className={CAMPO} />;
+      return c.unidad ? (
+        <span className="flex items-center gap-2">
+          <input disabled={dis} inputMode="decimal" value={(v as string) ?? ""} onChange={(e) => onCambio(e.target.value)} className={CAMPO} />
+          <span className="mt-1 text-sm text-slate-600">{c.unidad}</span>
+        </span>
+      ) : (
+        <input disabled={dis} inputMode="decimal" value={(v as string) ?? ""} onChange={(e) => onCambio(e.target.value)} className={CAMPO} />
+      );
     case "fecha":
       return <input disabled={dis} type="date" value={(v as string) ?? ""} onChange={(e) => onCambio(e.target.value)} className={CAMPO} />;
     case "hora":
@@ -147,9 +155,13 @@ function Control({ c, v, dis, onCambio }: { c: Campo; v: unknown; dis: boolean; 
     case "si_no":
       return <SiNo v={v} dis={dis} onCambio={onCambio} />;
     case "lista":
-      return <Lista opciones={c.opciones ?? []} multiple={!!c.multiple} v={v} dis={dis} onCambio={onCambio} />;
+      return c.marcas ? <Marcas opciones={c.opciones ?? []} v={v} dis={dis} onCambio={onCambio} /> : <Lista opciones={c.opciones ?? []} multiple={!!c.multiple} v={v} dis={dis} onCambio={onCambio} />;
     case "tabla":
-      return <Tabla columnas={c.columnas ?? []} v={v} dis={dis} onCambio={onCambio} />;
+      return c.filas?.length ? (
+        <TablaFija columnas={c.columnas ?? []} filas={c.filas} v={v} dis={dis} onCambio={onCambio} />
+      ) : (
+        <Tabla columnas={c.columnas ?? []} v={v} dis={dis} onCambio={onCambio} />
+      );
     default:
       return null;
   }
@@ -172,6 +184,51 @@ function SiNo({ v, dis, onCambio }: { v: unknown; dis: boolean; onCambio: (x: un
         >
           {texto as string}
         </button>
+      ))}
+    </div>
+  );
+}
+
+/** Migración 112: las casillas del papel (SI · NO · N/A): una sola, en una fila de botones. */
+function Marcas({ opciones, v, dis, onCambio }: { opciones: string[]; v: unknown; dis: boolean; onCambio: (x: unknown) => void }) {
+  return (
+    <div className="mt-1 flex gap-2">
+      {opciones.map((o) => (
+        <button
+          key={o}
+          type="button"
+          disabled={dis}
+          aria-pressed={v === o}
+          onClick={() => onCambio(v === o ? null : o)}
+          className={`min-h-11 flex-1 rounded-lg border-2 text-sm font-semibold ${v === o ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 text-slate-700"} disabled:opacity-80`}
+        >
+          {o}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Migración 112: tabla de filas FIJAS (los pasos del ATS, los EPP, la lista de chequeo). No se
+ * agregan ni quitan filas; la respuesta es { fila: { columna: valor } }.
+ */
+function TablaFija({ columnas, filas, v, dis, onCambio }: { columnas: Columna[]; filas: FilaFija[]; v: unknown; dis: boolean; onCambio: (x: unknown) => void }) {
+  const r = (v && typeof v === "object" && !Array.isArray(v) ? v : {}) as Record<string, Record<string, unknown>>;
+  const poner = (fila: string, col: string, x: unknown) => onCambio({ ...r, [fila]: { ...(r[fila] ?? {}), [col]: x } });
+  const unaColumna = columnas.length === 1;
+  return (
+    <div className="mt-1 divide-y divide-slate-100 rounded-lg border border-slate-200">
+      {filas.map((fi) => (
+        <div key={fi.id} className={`p-2 ${unaColumna ? "sm:flex sm:items-center sm:gap-3" : "space-y-2"}`}>
+          <p className={`text-sm font-medium text-slate-900 ${unaColumna ? "sm:flex-1" : ""}`}>{fi.etiqueta}</p>
+          {columnas.map((col) => (
+            <div key={col.id} className={unaColumna ? "sm:w-64" : ""}>
+              {!unaColumna && <p className="text-xs font-medium text-slate-600">{col.etiqueta}</p>}
+              <Control c={{ ...col, tipo: col.tipo }} v={r[fi.id]?.[col.id]} dis={dis} onCambio={(x) => poner(fi.id, col.id, x)} />
+            </div>
+          ))}
+        </div>
       ))}
     </div>
   );

@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { COLUMNAS_PLANTILLA, type Ambito, type Plantilla } from "./plantillas";
+import { COLUMNAS_PLANTILLA, type Ambito, type Plantilla, type TecnicoEnObra } from "./plantillas";
 
 export interface FirmaRegistrada {
   id: string;
@@ -29,7 +29,9 @@ export interface FormatoCompleto {
   fecha: string;
   respuestas: Record<string, unknown>;
   /** Migración 83: quién estuvo en la obra (firman todos). null en formatos de antes. */
-  tecnicos_en_obra: { nombre: string; documento: string }[] | null;
+  tecnicos_en_obra: TecnicoEnObra[] | null;
+  /** Migración 112: código, versión y fecha del papel (null sin la 112 o si la plantilla no lo trae). */
+  control: { codigo?: string; version?: string; fecha?: string } | null;
   /** Migración 85: SG-SST o acta de Proyectos. */
   ambito: Ambito;
   estado: "borrador" | "firmado" | "aprobado" | "anulado";
@@ -58,7 +60,7 @@ export async function leerFormato(supabase: Db, id: string): Promise<FormatoComp
     .eq("id", id)
     .maybeSingle();
   if (!f) return null;
-  const [plantillaRes, archivosRes, firmasRes, personalRes, proyectosRes, integroRes] = await Promise.all([
+  const [plantillaRes, archivosRes, firmasRes, personalRes, proyectosRes, integroRes, controlRes] = await Promise.all([
     supabase.from("sst_plantillas").select(COLUMNAS_PLANTILLA).eq("id", f.plantilla_id).single(),
     supabase.from("sst_formato_archivos").select("id, campo_id, path").eq("formato_id", id).order("created_at"),
     supabase
@@ -69,6 +71,8 @@ export async function leerFormato(supabase: Db, id: string): Promise<FormatoComp
     supabase.rpc("fn_sst_personal"),
     f.proyecto_id ? supabase.rpc("fn_proyectos_nombres") : Promise.resolve({ data: [] }),
     f.hash_contenido ? supabase.rpc("fn_sst_formato_integro", { p_formato_id: id }) : Promise.resolve({ data: null }),
+    // Migración 112: sin ella la columna no existe y esto falla sin estorbar.
+    supabase.from("sst_plantillas").select("control").eq("id", f.plantilla_id).maybeSingle(),
   ]);
   const nombres = new Map<string, string>();
   for (const p of (personalRes.data ?? []) as { perfil_id: string | null; nombre: string }[]) if (p.perfil_id) nombres.set(p.perfil_id, p.nombre);
@@ -98,6 +102,7 @@ export async function leerFormato(supabase: Db, id: string): Promise<FormatoComp
     fecha: f.fecha,
     respuestas: f.respuestas ?? {},
     tecnicos_en_obra: f.tecnicos_en_obra ?? null,
+    control: controlRes.error ? null : ((controlRes.data as { control: FormatoCompleto["control"] } | null)?.control ?? null),
     ambito: f.ambito ?? "sgsst",
     estado: f.estado,
     creado_por_nombre: nombres.get(f.creado_por) ?? null,

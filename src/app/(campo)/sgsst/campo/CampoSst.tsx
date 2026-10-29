@@ -9,9 +9,12 @@ import { dePadre, deVisita, guardar, guardarYEncolar, leer, leerMeta, guardarMet
 import { useCola, nuevoId } from "@/lib/sst/campo";
 import { dispositivoActual, type PlantillaLocal, type SstArchivoLocal, type SstFirmaLocal, type SstFormatoLocal } from "@/lib/sst/local";
 import { iniciaMismoDia, sumarDiasHabiles } from "@/lib/fechas/dias-habiles";
+import { HojaFormato, tieneHojaPropia } from "@/components/sst/papel/HojaFormato";
 import {
   AMBITO,
   avisosDeFirma,
+  avisosDePersonas,
+  diaDeFirma,
   COLUMNAS_PLANTILLA,
   docComparable,
   prellenar,
@@ -21,6 +24,7 @@ import {
   ROL_LISTA,
   tecnicosSinFirmar,
   type Ambito,
+  type ColumnaPersona,
   type FirmaPedida,
   type Plantilla,
   type TecnicoEnObra,
@@ -361,6 +365,7 @@ function EditorFormato({
   const [firmando, setFirmando] = useState<{ tipo: "campo"; campoId: string; etiqueta: string } | { tipo: "cierre"; pedida: FirmaPedida; datos: DatosFirma } | null>(null);
   const [agregando, setAgregando] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [previa, setPrevia] = useState(false);
   const espera = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const recargar = useCallback(async () => {
@@ -414,13 +419,18 @@ function EditorFormato({
     ...(!sellado && ambito === "proyectos" && !f.proyectoId ? ["la obra"] : []),
   ];
   const sinFirmar = tecnicosSinFirmar(lista, firmas);
+  // Migración 112: firma diaria (ATS y alturas 2026). Quién ya firmó HOY.
+  const hoy = hoyBogota();
+  const firmoHoy = (rol: string, documento?: string) =>
+    firmas.some((x) => x.rol === rol && diaDeFirma(x.firmadaEn) === hoy && (documento === undefined || docComparable(x.documento) === docComparable(documento)));
+  const pedidaTecnicos = f.plantilla.firmas.find((p) => p.rol === "tecnico");
   const faltanFirmas = lista.length
     ? [...firmasQueFaltan(f.plantilla.firmas.filter((p) => p.rol !== "tecnico"), firmas), ...sinFirmar.map((t) => t.nombre)]
     : firmasQueFaltan(f.plantilla.firmas, firmas);
 
   function pedirFirma(clave: string) {
     if (f && firmas.length === 0) {
-      const sin = avisosDeFirma(f.plantilla.campos, f.respuestas);
+      const sin = [...avisosDeFirma(f.plantilla.campos, f.respuestas), ...avisosDePersonas(f.plantilla.firmas, lista)];
       if (
         sin.length &&
         !window.confirm(
@@ -482,6 +492,33 @@ function EditorFormato({
     onCambio();
   }
 
+  if (previa && tieneHojaPropia(f.plantilla.codigo)) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col bg-slate-100">
+        <div className="flex items-center justify-between gap-2 border-b border-slate-300 bg-white px-3 py-2">
+          <p className="text-sm font-semibold">Vista previa · como el papel</p>
+          <button type="button" onClick={() => setPrevia(false)} className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold">
+            Cerrar
+          </button>
+        </div>
+        <div className="flex-1 overflow-auto p-2">
+          <HojaFormato
+            d={{
+              codigo: f.plantilla.codigo,
+              control: null,
+              fecha: f.fecha,
+              lugar: f.lugar || null,
+              proyecto: f.proyectoNombre,
+              respuestas: f.respuestas,
+              tecnicos: lista,
+              firmas: firmas.map((x) => ({ rol: x.rol, nombre: x.nombre, documento: x.documento, cargo: x.cargo || null, url: urls[x.id] ?? null, firmadaEn: x.firmadaEn })),
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
   if (firmando?.tipo === "campo") {
     return (
       <FirmaPantallaCompleta
@@ -516,6 +553,11 @@ function EditorFormato({
           {pendientes > 0 ? ` · ${pendientes} por subir` : " · todo subido"}
         </p>
         {f.plantilla.descripcion && <p className="mt-1 text-sm text-slate-600">{f.plantilla.descripcion}</p>}
+        {tieneHojaPropia(f.plantilla.codigo) && (
+          <button type="button" onClick={() => setPrevia(true)} className="mt-2 min-h-11 w-full rounded-lg border-2 border-slate-900 text-sm font-semibold">
+            👁 Vista previa (como el papel)
+          </button>
+        )}
       </div>
       {rechazados.length > 0 && (
         <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-900">
@@ -580,7 +622,9 @@ function EditorFormato({
           lista={lista}
           personal={personal}
           bloqueado={sellado}
-          firmados={lista.filter((t) => !sinFirmar.includes(t))}
+          columnas={pedidaTecnicos?.columnas ?? []}
+          diaria={!!pedidaTecnicos?.diaria}
+          firmados={lista.filter((t) => (pedidaTecnicos?.diaria ? firmoHoy("tecnico", t.documento) : !sinFirmar.includes(t)))}
           onCambio={(nueva) => persistir({ ...f, tecnicosEnObra: nueva, actualizadoEn: new Date().toISOString() })}
         />
       )}
@@ -595,7 +639,9 @@ function EditorFormato({
           const hechas = firmas.filter((x) => x.rol === p.rol);
           // Técnicos con lista: un botón por cada uno que falta (no se firma a nombre de otro).
           const porLista = p.rol === "tecnico" && lista.length > 0;
-          const puedeOtra = !porLista && !f.cerrado && falta.length === 0 && (ROL_LISTA[p.rol] || hechas.length === 0);
+          // Firma diaria (112): un bloque de un firmante, una vez por día; la lista, cada uno una vez por día.
+          const puedeOtra = !porLista && !f.cerrado && falta.length === 0 && (p.diaria ? !firmoHoy(p.rol) : ROL_LISTA[p.rol] || hechas.length === 0);
+          const porFirmar = p.diaria ? lista.filter((t) => !firmoHoy("tecnico", t.documento)) : sinFirmar;
           return (
             <div key={p.rol + p.etiqueta} className="rounded-md border border-slate-200 p-2">
               <p className="text-sm font-semibold">
@@ -610,6 +656,7 @@ function EditorFormato({
                   <span>
                     {h.nombre} · CC {h.documento}
                     {h.cargo ? ` · ${h.cargo}` : ""}
+                    {p.diaria ? ` · ${diaDeFirma(h.firmadaEn)}` : ""}
                     <span className="block text-xs text-slate-500">{h.subida ? "Subida" : "Por subir"}</span>
                   </span>
                 </div>
@@ -617,7 +664,7 @@ function EditorFormato({
               {porLista &&
                 !f.cerrado &&
                 falta.length === 0 &&
-                sinFirmar.map((t) =>
+                porFirmar.map((t) =>
                   agregando === `tec:${docComparable(t.documento)}` ? (
                     <FormDatosFirma
                       key={t.documento}
@@ -635,7 +682,7 @@ function EditorFormato({
                       onClick={() => pedirFirma(`tec:${docComparable(t.documento)}`)}
                       className="mt-2 flex min-h-11 w-full items-center justify-center rounded-lg border-2 border-slate-400 text-sm font-semibold"
                     >
-                      ✍ Firma {t.nombre}
+                      ✍ {p.diaria ? "Firma de hoy:" : "Firma"} {t.nombre}
                     </button>
                   ),
                 )}
@@ -650,7 +697,7 @@ function EditorFormato({
               ) : (
                 puedeOtra && (
                   <button type="button" onClick={() => pedirFirma(p.rol + p.etiqueta)} className="mt-2 flex min-h-11 w-full items-center justify-center rounded-lg border-2 border-slate-400 text-sm font-semibold">
-                    ✍ {hechas.length && ROL_LISTA[p.rol] ? "Firma otro técnico" : "Firmar"}
+                    ✍ {p.diaria ? (hechas.length ? "Firmar hoy" : "Firmar") : hechas.length && ROL_LISTA[p.rol] ? "Firma otro técnico" : "Firmar"}
                   </button>
                 )
               )}
@@ -749,12 +796,18 @@ function ListaTecnicos({
   lista,
   personal,
   bloqueado,
+  columnas,
+  diaria,
   firmados,
   onCambio,
 }: {
   lista: TecnicoEnObra[];
   personal: string[];
   bloqueado: boolean;
+  /** Migración 112: datos por persona (FOR-15: examen, seguridad social, autodeclaración…). */
+  columnas: ColumnaPersona[];
+  /** Migración 112: firman cada día; "firmó" es "firmó hoy". */
+  diaria: boolean;
   firmados: TecnicoEnObra[];
   onCambio: (l: TecnicoEnObra[]) => void;
 }) {
@@ -783,7 +836,32 @@ function ListaTecnicos({
               <li key={t.documento} className="flex min-h-11 items-center gap-2 py-1">
                 <span className="flex-1">
                   {t.nombre} · CC {t.documento}
-                  <span className={`block text-xs ${firmo ? "text-green-700" : "text-slate-500"}`}>{firmo ? "✓ Firmó" : "Falta su firma"}</span>
+                  <span className={`block text-xs ${firmo ? "text-green-700" : "text-slate-500"}`}>
+                    {firmo ? (diaria ? "✓ Firmó hoy" : "✓ Firmó") : diaria ? "Falta su firma de hoy" : "Falta su firma"}
+                  </span>
+                  {columnas.map((c) => {
+                    const v = t[c.id];
+                    const raro = c.esperado !== undefined && typeof v === "boolean" && v !== c.esperado;
+                    return (
+                      <span key={c.id} className="mt-1 block">
+                        <span className={`block text-xs ${raro ? "font-semibold text-red-800" : "text-slate-600"}`}>{c.etiqueta}</span>
+                        <span className="mt-0.5 flex gap-2">
+                          {([true, false] as const).map((valor) => (
+                            <button
+                              key={String(valor)}
+                              type="button"
+                              disabled={bloqueado}
+                              aria-pressed={v === valor}
+                              onClick={() => onCambio(lista.map((x) => (x === t ? { ...x, [c.id]: v === valor ? null : valor } : x)))}
+                              className={`min-h-11 flex-1 rounded-lg border-2 text-sm font-semibold ${v === valor ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 text-slate-700"} disabled:opacity-80`}
+                            >
+                              {valor ? "Sí" : "No"}
+                            </button>
+                          ))}
+                        </span>
+                      </span>
+                    );
+                  })}
                 </span>
                 {!bloqueado && (
                   <button
