@@ -21,7 +21,8 @@ export default async function FormatoPage({ params }: { params: Promise<{ id: st
   ]);
   const descartable = !porQueNo.error && porQueNo.data === null;
   if (!f) notFound();
-  if (f.ambito === "proyectos") redirect(`/proyectos/actas/${id}`);
+  // Un acta de Proyectos: a su pantalla de Proyectos, o a la de SG-SST si no se tiene Proyectos (105).
+  if (f.ambito === "proyectos") redirect((await tienePermiso("proyectos", "consultar")) ? `/proyectos/actas/${id}` : `/sgsst/actas-obra/${id}`);
   const editable = trabaja && f.estado === "borrador" && !conFirmas.error && conFirmas.data === false && f.firmas.length === 0;
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 space-y-3 p-4 sm:p-6">

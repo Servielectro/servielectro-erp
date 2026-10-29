@@ -16,6 +16,8 @@ export default async function SgsstPage() {
     trabaja && { href: "/sgsst/campo", icono: "📋", nombre: "Llenar un formato en sitio", ayuda: "ATS, permisos, inspecciones: con fotos y firmas. Funciona sin señal." },
     { href: "/sgsst/formatos", icono: "🗂️", nombre: "Formatos llenados", ayuda: `${borradores.count ?? 0} en llenado · ${porAprobar.count ?? 0} firmados por aprobar` },
     { href: "/sgsst/plantillas", icono: "🧩", nombre: "Plantillas", ayuda: gestiona ? "Arma los formatos: campos, fotos, firmas." : "Los formatos disponibles." },
+    { href: "/sgsst/personal", icono: "👷", nombre: "Personal", ayuda: "Nómina y contratistas: exámenes, alturas, afiliaciones, capacitaciones y EPP con sus vencimientos." },
+    { href: "/sgsst/actas-obra", icono: "🏗️", nombre: "Actas de obra", ayuda: "Las actas firmadas en sitio: obra, fecha, quiénes estuvieron y quiénes firmaron." },
     { href: "/sgsst/reportes", icono: "⚠️", nombre: "Actos y condiciones inseguras", ayuda: `${reportesNuevos.count ?? 0} por atender` },
     { href: "/sgsst/eventos", icono: "🚑", nombre: "Accidentes e incidentes", ayuda: `${eventosAbiertos.count ?? 0} abiertos` },
     { href: "/sgsst/plan", icono: "📈", nombre: "Plan de trabajo", ayuda: "Estándares, responsables, fechas, evidencias y avance." },

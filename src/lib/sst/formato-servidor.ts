@@ -72,7 +72,12 @@ export async function leerFormato(supabase: Db, id: string): Promise<FormatoComp
   ]);
   const nombres = new Map<string, string>();
   for (const p of (personalRes.data ?? []) as { perfil_id: string | null; nombre: string }[]) if (p.perfil_id) nombres.set(p.perfil_id, p.nombre);
-  const proyecto = ((proyectosRes.data ?? []) as { id: string; codigo: string; nombre: string }[]).find((p) => p.id === f.proyecto_id);
+  let proyecto = ((proyectosRes.data ?? []) as { id: string; codigo: string; nombre: string }[]).find((p) => p.id === f.proyecto_id);
+  // SG-SST sin Proyectos (migración 105): el nombre de la obra de un acta firmada, y nada más.
+  if (!proyecto && f.proyecto_id) {
+    const { data } = await supabase.rpc("fn_sgsst_obras_de_actas");
+    proyecto = ((data ?? []) as { id: string; codigo: string; nombre: string }[]).find((p) => p.id === f.proyecto_id);
+  }
 
   const archivos = (archivosRes.data ?? []) as { id: string; campo_id: string; path: string }[];
   const firmas = (firmasRes.data ?? []) as (Omit<FirmaRegistrada, "url" | "registrada_por_nombre"> & { imagen_path: string })[];
