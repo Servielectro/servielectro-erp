@@ -4,10 +4,10 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { comprimirFoto } from "@/lib/tecnico/captura";
 import { nombreSeguro } from "@/lib/rrhh";
-import { BUCKET_SOPORTES, MAX_BYTES_SOPORTE, MIME_SOPORTE } from "@/lib/rrhh-registros";
+import { BUCKET_PERSONAL, BUCKET_SOPORTES, MAX_BYTES_SOPORTE, MIME_SOPORTE } from "@/lib/rrhh-registros";
 
 /** Archivo de personal (migración 66): hoja de vida, foto, dotación, liquidaciones, caja menor, contratos. Solo RRHH. */
-export const BUCKET_PERSONAL = "rrhh-personal";
+export { BUCKET_PERSONAL };
 const MIME_WORD = ["application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
 
 /**

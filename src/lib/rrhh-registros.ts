@@ -4,6 +4,8 @@
 // se muestran y se explican.
 
 export const BUCKET_SOPORTES = "rrhh-soportes";
+/** Archivos de la ficha del empleado (hoja de vida, foto): migración 66. */
+export const BUCKET_PERSONAL = "rrhh-personal";
 export const MAX_BYTES_SOPORTE = 10 * 1024 * 1024;
 export const MIME_SOPORTE = ["image/jpeg", "image/png", "image/webp", "image/heic", "application/pdf"];
 

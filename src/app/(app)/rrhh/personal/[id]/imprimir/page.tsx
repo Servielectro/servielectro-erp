@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PrintButton } from "@/app/(app)/comercial/cotizaciones/[id]/imprimir/PrintButton";
-import { BUCKET_PERSONAL } from "@/components/rrhh/archivos";
+import { BUCKET_PERSONAL } from "@/lib/rrhh-registros";
 import { ESTADO_LABORAL, TIPO_CONTRATO, TITULACIONES, abreviaturaTitulacion, nombreCompleto, type Empleado } from "@/lib/personal";
 import { fechaCorta, pesos } from "@/lib/rrhh-registros";
 
