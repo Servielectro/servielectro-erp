@@ -51,13 +51,13 @@ export function PlanTrabajo({
   return (
     <div className="space-y-3">
       <div className="rounded-lg border border-slate-200 bg-white p-3">
-        <p className="text-sm text-slate-600">Avance del plan</p>
+        <p className="text-sm text-slate-600">Avance de las tareas del plan</p>
         <p className="text-2xl font-bold">{activos.length ? `${promedio} %` : "—"}</p>
         <div className="mt-1 h-2 w-full rounded-full bg-slate-100">
           <div className="h-2 rounded-full bg-green-600" style={{ width: `${promedio}%` }} />
         </div>
         <p className="mt-1 text-xs text-slate-500">
-          {activos.length ? `Promedio simple de ${activos.length} estándares.` : "El plan está vacío: se arma con la responsable SST."}
+          {activos.length ? `Promedio simple de ${activos.length} tareas.` : "Sin tareas aparte de los estándares."}
           {activos.some((i) => i.fecha_limite && i.fecha_limite < hoy && i.avance < 100) && ` ${activos.filter((i) => i.fecha_limite && i.fecha_limite < hoy && i.avance < 100).length} vencidos.`}
         </p>
       </div>
@@ -83,13 +83,13 @@ function NuevoItem({ personas, orden }: { personas: { id: string; nombre: string
   if (!abierto)
     return (
       <button type="button" onClick={() => setAbierto(true)} className="min-h-11 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white">
-        + Agregar estándar
+        + Agregar tarea al plan
       </button>
     );
   return (
     <div className="space-y-2 rounded-lg border border-slate-300 bg-white p-3">
       <label className="block text-sm font-medium">
-        Estándar (código y nombre, como en la norma)
+        Tarea (los estándares de la Resolución ya están arriba)
         <input value={estandar} onChange={(e) => setEstandar(e.target.value)} className={CAMPO} />
       </label>
       <label className="block text-sm font-medium">
@@ -142,7 +142,7 @@ function NuevoItem({ personas, orden }: { personas: { id: string; nombre: string
   );
 }
 
-function Item({
+export function Item({
   i,
   responsable,
   personas,
