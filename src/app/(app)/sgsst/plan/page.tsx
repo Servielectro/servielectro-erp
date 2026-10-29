@@ -4,6 +4,7 @@ import { tienePermiso } from "@/lib/permisos";
 import { hoyColombia } from "@/lib/crm";
 import { PlanTrabajo, type ItemPlan } from "./PlanTrabajo";
 import { Tablero, type FilaEstandar, type TotalAutoevaluacion } from "./Tablero";
+import { BloqueVencimientos } from "@/components/vencimientos/Vencimientos";
 
 // Plan de trabajo: el tablero de los 60 estándares mínimos de la Res. 0312 (migraciones 108, 113 y
 // 115), con la autoevaluación del artículo 27; y debajo, las tareas libres del plan (migración 75).
@@ -53,6 +54,7 @@ export default async function PlanPage() {
       </Link>
       <h1 className="text-lg font-bold text-slate-900">Plan de trabajo SG-SST{anio ? ` ${anio}` : ""}</h1>
       <p className="text-sm text-slate-600">Los estándares mínimos de la Resolución 0312 de 2019 por ciclo PHVA: calificación, evidencias y formatos que los soportan.</p>
+      <BloqueVencimientos modulo="sgsst" titulo="Vencimientos de SG-SST" limite={4} />
       {autoRes.error ? (
         <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">No se pudo leer la autoevaluación: {autoRes.error.message}</p>
       ) : filas.length > 0 ? (

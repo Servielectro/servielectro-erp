@@ -140,6 +140,7 @@ export function seccionesMenu(a: AccesosMenu): SeccionMenu[] {
         { nombre: "Plan de trabajo", href: "/sgsst/plan", palabras: "estándares mínimos 0312 avance evidencias auditoría" },
         { nombre: "Plazos de reporte", href: "/sgsst/plazos", palabras: "plazo días arl eps investigación" },
         { nombre: "Personal", href: "/sgsst/personal", palabras: "examen médico aptitud alturas afiliación eps arl epp capacitación contratista" },
+        { nombre: "Equipos contra caídas", href: "/sgsst/equipos", palabras: "arnés eslinga epcc inspección equipo hoja de vida" },
         { nombre: "Actas de obra", href: "/sgsst/actas-obra", palabras: "acta obra firmada inicio proyecto técnicos en obra" },
         // Último, a propósito (Jhojan: "en la parte de abajo, el último módulo").
         { nombre: "Sugerencias para la aplicación", href: "/sgsst/sugerencias", palabras: "sugerencia nota mejora libreta idea" },

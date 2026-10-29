@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/app/logout/actions";
 import { getMisPermisos } from "@/lib/permisos";
+import { BloqueVencimientos } from "@/components/vencimientos/Vencimientos";
 
 const MODULOS = [
   { id: "comercial", nombre: "Comercial", icono: "💼", href: "/comercial", activo: true },
@@ -58,6 +59,10 @@ export default async function Home() {
         </form>
       </div>
 
+      {/* Lo que se vence (migraciones 119 y 122): lo primero que se ve al entrar. */}
+      <div className="mb-4">
+        <BloqueVencimientos />
+      </div>
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
         Módulos
       </h2>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso } from "@/lib/permisos";
+import { BloqueVencimientos } from "@/components/vencimientos/Vencimientos";
 
 export default async function SgsstPage() {
   const supabase = await createClient();
@@ -17,6 +18,7 @@ export default async function SgsstPage() {
     { href: "/sgsst/formatos", icono: "🗂️", nombre: "Formatos llenados", ayuda: `${borradores.count ?? 0} en llenado · ${porAprobar.count ?? 0} firmados por aprobar` },
     { href: "/sgsst/plantillas", icono: "🧩", nombre: "Plantillas", ayuda: gestiona ? "Arma los formatos: campos, fotos, firmas." : "Los formatos disponibles." },
     { href: "/sgsst/personal", icono: "👷", nombre: "Personal", ayuda: "Nómina y contratistas: exámenes, alturas, afiliaciones, capacitaciones y EPP con sus vencimientos." },
+    { href: "/sgsst/equipos", icono: "🪢", nombre: "Equipos contra caídas", ayuda: "Hoja de vida de arneses y eslingas: inspecciones y vigencia." },
     { href: "/sgsst/actas-obra", icono: "🏗️", nombre: "Actas de obra", ayuda: "Las actas firmadas en sitio: obra, fecha, quiénes estuvieron y quiénes firmaron." },
     { href: "/sgsst/reportes", icono: "⚠️", nombre: "Actos y condiciones inseguras", ayuda: `${reportesNuevos.count ?? 0} por atender` },
     { href: "/sgsst/eventos", icono: "🚑", nombre: "Accidentes e incidentes", ayuda: `${eventosAbiertos.count ?? 0} abiertos` },
@@ -28,6 +30,9 @@ export default async function SgsstPage() {
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6 lg:max-w-6xl">
       <h1 className="mb-4 text-center text-sm font-bold text-slate-900">SG-SST</h1>
+      <div className="mb-4">
+        <BloqueVencimientos modulo="sgsst" titulo="Vencimientos de SG-SST" />
+      </div>
       <div className="space-y-3 lg:grid lg:grid-cols-3 lg:gap-3 lg:space-y-0">
         {tarjetas.map((t) => (
           <Link key={t.href} href={t.href} className="flex items-center gap-3 rounded-lg border border-slate-300 bg-white p-4 shadow-sm active:bg-slate-50">
