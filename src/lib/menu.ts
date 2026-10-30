@@ -154,6 +154,23 @@ function armarSecciones(a: AccesosMenu): SeccionMenu[] {
       ],
     });
   }
+  // Marketing (migraciones 125 y 126): calendario de ideas que sale del trabajo real.
+  if (a.modulos.includes("marketing")) {
+    s.push({
+      id: "marketing",
+      nombre: "Marketing",
+      href: "/marketing",
+      palabras: "redes sociales contenido publicaciones linkedin instagram facebook",
+      hijos: [
+        { nombre: "Calendario de contenido", href: "/marketing/calendario", palabras: "calendario publicaciones fecha programar semana" },
+        { nombre: "Ideas", href: "/marketing/ideas", palabras: "idea guion carrusel video post caso de obra aprobar" },
+        { nombre: "Campañas", href: "/marketing/campanas", palabras: "campaña objetivo público" },
+        { nombre: "Biblioteca de fotos", href: "/marketing/biblioteca", palabras: "fotos videos material autorización cliente" },
+        { nombre: "Cuentas conectadas", href: "/marketing/cuentas", palabras: "cuentas redes linkedin instagram facebook conectar" },
+        { nombre: "Reportes", href: "/marketing/reportes", palabras: "métricas alcance interacciones resultados" },
+      ],
+    });
+  }
   if (a.modulos.includes("licitaciones")) {
     s.push({ id: "licitaciones", nombre: "Licitaciones", nota: "en construcción", href: "/licitaciones", palabras: "licitación secop pliegos", hijos: [] });
   }
