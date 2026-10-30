@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Fragment, useState, useTransition } from "react";
 import type { NivelPermiso } from "@/lib/permisos";
 import {
   asignarRol,
@@ -10,8 +10,10 @@ import {
   crearUsuario,
   eliminarRol,
   guardarPermisosRol,
+  guardarSeccionesRol,
   renombrarRol,
   type FilaPermiso,
+  type RecorteSeccion,
 } from "./actions";
 
 export interface DatosUsuariosAdmin {
@@ -29,6 +31,10 @@ export interface DatosUsuariosAdmin {
   roles: { id: string; nombre: string }[];
   modulos: { id: string; nombre: string }[];
   permisos: (FilaPermiso & { rolId: string })[];
+  /** Secciones de cada módulo (migración 122); null si la migración no está. */
+  secciones: { moduloId: string; seccionId: string; nombre: string }[] | null;
+  /** Lo que se le recortó a cada rol (solo lo que quita algo). */
+  recortes: (RecorteSeccion & { rolId: string })[];
 }
 
 const NIVELES: { key: NivelPermiso; label: string; ayuda: string }[] = [
@@ -39,6 +45,14 @@ const NIVELES: { key: NivelPermiso; label: string; ayuda: string }[] = [
 const RANGO: Record<NivelPermiso, number> = { consultar: 1, trabajar: 2, responsable: 3 };
 
 type Matriz = Record<string, { nivel: NivelPermiso; veDatosSensibles: boolean }>;
+/** Clave "modulo/seccion" -> lo recortado. Sin clave: la sección se ve como el módulo. */
+type Recortes = Record<string, { visible: boolean; nivel: NivelPermiso | null }>;
+
+function recortesDeRol(recortes: DatosUsuariosAdmin["recortes"], rolId: string): Recortes {
+  const r: Recortes = {};
+  for (const x of recortes) if (x.rolId === rolId) r[`${x.moduloId}/${x.seccionId}`] = { visible: x.visible, nivel: x.nivel };
+  return r;
+}
 
 function matrizDeRol(permisos: DatosUsuariosAdmin["permisos"], rolId: string): Matriz {
   const m: Matriz = {};
@@ -57,6 +71,7 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
   const [matriz, setMatriz] = useState<Matriz>(() =>
     rolSel ? matrizDeRol(datos.permisos, rolSel) : {},
   );
+  const [recortes, setRecortes] = useState<Recortes>(() => (rolSel ? recortesDeRol(datos.recortes, rolSel) : {}));
   const [sucia, setSucia] = useState(false);
   const [nuevoRol, setNuevoRol] = useState("");
   const [nombreEdit, setNombreEdit] = useState<string | null>(null);
@@ -79,6 +94,7 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
     if (sucia && !window.confirm("Hay cambios sin guardar en este rol. ¿Descartarlos?")) return;
     setRolSel(id);
     setMatriz(matrizDeRol(datos.permisos, id));
+    setRecortes(recortesDeRol(datos.recortes, id));
     setSucia(false);
     setNombreEdit(null);
   }
@@ -113,6 +129,23 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
     setSucia(true);
   }
 
+  function cambiarSeccion(moduloId: string, seccionId: string, cambio: { visible: boolean; nivel: NivelPermiso | null }) {
+    setRecortes((prev) => ({ ...prev, [`${moduloId}/${seccionId}`]: cambio }));
+    setSucia(true);
+  }
+
+  /** Solo lo que de verdad quita algo, y solo de módulos con acceso. */
+  function recortesUtiles(): RecorteSeccion[] {
+    return Object.entries(recortes).flatMap(([clave, r]) => {
+      const [moduloId, seccionId] = clave.split("/");
+      const modulo = matriz[moduloId];
+      if (!modulo) return [];
+      const rebaja = r.nivel !== null && RANGO[r.nivel] < RANGO[modulo.nivel];
+      if (r.visible && !rebaja) return [];
+      return [{ moduloId, seccionId, visible: r.visible, nivel: r.visible && rebaja ? r.nivel : null }];
+    });
+  }
+
   function guardarMatriz() {
     if (!rolSel) return;
     const filas: FilaPermiso[] = Object.entries(matriz).map(([moduloId, v]) => ({
@@ -124,7 +157,9 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
     setMensaje(null);
     startTransition(async () => {
       const res = await guardarPermisosRol(rolSel, filas);
-      if (!res.ok) setError(res.error);
+      if (!res.ok) return setError(res.error);
+      const resSec = datos.secciones ? await guardarSeccionesRol(rolSel, recortesUtiles()) : { ok: true as const };
+      if (!resSec.ok) setError(`Los módulos se guardaron, pero las secciones no: ${resSec.error}`);
       else {
         setSucia(false);
         setMensaje("Permisos guardados");
@@ -436,7 +471,8 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
                   {datos.modulos.map((m) => {
                     const p = matriz[m.id];
                     return (
-                      <tr key={m.id}>
+                      <Fragment key={m.id}>
+                      <tr>
                         <td className="p-2">
                           <p className="font-medium text-slate-900">{m.nombre}</p>
                           {p ? (
@@ -491,6 +527,20 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
                           </button>
                         </td>
                       </tr>
+                      {p && (datos.secciones ?? []).some((x) => x.moduloId === m.id) && (
+                        <tr>
+                          <td colSpan={NIVELES.length + 2} className="bg-slate-50 px-2 pb-2">
+                            <SeccionesModulo
+                              modulo={m.nombre}
+                              nivelModulo={p.nivel}
+                              secciones={(datos.secciones ?? []).filter((x) => x.moduloId === m.id)}
+                              recortes={recortes}
+                              onCambio={cambiarSeccion}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
                     );
                   })}
                 </tbody>
@@ -498,15 +548,21 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
             </div>
 
             <div className="flex items-center justify-between gap-2 border-t border-slate-200 p-3">
-              <p className="text-xs text-slate-500">
-                Los niveles se acumulan: Responsable incluye Trabajar y Consultar.
-              </p>
+              <div className="space-y-1">
+                <p className="text-xs text-slate-500">Los niveles se acumulan: Responsable incluye Trabajar y Consultar.</p>
+                {datos.secciones && (
+                  <p className="text-xs text-amber-900">
+                    Quitar una sección la saca del menú y no deja abrirla, pero <b>no esconde sus datos</b> a quien tiene el módulo: para eso están el nivel y “Datos sensibles”.
+                  </p>
+                )}
+              </div>
               <div className="flex shrink-0 gap-2">
                 {sucia && (
                   <button
                     type="button"
                     onClick={() => {
                       setMatriz(matrizDeRol(datos.permisos, rolActual.id));
+                      setRecortes(recortesDeRol(datos.recortes, rolActual.id));
                       setSucia(false);
                     }}
                     className="min-h-11 rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700"
@@ -616,5 +672,68 @@ function NuevoUsuarioForm({
         </button>
       </div>
     </form>
+  );
+}
+
+// Las secciones de un módulo (migración 122). El módulo prende todo; aquí se va quitando. El
+// nivel solo puede ser igual o menor que el del módulo (la base nunca lo deja subir).
+function SeccionesModulo({
+  modulo,
+  nivelModulo,
+  secciones,
+  recortes,
+  onCambio,
+}: {
+  modulo: string;
+  nivelModulo: NivelPermiso;
+  secciones: { moduloId: string; seccionId: string; nombre: string }[];
+  recortes: Recortes;
+  onCambio: (moduloId: string, seccionId: string, cambio: { visible: boolean; nivel: NivelPermiso | null }) => void;
+}) {
+  const estado = (s: { moduloId: string; seccionId: string }) => {
+    const r = recortes[`${s.moduloId}/${s.seccionId}`];
+    const nivel = r?.nivel && RANGO[r.nivel] < RANGO[nivelModulo] ? r.nivel : null;
+    return { visible: r ? r.visible : true, nivel };
+  };
+  const visibles = secciones.filter((s) => estado(s).visible).length;
+  const menores = NIVELES.filter((n) => RANGO[n.key] < RANGO[nivelModulo]);
+  return (
+    <details>
+      <summary className="flex min-h-11 cursor-pointer items-center text-xs font-semibold text-slate-600">
+        Secciones de {modulo}: {visibles} de {secciones.length} visibles
+      </summary>
+      <ul className="mt-1 space-y-1">
+        {secciones.map((s) => {
+          const e = estado(s);
+          return (
+            <li key={s.seccionId} className="flex flex-wrap items-center gap-2 rounded-md bg-white px-2 py-1">
+              <label className="flex min-h-11 flex-1 items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="h-5 w-5"
+                  checked={e.visible}
+                  onChange={(ev) => onCambio(s.moduloId, s.seccionId, { visible: ev.target.checked, nivel: e.nivel })}
+                />
+                <span className={e.visible ? "text-slate-900" : "text-slate-400 line-through"}>{s.nombre}</span>
+              </label>
+              <select
+                aria-label={`Nivel en ${s.nombre}`}
+                disabled={!e.visible || menores.length === 0}
+                value={e.nivel ?? ""}
+                onChange={(ev) => onCambio(s.moduloId, s.seccionId, { visible: true, nivel: (ev.target.value || null) as NivelPermiso | null })}
+                className="min-h-11 rounded-md border border-slate-300 bg-white px-2 text-sm disabled:opacity-40"
+              >
+                <option value="">Como el módulo ({NIVELES.find((n) => n.key === nivelModulo)?.label})</option>
+                {menores.map((n) => (
+                  <option key={n.key} value={n.key}>
+                    Solo {n.label.toLowerCase()}
+                  </option>
+                ))}
+              </select>
+            </li>
+          );
+        })}
+      </ul>
+    </details>
   );
 }

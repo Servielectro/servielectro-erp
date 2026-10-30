@@ -12,13 +12,16 @@ export default async function UsuariosPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [usuariosRes, rolesRes, modulosRes, permisosRes, personalesRes] = await Promise.all([
+  const [usuariosRes, rolesRes, modulosRes, permisosRes, personalesRes, seccionesRes, recortesRes] = await Promise.all([
     supabase.rpc("fn_listar_usuarios"),
     supabase.from("roles").select("id, nombre").order("nombre"),
     supabase.from("modulos").select("id, nombre, orden").order("orden"),
     supabase.from("permisos_rol").select("rol_id, modulo_id, nivel, ve_datos_sensibles"),
     // Cédula y teléfono (migración 45): la firma del técnico se precarga de acá.
     supabase.from("perfiles").select("id, cedula, telefono"),
+    // Permisos por sección (migración 122). Sin ella, la pantalla sigue como antes.
+    supabase.from("modulo_secciones").select("modulo_id, seccion_id, nombre, orden").order("orden"),
+    supabase.from("permisos_rol_seccion").select("rol_id, modulo_id, seccion_id, visible, nivel"),
   ]);
   const personales = new Map(
     ((personalesRes.data ?? []) as { id: string; cedula: string | null; telefono: string | null }[]).map((p) => [p.id, p]),
@@ -61,6 +64,16 @@ export default async function UsuariosPage() {
       moduloId: p.modulo_id,
       nivel: p.nivel,
       veDatosSensibles: p.ve_datos_sensibles,
+    })),
+    secciones: seccionesRes.error
+      ? null
+      : ((seccionesRes.data ?? []) as { modulo_id: string; seccion_id: string; nombre: string }[]).map((x) => ({ moduloId: x.modulo_id, seccionId: x.seccion_id, nombre: x.nombre })),
+    recortes: ((recortesRes.data ?? []) as { rol_id: string; modulo_id: string; seccion_id: string; visible: boolean; nivel: NivelPermiso | null }[]).map((r) => ({
+      rolId: r.rol_id,
+      moduloId: r.modulo_id,
+      seccionId: r.seccion_id,
+      visible: r.visible,
+      nivel: r.nivel,
     })),
   };
 

@@ -287,3 +287,47 @@ export async function guardarPermisosRol(
   refrescar();
   return { ok: true };
 }
+
+export interface RecorteSeccion {
+  moduloId: string;
+  seccionId: string;
+  /** false = no le aparece ni la puede abrir. */
+  visible: boolean;
+  /** Nivel rebajado (menor que el del módulo), o null = el del módulo. */
+  nivel: NivelPermiso | null;
+}
+
+/**
+ * Permisos por sección (migración 122): reemplaza los recortes de un rol. Solo se guarda lo que
+ * QUITA algo (oculta o rebaja); lo demás es "como el módulo" y no lleva fila.
+ */
+export async function guardarSeccionesRol(rolId: string, recortes: RecorteSeccion[]): Promise<Resultado> {
+  const ctx = await contexto();
+  if (!ctx.ok) return ctx;
+  const utiles = recortes.filter((r) => !r.visible || r.nivel !== null);
+  if (utiles.some((r) => !/^[a-z_]+$/.test(r.moduloId) || !/^[a-z_]+$/.test(r.seccionId) || (r.nivel !== null && !NIVELES.includes(r.nivel)))) {
+    return { ok: false, error: "Sección o nivel no válido" };
+  }
+  // Candado: tu propio rol no puede perder la pantalla desde la que se arregla esto.
+  if (rolId === ctx.miRolId && utiles.some((r) => r.moduloId === "configuracion" && r.seccionId === "usuarios")) {
+    return { ok: false, error: "A tu propio rol no se le puede recortar «Usuarios y permisos»: perderías el acceso a esta pantalla." };
+  }
+  if (utiles.length > 0) {
+    const { error } = await ctx.supabase.from("permisos_rol_seccion").upsert(
+      utiles.map((r) => ({ rol_id: rolId, modulo_id: r.moduloId, seccion_id: r.seccionId, visible: r.visible, nivel: r.visible ? r.nivel : null })),
+      { onConflict: "rol_id,modulo_id,seccion_id" },
+    );
+    if (error) return { ok: false, error: error.message };
+  }
+  // Después se borran los recortes que ya no están (el mismo orden que la matriz de módulos).
+  const { data: actuales, error: e1 } = await ctx.supabase.from("permisos_rol_seccion").select("modulo_id, seccion_id").eq("rol_id", rolId);
+  if (e1) return { ok: false, error: e1.message };
+  const quedan = new Set(utiles.map((r) => `${r.moduloId}/${r.seccionId}`));
+  for (const a of (actuales ?? []) as { modulo_id: string; seccion_id: string }[]) {
+    if (quedan.has(`${a.modulo_id}/${a.seccion_id}`)) continue;
+    const { error } = await ctx.supabase.from("permisos_rol_seccion").delete().eq("rol_id", rolId).eq("modulo_id", a.modulo_id).eq("seccion_id", a.seccion_id);
+    if (error) return { ok: false, error: error.message };
+  }
+  refrescar();
+  return { ok: true };
+}

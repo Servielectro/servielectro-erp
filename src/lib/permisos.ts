@@ -72,6 +72,29 @@ export function accesosDeMenu(permisos: MisPermisos) {
   };
 }
 
+/**
+ * Permisos por sección (migración 122). Las secciones viven en la base (modulo_secciones); el rol
+ * puede tener recortadas algunas. Devuelve las rutas de las que esta persona NO ve, y la de cada
+ * sección para saber a cuál pertenece una ruta. Si la 122 no está, nada se oculta.
+ */
+export async function seccionesOcultas(): Promise<{ ocultas: string[]; todas: string[] }> {
+  const supabase = await createClient();
+  const [todasRes, misRes] = await Promise.all([
+    supabase.from("modulo_secciones").select("href"),
+    supabase.rpc("fn_mis_secciones"),
+  ]);
+  if (todasRes.error || misRes.error) return { ocultas: [], todas: [] };
+  const todas = ((todasRes.data ?? []) as { href: string }[]).map((s) => s.href);
+  const mias = new Set(((misRes.data ?? []) as { href: string }[]).map((s) => s.href));
+  return { ocultas: todas.filter((h) => !mias.has(h)), todas };
+}
+
+/** La sección (su ruta) a la que pertenece una ruta: la más específica que la contenga. */
+export function seccionDeRuta(ruta: string, todas: string[]): string | null {
+  const candidatas = todas.filter((h) => ruta === h || ruta.startsWith(`${h}/`));
+  return candidatas.sort((a, b) => b.length - a.length)[0] ?? null;
+}
+
 /** Para layouts y páginas: sin el permiso, de vuelta al inicio. */
 export async function requierePermiso(modulo: string, nivelMinimo: NivelPermiso) {
   if (!(await tienePermiso(modulo, nivelMinimo))) redirect("/");

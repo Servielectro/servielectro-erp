@@ -33,6 +33,8 @@ export interface AccesosMenu {
   administrativoTrabajar: boolean;
   /** sgsst/trabajar: llenar formatos en sitio (lo que exige /sgsst/campo). */
   sgsstTrabajar: boolean;
+  /** Rutas de las secciones que se le quitaron a su rol (migración 122): no salen en el menú. */
+  seccionesOcultas?: string[];
 }
 
 export function MenuPrincipal({

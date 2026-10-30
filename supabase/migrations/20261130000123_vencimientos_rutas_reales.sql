@@ -1,4 +1,4 @@
--- v_vencimientos (119) con las rutas de verdad (2026-10-30). El orquestador dejó las rutas como su
+-- Migración 123 (era la 122; la 122 la tomaron los permisos por sección). v_vencimientos (119) con las rutas de verdad (2026-10-30). El orquestador dejó las rutas como su
 -- mejor suposición y pidió corregirlas contra las pantallas que existen; un aviso que lleva a una
 -- página rota enseña a no tocar los avisos.
 --   * Documentos de personas y EPP: a la ficha de la persona en SG-SST (/sgsst/personal/e-… o c-…),
@@ -9,7 +9,7 @@
 --   * Contratos laborales: al contrato (/rrhh/contratos/{id}).
 --   * Tareas: las de equipo a /operativo/tareas; las internas o compartidas, a /planificacion.
 -- Nada más cambia: mismas columnas, mismo orden, mismas fuentes y reglas.
--- Verificación: supabase/verificaciones/20261130000122_verificar.sql
+-- Verificación: supabase/verificaciones/20261130000123_verificar.sql
 -- Rollback:     volver a correr la sección 2 de la 119.
 
 create or replace view public.v_vencimientos with (security_invoker = true) as

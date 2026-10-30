@@ -1,4 +1,4 @@
--- Verificación de la migración 122. Correr DESPUÉS de la migración. No crea nada. Revisa que cada
+-- Verificación de la migración 123. Correr DESPUÉS de la migración. No crea nada. Revisa que cada
 -- ruta de v_vencimientos lleve a una pantalla que existe.
 select prueba, esperado, resultado, case when esperado = '(informativo)' then 'INFO' when esperado = resultado then 'OK' else 'REVISAR' end as estado
 from (

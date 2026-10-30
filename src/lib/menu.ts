@@ -30,6 +30,13 @@ export interface SeccionMenu {
 }
 
 export function seccionesMenu(a: AccesosMenu): SeccionMenu[] {
+  const ocultas = new Set(a.seccionesOcultas ?? []);
+  // Permisos por sección (migración 122): lo que se le quitó al rol no sale.
+  return armarSecciones(a)
+    .map((s) => ({ ...s, hijos: s.hijos.filter((h) => !ocultas.has(h.href)) }));
+}
+
+function armarSecciones(a: AccesosMenu): SeccionMenu[] {
   const s: SeccionMenu[] = [];
   if (a.modulos.includes("comercial")) {
     s.push({
