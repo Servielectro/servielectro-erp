@@ -453,7 +453,7 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
             </div>
 
             {/* Un módulo por tarjeta, con sus secciones adentro. Compacto a propósito: ver MatrizModulo. */}
-            <ul className="grid gap-2 p-2 lg:grid-cols-2">
+            <ul className="grid items-start gap-2 p-2 md:gap-1.5 xl:grid-cols-2">
               {datos.modulos.map((m) => (
                 <MatrizModulo
                   key={m.id}
@@ -601,10 +601,12 @@ function NuevoUsuarioForm({
 // EXCEPCIÓN DELIBERADA a la regla de globals.css ("letra más chica no es botón más chico", zonas de
 // toque de 44 px). Esta pantalla es de Configuración: la abre un administrador, sentado, de vez en
 // cuando, para repartir permisos; con 44 px por casilla, 14 módulos y 39 secciones no se puede leer
-// en el celular (Jhojan, 2026-10-30). Aquí los controles miden 40 px de alto y las casillas 20 px
-// dentro de una fila de 40 px. NO copiar este tamaño a pantallas de campo, del técnico, del tablero ni
-// de los formatos: ahí se trabaja con guantes y la regla de 44 px sigue en pie.
-const CONTROL = "h-10 rounded-md border text-xs font-semibold";
+// (Jhojan, 2026-10-30, en celular y en tablet). En el celular los controles miden 40 px y cada sección
+// es una fila de 40 px; desde tablet (md) el módulo va en una sola fila de ~40 px con los controles de
+// 32 px, y cada sección en una fila de 32 px. Las casillas, 20 px. NO copiar estos tamaños a pantallas
+// de campo, del técnico, del tablero ni de los formatos: ahí se trabaja con guantes y la regla de 44 px
+// sigue en pie.
+const CONTROL = "h-10 rounded-md border text-xs font-semibold md:h-8";
 
 function MatrizModulo({
   nombre,
@@ -633,8 +635,10 @@ function MatrizModulo({
   const visibles = secciones.filter((x) => estado(x).visible).length;
   const menores = permiso ? NIVELES.filter((n) => RANGO[n.key] < RANGO[permiso.nivel]) : [];
   return (
-    <li className={`rounded-lg border p-2 ${permiso ? "border-slate-300 bg-white" : "border-slate-200 bg-slate-50"}`}>
-      <div className="flex items-center gap-2">
+    <li className={`rounded-lg border p-2 md:py-1 ${permiso ? "border-slate-300 bg-white" : "border-slate-200 bg-slate-50"}`}>
+      {/* Celular: nombre arriba y controles debajo. Desde tablet: todo en una fila. */}
+      <div className="md:flex md:items-center md:gap-2">
+      <div className="flex items-center gap-2 md:min-w-0 md:flex-1">
         <p className={`min-w-0 flex-1 truncate text-sm font-semibold ${permiso ? "text-slate-900" : "text-slate-500"}`}>
           {nombre}
           {permiso && secciones.length > 0 && (
@@ -644,14 +648,14 @@ function MatrizModulo({
           )}
         </p>
         {permiso ? (
-          <button type="button" onClick={onQuitar} className="h-10 shrink-0 px-1 text-xs text-slate-500 underline">
+          <button type="button" onClick={onQuitar} className="h-10 shrink-0 px-1 text-xs text-slate-500 underline md:h-8">
             Quitar acceso
           </button>
         ) : (
           <span className="shrink-0 text-xs text-slate-400">Sin acceso</span>
         )}
       </div>
-      <div className="mt-1 grid grid-cols-4 gap-1">
+      <div className="mt-1 grid grid-cols-4 gap-1 md:mt-0 md:w-80 md:shrink-0">
         {NIVELES.map((n) => {
           const exacto = permiso?.nivel === n.key;
           const incluido = !!permiso && RANGO[permiso.nivel] >= RANGO[n.key];
@@ -685,13 +689,14 @@ function MatrizModulo({
           Sensibles
         </button>
       </div>
+      </div>
       {permiso && secciones.length > 0 && (
-        <ul className="mt-2 border-l-2 border-slate-200 pl-2">
+        <ul className="mt-1 mb-1 rounded-md border-l-2 border-slate-300 bg-slate-50 py-0.5 pl-2">
           {secciones.map((x) => {
             const e = estado(x);
             return (
-              <li key={x.seccionId} className="flex h-10 items-center gap-2">
-                <label className="flex h-10 min-w-0 flex-1 cursor-pointer items-center gap-2">
+              <li key={x.seccionId} className="flex h-10 items-center gap-2 md:h-8">
+                <label className="flex h-10 min-w-0 cursor-pointer items-center gap-2 md:h-8">
                   <input
                     type="checkbox"
                     className="h-5 w-5 shrink-0"
@@ -706,7 +711,7 @@ function MatrizModulo({
                     disabled={!e.visible}
                     value={e.nivel ?? ""}
                     onChange={(ev) => onSeccion(x.moduloId, x.seccionId, { visible: true, nivel: (ev.target.value || null) as NivelPermiso | null })}
-                    className="h-9 w-auto shrink-0 rounded-md border border-slate-300 bg-white px-1 text-xs disabled:opacity-40"
+                    className="h-9 w-auto shrink-0 rounded-md border border-slate-300 bg-white px-1 text-xs disabled:opacity-40 md:h-7"
                   >
                     <option value="">Como el módulo</option>
                     {menores.map((n) => (
