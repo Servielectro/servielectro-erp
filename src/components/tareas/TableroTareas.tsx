@@ -110,7 +110,9 @@ export function TableroTareas({
   const [franja, setFranja] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [rapida, setRapida] = useState<Record<EstadoTarea, string>>({ por_hacer: "", en_progreso: "", hecho: "" });
   const [arrastre, setArrastre] = useState<Arrastre | null>(null);
-  const pulsacion = useRef<{ timer: number; x: number; y: number } | null>(null);
+  // Lo que hace falta para arrancar el arrastre después: con el dedo, al cumplirse la pulsación
+  // larga; con el mouse, al moverse unos píxeles (con mouse no hay desplazamiento que distinguir).
+  const pulsacion = useRef<{ timer: number | null; x: number; y: number; mouse: boolean; arrancar: () => void } | null>(null);
   const recienSoltada = useRef(false);
   const tablero = useRef<HTMLDivElement>(null);
   /** Dónde está el dedo durante el arrastre (lo lee el desplazamiento automático). */
@@ -240,25 +242,41 @@ export function TableroTareas({
     const id = e.pointerId;
     const x = e.clientX;
     const y = e.clientY;
-    pulsacion.current = {
-      x,
-      y,
-      timer: window.setTimeout(() => {
-        try {
-          objetivo.setPointerCapture(id);
-        } catch {}
-        navigator.vibrate?.(15);
-        dedo.current = { x, y };
-        setArrastre({ id: t.id, x, y, ancho: rect.width, destino: { estado: t.estado, indice: 0 } });
-      }, ESPERA_PULSACION_MS),
+    const mouse = e.pointerType === "mouse";
+    const arrancar = () => {
+      pulsacion.current = null;
+      try {
+        objetivo.setPointerCapture(id);
+      } catch {}
+      if (!mouse) navigator.vibrate?.(15);
+      dedo.current = { x, y };
+      setArrastre({ id: t.id, x, y, ancho: rect.width, destino: { estado: t.estado, indice: 0 } });
     };
+    // Con el mouse el arrastre arranca al moverse (alMover), no por tiempo: el gesto natural es
+    // presionar y mover de una, y una pulsación larga ahí no distingue nada. Con el dedo, la
+    // pulsación larga separa "arrastrar" de "desplazar la pantalla".
+    // Con mouse se captura ya, para no perder el movimiento si el cursor sale rápido de la tarjeta
+    // (el clic sigue llegando a la tarjeta).
+    if (mouse) {
+      try {
+        objetivo.setPointerCapture(id);
+      } catch {}
+    }
+    pulsacion.current = { x, y, mouse, arrancar, timer: mouse ? null : window.setTimeout(arrancar, ESPERA_PULSACION_MS) };
   }
 
   function alMover(e: React.PointerEvent<HTMLElement>) {
     if (pulsacion.current && !arrastre) {
-      // Se movió antes de la pulsación larga: es un desplazamiento, no un arrastre.
-      if (Math.hypot(e.clientX - pulsacion.current.x, e.clientY - pulsacion.current.y) > 8) {
-        window.clearTimeout(pulsacion.current.timer);
+      const distancia = Math.hypot(e.clientX - pulsacion.current.x, e.clientY - pulsacion.current.y);
+      if (pulsacion.current.mouse) {
+        // Mouse: unos píxeles de movimiento con el botón presionado = arrastrar.
+        if (distancia > 4) {
+          e.preventDefault();
+          pulsacion.current.arrancar();
+        }
+      } else if (distancia > 8) {
+        // Dedo: se movió antes de la pulsación larga, es un desplazamiento, no un arrastre.
+        if (pulsacion.current.timer !== null) window.clearTimeout(pulsacion.current.timer);
         pulsacion.current = null;
       }
       return;
@@ -271,7 +289,7 @@ export function TableroTareas({
 
   async function alSoltar() {
     if (pulsacion.current) {
-      window.clearTimeout(pulsacion.current.timer);
+      if (pulsacion.current.timer !== null) window.clearTimeout(pulsacion.current.timer);
       pulsacion.current = null;
     }
     const a = arrastre;
