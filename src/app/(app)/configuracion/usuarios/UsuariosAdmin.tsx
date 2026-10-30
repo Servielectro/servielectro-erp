@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import type { NivelPermiso } from "@/lib/permisos";
 import {
   asignarRol,
@@ -452,100 +452,22 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
               )}
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-xs text-slate-500">
-                    <th className="p-2 text-left font-medium">Módulo</th>
-                    {NIVELES.map((n) => (
-                      <th key={n.key} className="p-2 text-center font-medium" title={n.ayuda}>
-                        {n.label}
-                      </th>
-                    ))}
-                    <th className="p-2 text-center font-medium" title="Costos, márgenes y datos reservados del módulo">
-                      Datos sensibles
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {datos.modulos.map((m) => {
-                    const p = matriz[m.id];
-                    return (
-                      <Fragment key={m.id}>
-                      <tr>
-                        <td className="p-2">
-                          <p className="font-medium text-slate-900">{m.nombre}</p>
-                          {p ? (
-                            <button
-                              type="button"
-                              onClick={() => quitarAcceso(m.id)}
-                              className="inline-flex min-h-11 items-center text-xs text-slate-500 underline"
-                            >
-                              Quitar acceso
-                            </button>
-                          ) : (
-                            <p className="text-xs text-slate-400">Sin acceso</p>
-                          )}
-                        </td>
-                        {NIVELES.map((n) => {
-                          const marcado = p && RANGO[p.nivel] >= RANGO[n.key];
-                          const exacto = p?.nivel === n.key;
-                          return (
-                            <td key={n.key} className="p-2 text-center">
-                              <button
-                                type="button"
-                                onClick={() => marcarNivel(m.id, n.key)}
-                                aria-label={`${m.nombre}: ${n.label}`}
-                                aria-pressed={exacto}
-                                className={`h-11 w-11 rounded-md border text-lg leading-none ${
-                                  exacto
-                                    ? "border-green-600 bg-green-600 text-white"
-                                    : marcado
-                                      ? "border-green-300 bg-green-50 text-green-700"
-                                      : "border-slate-300 bg-white text-transparent"
-                                }`}
-                              >
-                                ✓
-                              </button>
-                            </td>
-                          );
-                        })}
-                        <td className="p-2 text-center">
-                          <button
-                            type="button"
-                            disabled={!p}
-                            onClick={() => alternarSensibles(m.id)}
-                            aria-label={`${m.nombre}: ver datos sensibles`}
-                            aria-pressed={p?.veDatosSensibles ?? false}
-                            className={`h-11 w-11 rounded-md border text-lg leading-none disabled:opacity-30 ${
-                              p?.veDatosSensibles
-                                ? "border-amber-600 bg-amber-500 text-white"
-                                : "border-slate-300 bg-white text-transparent"
-                            }`}
-                          >
-                            ✓
-                          </button>
-                        </td>
-                      </tr>
-                      {p && (datos.secciones ?? []).some((x) => x.moduloId === m.id) && (
-                        <tr>
-                          <td colSpan={NIVELES.length + 2} className="bg-slate-50 px-2 pb-2">
-                            <SeccionesModulo
-                              modulo={m.nombre}
-                              nivelModulo={p.nivel}
-                              secciones={(datos.secciones ?? []).filter((x) => x.moduloId === m.id)}
-                              recortes={recortes}
-                              onCambio={cambiarSeccion}
-                            />
-                          </td>
-                        </tr>
-                      )}
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            {/* Un módulo por tarjeta, con sus secciones adentro. Compacto a propósito: ver MatrizModulo. */}
+            <ul className="grid gap-2 p-2 lg:grid-cols-2">
+              {datos.modulos.map((m) => (
+                <MatrizModulo
+                  key={m.id}
+                  nombre={m.nombre}
+                  permiso={matriz[m.id]}
+                  secciones={(datos.secciones ?? []).filter((x) => x.moduloId === m.id)}
+                  recortes={recortes}
+                  onNivel={(n) => marcarNivel(m.id, n)}
+                  onSensibles={() => alternarSensibles(m.id)}
+                  onQuitar={() => quitarAcceso(m.id)}
+                  onSeccion={cambiarSeccion}
+                />
+              ))}
+            </ul>
 
             <div className="flex items-center justify-between gap-2 border-t border-slate-200 p-3">
               <div className="space-y-1">
@@ -675,65 +597,130 @@ function NuevoUsuarioForm({
   );
 }
 
-// Las secciones de un módulo (migración 122). El módulo prende todo; aquí se va quitando. El
-// nivel solo puede ser igual o menor que el del módulo (la base nunca lo deja subir).
-function SeccionesModulo({
-  modulo,
-  nivelModulo,
+// ---------------------------------------------------------------- tarjeta de un módulo
+// EXCEPCIÓN DELIBERADA a la regla de globals.css ("letra más chica no es botón más chico", zonas de
+// toque de 44 px). Esta pantalla es de Configuración: la abre un administrador, sentado, de vez en
+// cuando, para repartir permisos; con 44 px por casilla, 14 módulos y 39 secciones no se puede leer
+// en el celular (Jhojan, 2026-10-30). Aquí los controles miden 40 px de alto y las casillas 20 px
+// dentro de una fila de 40 px. NO copiar este tamaño a pantallas de campo, del técnico, del tablero ni
+// de los formatos: ahí se trabaja con guantes y la regla de 44 px sigue en pie.
+const CONTROL = "h-10 rounded-md border text-xs font-semibold";
+
+function MatrizModulo({
+  nombre,
+  permiso,
   secciones,
   recortes,
-  onCambio,
+  onNivel,
+  onSensibles,
+  onQuitar,
+  onSeccion,
 }: {
-  modulo: string;
-  nivelModulo: NivelPermiso;
+  nombre: string;
+  permiso: { nivel: NivelPermiso; veDatosSensibles: boolean } | undefined;
   secciones: { moduloId: string; seccionId: string; nombre: string }[];
   recortes: Recortes;
-  onCambio: (moduloId: string, seccionId: string, cambio: { visible: boolean; nivel: NivelPermiso | null }) => void;
+  onNivel: (n: NivelPermiso) => void;
+  onSensibles: () => void;
+  onQuitar: () => void;
+  onSeccion: (moduloId: string, seccionId: string, cambio: { visible: boolean; nivel: NivelPermiso | null }) => void;
 }) {
-  const estado = (s: { moduloId: string; seccionId: string }) => {
-    const r = recortes[`${s.moduloId}/${s.seccionId}`];
-    const nivel = r?.nivel && RANGO[r.nivel] < RANGO[nivelModulo] ? r.nivel : null;
+  const estado = (x: { moduloId: string; seccionId: string }) => {
+    const r = recortes[`${x.moduloId}/${x.seccionId}`];
+    const nivel = permiso && r?.nivel && RANGO[r.nivel] < RANGO[permiso.nivel] ? r.nivel : null;
     return { visible: r ? r.visible : true, nivel };
   };
-  const visibles = secciones.filter((s) => estado(s).visible).length;
-  const menores = NIVELES.filter((n) => RANGO[n.key] < RANGO[nivelModulo]);
+  const visibles = secciones.filter((x) => estado(x).visible).length;
+  const menores = permiso ? NIVELES.filter((n) => RANGO[n.key] < RANGO[permiso.nivel]) : [];
   return (
-    <details>
-      <summary className="flex min-h-11 cursor-pointer items-center text-xs font-semibold text-slate-600">
-        Secciones de {modulo}: {visibles} de {secciones.length} visibles
-      </summary>
-      <ul className="mt-1 space-y-1">
-        {secciones.map((s) => {
-          const e = estado(s);
+    <li className={`rounded-lg border p-2 ${permiso ? "border-slate-300 bg-white" : "border-slate-200 bg-slate-50"}`}>
+      <div className="flex items-center gap-2">
+        <p className={`min-w-0 flex-1 truncate text-sm font-semibold ${permiso ? "text-slate-900" : "text-slate-500"}`}>
+          {nombre}
+          {permiso && secciones.length > 0 && (
+            <span className="ml-1 text-xs font-normal text-slate-500">
+              · {visibles}/{secciones.length}
+            </span>
+          )}
+        </p>
+        {permiso ? (
+          <button type="button" onClick={onQuitar} className="h-10 shrink-0 px-1 text-xs text-slate-500 underline">
+            Quitar acceso
+          </button>
+        ) : (
+          <span className="shrink-0 text-xs text-slate-400">Sin acceso</span>
+        )}
+      </div>
+      <div className="mt-1 grid grid-cols-4 gap-1">
+        {NIVELES.map((n) => {
+          const exacto = permiso?.nivel === n.key;
+          const incluido = !!permiso && RANGO[permiso.nivel] >= RANGO[n.key];
           return (
-            <li key={s.seccionId} className="flex flex-wrap items-center gap-2 rounded-md bg-white px-2 py-1">
-              <label className="flex min-h-11 flex-1 items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="h-5 w-5"
-                  checked={e.visible}
-                  onChange={(ev) => onCambio(s.moduloId, s.seccionId, { visible: ev.target.checked, nivel: e.nivel })}
-                />
-                <span className={e.visible ? "text-slate-900" : "text-slate-400 line-through"}>{s.nombre}</span>
-              </label>
-              <select
-                aria-label={`Nivel en ${s.nombre}`}
-                disabled={!e.visible || menores.length === 0}
-                value={e.nivel ?? ""}
-                onChange={(ev) => onCambio(s.moduloId, s.seccionId, { visible: true, nivel: (ev.target.value || null) as NivelPermiso | null })}
-                className="min-h-11 rounded-md border border-slate-300 bg-white px-2 text-sm disabled:opacity-40"
-              >
-                <option value="">Como el módulo ({NIVELES.find((n) => n.key === nivelModulo)?.label})</option>
-                {menores.map((n) => (
-                  <option key={n.key} value={n.key}>
-                    Solo {n.label.toLowerCase()}
-                  </option>
-                ))}
-              </select>
-            </li>
+            <button
+              key={n.key}
+              type="button"
+              title={n.ayuda}
+              aria-pressed={exacto}
+              aria-label={`${nombre}: ${n.label}`}
+              onClick={() => onNivel(n.key)}
+              className={`${CONTROL} ${
+                exacto ? "border-green-600 bg-green-600 text-white" : incluido ? "border-green-300 bg-green-50 text-green-800" : "border-slate-300 bg-white text-slate-600"
+              }`}
+            >
+              {n.label}
+            </button>
           );
         })}
-      </ul>
-    </details>
+        <button
+          type="button"
+          title="Costos, márgenes y datos reservados del módulo"
+          disabled={!permiso}
+          aria-pressed={permiso?.veDatosSensibles ?? false}
+          aria-label={`${nombre}: ver datos sensibles`}
+          onClick={onSensibles}
+          className={`${CONTROL} disabled:opacity-30 ${
+            permiso?.veDatosSensibles ? "border-amber-600 bg-amber-500 text-white" : "border-slate-300 bg-white text-slate-600"
+          }`}
+        >
+          Sensibles
+        </button>
+      </div>
+      {permiso && secciones.length > 0 && (
+        <ul className="mt-2 border-l-2 border-slate-200 pl-2">
+          {secciones.map((x) => {
+            const e = estado(x);
+            return (
+              <li key={x.seccionId} className="flex h-10 items-center gap-2">
+                <label className="flex h-10 min-w-0 flex-1 cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="h-5 w-5 shrink-0"
+                    checked={e.visible}
+                    onChange={(ev) => onSeccion(x.moduloId, x.seccionId, { visible: ev.target.checked, nivel: e.nivel })}
+                  />
+                  <span className={`truncate text-xs ${e.visible ? "text-slate-800" : "text-slate-400 line-through"}`}>{x.nombre}</span>
+                </label>
+                {menores.length > 0 && (
+                  <select
+                    aria-label={`Nivel en ${x.nombre}`}
+                    disabled={!e.visible}
+                    value={e.nivel ?? ""}
+                    onChange={(ev) => onSeccion(x.moduloId, x.seccionId, { visible: true, nivel: (ev.target.value || null) as NivelPermiso | null })}
+                    className="h-9 w-auto shrink-0 rounded-md border border-slate-300 bg-white px-1 text-xs disabled:opacity-40"
+                  >
+                    <option value="">Como el módulo</option>
+                    {menores.map((n) => (
+                      <option key={n.key} value={n.key}>
+                        Solo {n.label.toLowerCase()}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </li>
   );
 }
