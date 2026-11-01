@@ -187,6 +187,13 @@ export default async function CotizacionDetallePage(
             <FilaTotal label="Gasto admin" valor={cotizacion.capas.gastoAdmin} />
             <FilaTotal label="Gasto renta" valor={cotizacion.capas.gastoRenta} />
             <FilaTotal label="Gasto ICA" valor={cotizacion.capas.gastoIca} />
+            {/* Solo en el documento interno: /imprimir y la vista previa no la muestran. */}
+            {cotizacion.pctComision > 0 && (
+              <FilaTotal
+                label={`Comisión comercial (${(cotizacion.pctComision * 100).toLocaleString("es-CO", { maximumFractionDigits: 2 })}% del total con IVA)`}
+                valor={cotizacion.capas.gastoComision}
+              />
+            )}
             <div className="flex justify-between border-t border-green-200 pt-1 font-semibold text-green-800">
               <span>Utilidad total</span>
               <span>

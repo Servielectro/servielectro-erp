@@ -64,6 +64,8 @@ function armarSecciones(a: AccesosMenu): SeccionMenu[] {
         ...(a.administrativoTrabajar
           ? [{ nombre: "Importar clientes de SIIGO", href: "/administrativo/clientes/importar", nivel: 2 as const, palabras: "siigo importar excel subir terceros" }]
           : []),
+        { nombre: "Referenciados", href: "/administrativo/referidos", palabras: "referido referidos agente comercial freelance comisión plan prospecto registro oportunidad vence" },
+        { nombre: "Comisiones", href: "/administrativo/comisiones", palabras: "comisión comisiones referido liquidar pagar aprobar recaudo" },
       ],
     });
   }
@@ -151,6 +153,38 @@ function armarSecciones(a: AccesosMenu): SeccionMenu[] {
         { nombre: "Actas de obra", href: "/sgsst/actas-obra", palabras: "acta obra firmada inicio proyecto técnicos en obra" },
         // Último, a propósito (Jhojan: "en la parte de abajo, el último módulo").
         { nombre: "Sugerencias para la aplicación", href: "/sgsst/sugerencias", palabras: "sugerencia nota mejora libreta idea" },
+      ],
+    });
+  }
+  // Contable y Financiero (migraciones 128 y 129): espejo de SOLO LECTURA de Siigo.
+  if (a.modulos.includes("contable")) {
+    s.push({
+      id: "contable",
+      nombre: "Contable",
+      href: "/contable",
+      palabras: "siigo contabilidad contadora",
+      hijos: [
+        { nombre: "Clientes en Siigo", href: "/contable/clientes", palabras: "terceros siigo clientes nit" },
+        { nombre: "Proveedores en Siigo", href: "/contable/proveedores", palabras: "terceros siigo proveedores nit" },
+        { nombre: "Cuentas por tercero", href: "/contable/cuentas-tercero", palabras: "balance por tercero cartera 1305 saldo" },
+        { nombre: "Balances", href: "/contable/balances", palabras: "balance de prueba puc cuentas saldos cierre" },
+        { nombre: "IVA", href: "/contable/iva", palabras: "iva generado descontable dian cuatrimestre bimestre 2408 impuesto" },
+        { nombre: "Conciliación con el ERP", href: "/contable/conciliacion", palabras: "cruzar terceros nit diferencias" },
+        { nombre: "Conexión con Siigo", href: "/contable/conexion", palabras: "siigo api credenciales partner sincronización configuración" },
+      ],
+    });
+  }
+  if (a.modulos.includes("financiero")) {
+    s.push({
+      id: "financiero",
+      nombre: "Financiero",
+      href: "/financiero",
+      palabras: "plata dinero siigo",
+      hijos: [
+        { nombre: "Ventas", href: "/financiero/ventas", palabras: "ventas facturado mes año bimestre cuatrimestre clientes ítems" },
+        { nombre: "Facturación", href: "/financiero/facturacion", palabras: "facturas venta compra nota crédito documento soporte cufe" },
+        { nombre: "Cuentas por pagar", href: "/financiero/cuentas-pagar", palabras: "proveedores deudas vencimiento pagar" },
+        { nombre: "Rentabilidad por proyecto", href: "/financiero/rentabilidad", palabras: "margen utilidad costo obra proyecto ganancia" },
       ],
     });
   }

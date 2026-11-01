@@ -24,6 +24,7 @@ import { ClienteCombobox } from "@/components/clientes/ClienteCombobox";
 import { NuevoClienteModal } from "@/components/clientes/NuevoClienteModal";
 import type { ClienteResumen } from "@/lib/supabase/clientes";
 import { RutUploader } from "@/components/cotizacion/RutUploader";
+import { ComisionReferido } from "@/components/cotizacion/ComisionReferido";
 import { VistaPreviaModal } from "@/components/cotizacion/VistaPreviaModal";
 import {
   ValoresAgregadosSelector,
@@ -1209,6 +1210,13 @@ export function CotizacionBuilder({
               (por ejemplo &quot;Admin de gastos&quot; debe ser 14, no 1400).
             </div>
           )}
+
+        <ComisionReferido
+          clienteId={clienteId}
+          clienteNit={clienteNit}
+          pctActual={config.pctComision}
+          onUsar={(v) => setConfig((c) => ({ ...c, pctComision: v }))}
+        />
 
         {avanzadoAbierto && (
           <div className="space-y-2 rounded-md bg-slate-100 p-3 text-sm">
