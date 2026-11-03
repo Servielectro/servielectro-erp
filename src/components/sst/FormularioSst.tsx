@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { seAparto, type Campo, type Columna, type FilaFija } from "@/lib/sst/plantillas";
+import { campoVisible, seAparto, type Campo, type Columna, type FilaFija } from "@/lib/sst/plantillas";
 
 const CAMPO = "mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-base disabled:bg-slate-50 disabled:text-slate-800";
 
@@ -49,6 +49,8 @@ export function FormularioSst({
             </h3>
           );
         }
+        // "Otro, ¿cuál?" solo cuando se marcó "Otro" (convención {x}_otro, ver plantillas.ts).
+        if (!campoVisible(c, campos, respuestas)) return null;
         const v = respuestas[c.id];
         const aparte = seAparto(c, respuestas);
         return (
@@ -156,6 +158,9 @@ function Control({ c, v, dis, onCambio }: { c: Campo; v: unknown; dis: boolean; 
       return <SiNo v={v} dis={dis} onCambio={onCambio} />;
     case "lista":
       return c.marcas ? <Marcas opciones={c.opciones ?? []} v={v} dis={dis} onCambio={onCambio} /> : <Lista opciones={c.opciones ?? []} multiple={!!c.multiple} v={v} dis={dis} onCambio={onCambio} />;
+    case "casillas":
+      // Las casillas del papel: se marca más de una; la respuesta es un arreglo de textos.
+      return <Lista opciones={c.opciones ?? []} multiple v={v} dis={dis} onCambio={onCambio} />;
     case "tabla":
       return c.filas?.length ? (
         <TablaFija columnas={c.columnas ?? []} filas={c.filas} v={v} dis={dis} onCambio={onCambio} />
@@ -235,7 +240,7 @@ function TablaFija({ columnas, filas, v, dis, onCambio }: { columnas: Columna[];
 }
 
 function Lista({ opciones, multiple, v, dis, onCambio }: { opciones: string[]; multiple: boolean; v: unknown; dis: boolean; onCambio: (x: unknown) => void }) {
-  const elegidas = multiple ? ((v as string[]) ?? []) : v ? [v as string] : [];
+  const elegidas = multiple ? (Array.isArray(v) ? (v as string[]) : typeof v === "string" && v ? [v] : []) : v ? [v as string] : [];
   return (
     <div className="mt-1 space-y-1">
       {opciones.map((o) => {

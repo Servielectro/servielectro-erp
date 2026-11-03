@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { COLUMNAS_PLANTILLA, type Plantilla } from "@/lib/sst/plantillas";
-import { camposFor02 } from "@/lib/sst/capacitaciones";
 import { NuevaCapacitacion } from "./NuevaCapacitacion";
 
 export default async function NuevaCapacitacionPage() {
@@ -26,7 +25,7 @@ export default async function NuevaCapacitacionPage() {
       </Link>
       <h1 className="text-lg font-bold text-slate-900">Nueva capacitación (FOR-02)</h1>
       {plantilla ? (
-        <NuevaCapacitacion plantillaId={plantilla.id} campos={camposFor02(plantilla.campos)} />
+        <NuevaCapacitacion plantillaId={plantilla.id} campos={plantilla.campos} />
       ) : (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">No se encontró la plantilla FOR-02 publicada.</p>
       )}

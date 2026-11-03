@@ -1,14 +1,16 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { FormularioSst } from "@/components/sst/FormularioSst";
 import { FirmaPantallaCompleta } from "@/app/(campo)/tecnico/FirmaPantallaCompleta";
 import { obtenerUbicacion, sha256 } from "@/lib/tecnico/captura";
 import type { Ubicacion } from "@/lib/tecnico/db";
 import { dispositivoActual } from "@/lib/sst/local";
-import { docComparable, ESTADO_FORMATO, faltantes, type Campo } from "@/lib/sst/plantillas";
+import { docComparable, ESTADO_FORMATO, faltantes, sinOcultos, type Campo } from "@/lib/sst/plantillas";
 import type { Asistente } from "@/lib/sst/capacitaciones";
+import { VisorPdf } from "@/components/sst/VisorPdf";
+import { cerrarAlSalir, duracion, lecturasDe, materialesSinLeer, urlFirmada, type Lectura, type Material } from "@/lib/sst/materiales";
 
 interface Firma {
   id: string;
@@ -29,11 +31,20 @@ interface Datos {
 const CAMPO = "mt-1 block w-full rounded-lg border border-slate-300 px-3 py-3 text-lg";
 const BOTON_GRANDE = "flex min-h-16 w-full items-center justify-center rounded-2xl px-4 text-xl font-bold";
 
+interface Leyendo {
+  material: Material;
+  lecturaId: string;
+  url: string;
+  token: string;
+  quien: Datos;
+}
+
 /**
  * Sesión FOR-02. La base (migraciones 83 y 112) exige que la lista de asistentes esté antes de
  * la primera firma y que cada participante que firme esté en ella; con la primera firma la lista
  * y el encabezado quedan sellados. Por eso: 1) se arma la lista, 2) el celular pasa de mano en
- * mano y cada uno toca su nombre y firma, 3) firma el capacitador, 4) se cierra y sella.
+ * mano y cada uno toca su nombre, LEE el material (la base anota cuánto lo tuvo abierto) y firma,
+ * 3) firma el capacitador, 4) se cierra y sella.
  */
 export function SesionCapacitacion({
   id,
@@ -45,6 +56,9 @@ export function SesionCapacitacion({
   asistentesIniciales,
   firmasIniciales,
   puedeTrabajar,
+  materiales,
+  materialesSinPublicar,
+  lecturasIniciales,
 }: {
   id: string;
   fecha: string;
@@ -55,6 +69,9 @@ export function SesionCapacitacion({
   asistentesIniciales: Asistente[];
   firmasIniciales: Firma[];
   puedeTrabajar: boolean;
+  materiales: Material[];
+  materialesSinPublicar: string[];
+  lecturasIniciales: Lectura[];
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [estado, setEstado] = useState(estadoInicial);
@@ -70,6 +87,18 @@ export function SesionCapacitacion({
   const [respuestas, setRespuestas] = useState(respuestasIniciales);
   const [borradorEncabezado, setBorradorEncabezado] = useState(respuestasIniciales);
   const ubicacion = useRef<Promise<Ubicacion> | null>(null);
+  const [lecturas, setLecturas] = useState(lecturasIniciales);
+  const [leyendo, setLeyendo] = useState<Leyendo | null>(null);
+  // Material que se pidió abrir desde el bloque general: se abre al tocar el nombre de quien lee.
+  const [porAbrir, setPorAbrir] = useState<Material | null>(null);
+
+  // Si la página se va con el material abierto (bloqueo, pestaña cerrada), la lectura se cierra igual.
+  useEffect(() => {
+    if (!leyendo) return;
+    const alSalir = () => cerrarAlSalir(leyendo.lecturaId, leyendo.token);
+    window.addEventListener("pagehide", alSalir);
+    return () => window.removeEventListener("pagehide", alSalir);
+  }, [leyendo]);
 
   const abierto = estado === "borrador";
   const participantes = firmas.filter((f) => f.rol === "tecnico");
@@ -85,10 +114,11 @@ export function SesionCapacitacion({
     const falta = faltantes(campos, borradorEncabezado, {});
     if (falta.length) return setError(`Falta: ${falta.join(", ")}.`);
     setGuardando(true);
-    const { error } = await supabase.from("sst_formatos").update({ respuestas: borradorEncabezado }).eq("id", id);
+    const limpias = sinOcultos(campos, borradorEncabezado);
+    const { error } = await supabase.from("sst_formatos").update({ respuestas: limpias }).eq("id", id);
     setGuardando(false);
     if (error) return setError(error.message);
-    setRespuestas(borradorEncabezado);
+    setRespuestas(limpias);
     setAviso("Encabezado completo.");
   }
 
@@ -102,11 +132,56 @@ export function SesionCapacitacion({
     setAviso(null);
     setEligiendo(false);
     setDatos(d);
+    if (porAbrir) {
+      setPorAbrir(null);
+      void abrirMaterial(porAbrir, d);
+    }
+  }
+
+  // Abrir el material para una persona: la base anota la hora de apertura (fn_sst_material_abrir).
+  async function abrirMaterial(m: Material, quien: Datos) {
+    setError(null);
+    setAviso(null);
+    setGuardando(true);
+    try {
+      const { data: sesion } = await supabase.auth.getSession();
+      const token = sesion.session?.access_token;
+      if (!token) throw new Error("La sesión se cerró: vuelva a entrar.");
+      const url = await urlFirmada(supabase, m.path);
+      const { data: lecturaId, error } = await supabase.rpc("fn_sst_material_abrir", {
+        p_material: m.id,
+        p_formato: id,
+        p_persona: quien.nombre.trim(),
+        p_documento: quien.documento.trim(),
+        p_dispositivo: dispositivoActual() || null,
+      });
+      if (error) throw new Error(error.message);
+      const nueva: Lectura = { id: lecturaId as string, material_id: m.id, persona: quien.nombre.trim(), documento: quien.documento.trim(), abierto_en: new Date().toISOString(), cerrado_en: null, segundos: null };
+      setLecturas((ls) => [...ls, nueva]);
+      setLeyendo({ material: m, lecturaId: nueva.id, url, token, quien });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  // "Terminé de leer": la base cierra y cuenta los segundos (fn_sst_material_cerrar).
+  async function cerrarMaterial() {
+    if (!leyendo) return;
+    const l = leyendo;
+    setLeyendo(null);
+    const { data: segundos, error } = await supabase.rpc("fn_sst_material_cerrar", { p_lectura: l.lecturaId });
+    if (error) return setError(`No se pudo registrar el cierre de la lectura: ${error.message}`);
+    const seg = (segundos as number | null) ?? 0;
+    setLecturas((ls) => ls.map((x) => (x.id === l.lecturaId ? { ...x, cerrado_en: new Date().toISOString(), segundos: seg } : x)));
+    setAviso(`✓ ${l.quien.nombre.trim()} leyó «${l.material.nombre}» (${duracion(seg)}).`);
   }
 
   function aFirmar() {
     if (!datos) return;
     if (!datos.nombre.trim() || !docComparable(datos.documento)) return setError("Escriba nombre y cédula.");
+    if (datos.rol === "tecnico" && materialesSinLeer(materiales, lecturas, datos.documento).length) return setError("Primero lea el material de la capacitación.");
     setError(null);
     // El GPS puede tardar en interiores: se pide mientras la persona firma.
     ubicacion.current = obtenerUbicacion();
@@ -179,6 +254,10 @@ export function SesionCapacitacion({
     setAviso("Capacitación cerrada y sellada.");
   }
 
+  if (leyendo) {
+    return <VisorPdf url={leyendo.url} titulo={`${leyendo.material.nombre} · ${leyendo.quien.nombre.trim()}`} onCerrar={() => void cerrarMaterial()} />;
+  }
+
   if (firmando && datos) {
     return (
       <FirmaPantallaCompleta
@@ -240,7 +319,37 @@ export function SesionCapacitacion({
             Cargo
             <input value={datos.cargo} onChange={(e) => setDatos({ ...datos, cargo: e.target.value })} className={CAMPO} />
           </label>
-          <button type="button" onClick={aFirmar} className={`${BOTON_GRANDE} bg-slate-900 text-white`}>
+          {datos.rol === "tecnico" && materiales.length > 0 && (
+            <div className="space-y-2 rounded-xl bg-slate-50 p-3">
+              <p className="text-base font-bold">1. Lea el material</p>
+              {materiales.map((m) => {
+                const hechas = lecturasDe(lecturas, m.id, datos.documento);
+                return (
+                  <div key={m.id} className="space-y-1">
+                    <p className="text-sm">
+                      {m.nombre}
+                      {m.minutos_lectura ? <span className="text-slate-600"> · unos {m.minutos_lectura} min</span> : null}
+                    </p>
+                    {hechas.length > 0 && <p className="text-sm font-semibold text-green-800">✓ Leído ({duracion(hechas.reduce((t, l) => t + (l.segundos ?? 0), 0))})</p>}
+                    <button
+                      type="button"
+                      onClick={() => void abrirMaterial(m, datos)}
+                      className={`${BOTON_GRANDE} ${hechas.length ? "border-2 border-slate-900 text-slate-900" : "bg-blue-700 text-white"}`}
+                    >
+                      📖 {hechas.length ? "Abrir otra vez" : "Abrir y leer"}
+                    </button>
+                  </div>
+                );
+              })}
+              <p className="pt-1 text-base font-bold">2. Firme</p>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={aFirmar}
+            disabled={datos.rol === "tecnico" && materialesSinLeer(materiales, lecturas, datos.documento).length > 0}
+            className={`${BOTON_GRANDE} bg-slate-900 text-white disabled:bg-slate-300`}
+          >
             Firmar
           </button>
           <button type="button" onClick={() => setDatos(null)} className="min-h-12 w-full rounded-xl border border-slate-400 text-base">
@@ -252,7 +361,7 @@ export function SesionCapacitacion({
       {/* Elegir el nombre */}
       {abierto && puedeTrabajar && !datos && eligiendo && !guardando && (
         <div className="space-y-2 rounded-2xl border-2 border-slate-900 p-4">
-          <p className="text-lg font-bold">Toque su nombre</p>
+          <p className="text-lg font-bold">{porAbrir ? "¿Quién va a leer? Toque su nombre" : "Toque su nombre"}</p>
           {pendientes.length === 0 && <p className="text-base text-slate-600">Ya firmaron todos los de la lista.</p>}
           {pendientes.map((a) => (
             <button
@@ -265,10 +374,50 @@ export function SesionCapacitacion({
               <span className="block text-sm text-slate-600">CC {a.documento}</span>
             </button>
           ))}
-          <button type="button" onClick={() => setEligiendo(false)} className="min-h-12 w-full rounded-xl border border-slate-400 text-base">
+          <button type="button" onClick={() => (setEligiendo(false), setPorAbrir(null))} className="min-h-12 w-full rounded-xl border border-slate-400 text-base">
             Cancelar
           </button>
         </div>
+      )}
+
+      {/* Material de la capacitación: antes del botón de firmar */}
+      {(materiales.length > 0 || materialesSinPublicar.length > 0) && !datos && !eligiendo && (
+        <section className="space-y-2 rounded-2xl border-2 border-blue-700 p-4">
+          <h2 className="text-lg font-bold text-slate-900">Material de la capacitación</h2>
+          {materialesSinPublicar.length > 0 && (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Esta capacitación exige {materialesSinPublicar.join(", ")}, pero no hay versión publicada. Se sube en SG-SST → Materiales de capacitación.
+            </p>
+          )}
+          {materiales.map((m) => {
+            const leyeron = new Set(lecturas.filter((l) => l.material_id === m.id && l.cerrado_en).map((l) => docComparable(l.documento)));
+            const deLista = asistentes.filter((a) => leyeron.has(docComparable(a.documento))).length;
+            return (
+              <div key={m.id} className="space-y-2">
+                <p className="text-base">
+                  <span className="font-semibold">{m.nombre}</span>
+                  <span className="block text-sm text-slate-600">
+                    Versión {m.version}
+                    {m.minutos_lectura ? ` · unos ${m.minutos_lectura} min` : ""}
+                    {m.obligatorio ? " · se lee antes de firmar" : ""}
+                    {asistentes.length > 0 && ` · lo leyeron ${deLista} de ${asistentes.length}`}
+                  </span>
+                </p>
+                {abierto && puedeTrabajar && (
+                  <button
+                    type="button"
+                    disabled={guardando || asistentes.length === 0 || faltaEncabezado.length > 0}
+                    onClick={() => (setAviso(null), setError(null), setPorAbrir(m), setEligiendo(true))}
+                    className={`${BOTON_GRANDE} bg-blue-700 text-white disabled:bg-slate-300`}
+                  >
+                    📖 Abrir y leer
+                  </button>
+                )}
+                {abierto && puedeTrabajar && asistentes.length === 0 && <p className="text-sm text-slate-600">Se abre cuando esté la lista de asistentes: cada lectura queda a nombre de quien lee.</p>}
+              </div>
+            );
+          })}
+        </section>
       )}
 
       {/* Listo para el siguiente */}
@@ -318,7 +467,17 @@ export function SesionCapacitacion({
         </ul>
       </section>
 
-      <ListaAsistentes asistentes={asistentes} pendientes={pendientes} editable={abierto && puedeTrabajar && !listaSellada} onGuardar={guardarLista} />
+      <ListaAsistentes
+        asistentes={asistentes}
+        pendientes={pendientes}
+        editable={abierto && puedeTrabajar && !listaSellada}
+        onGuardar={guardarLista}
+        lectura={(doc) => {
+          if (!materiales.length) return null;
+          const hechas = materiales.flatMap((m) => lecturasDe(lecturas, m.id, doc));
+          return hechas.length ? `📖 leyó ${duracion(hechas.reduce((t, l) => t + (l.segundos ?? 0), 0))}` : "sin leer el material";
+        }}
+      />
     </div>
   );
 }
@@ -328,11 +487,14 @@ function ListaAsistentes({
   pendientes,
   editable,
   onGuardar,
+  lectura,
 }: {
   asistentes: Asistente[];
   pendientes: Asistente[];
   editable: boolean;
   onGuardar: (nueva: Asistente[]) => Promise<boolean>;
+  /** Cuánto leyó el material (null si la capacitación no tiene material). */
+  lectura: (documento: string) => string | null;
 }) {
   const [nombre, setNombre] = useState("");
   const [documento, setDocumento] = useState("");
@@ -369,6 +531,7 @@ function ListaAsistentes({
                 CC {a.documento}
                 {a.cargo ? ` · ${a.cargo}` : ""}
                 {!pendiente.has(docComparable(a.documento)) && " · ✓ firmó"}
+                {lectura(a.documento) && ` · ${lectura(a.documento)}`}
               </p>
             </div>
             {editable && (

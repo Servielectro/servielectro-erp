@@ -8,6 +8,7 @@ export type TipoCampo =
   | "numero"
   | "si_no"
   | "lista"
+  | "casillas"
   | "fecha"
   | "hora"
   | "foto"
@@ -153,6 +154,7 @@ export const TIPOS_CAMPO: { id: TipoCampo; nombre: string; ayuda: string }[] = [
   { id: "numero", nombre: "Número", ayuda: "" },
   { id: "si_no", nombre: "Sí / No", ayuda: "" },
   { id: "lista", nombre: "Lista de opciones", ayuda: "Una o varias, según se configure." },
+  { id: "casillas", nombre: "Casillas de verificación", ayuda: "Como en el papel: se marcan varias. Obligatorio = al menos una." },
   { id: "fecha", nombre: "Fecha", ayuda: "" },
   { id: "hora", nombre: "Hora", ayuda: "" },
   { id: "foto", nombre: "Foto", ayuda: "Con la cámara; puede ser más de una." },
@@ -291,7 +293,7 @@ export function problemaCampos(campos: Campo[], firmas: FirmaPedida[]): string |
     if (ids.has(c.id)) return `El identificador "${c.id}" está repetido.`;
     ids.add(c.id);
     if (!c.etiqueta.trim()) return "Hay un campo sin nombre.";
-    if (c.tipo === "lista" && !(c.opciones ?? []).filter((o) => o.trim()).length) return `La lista "${c.etiqueta}" no tiene opciones.`;
+    if ((c.tipo === "lista" || c.tipo === "casillas") && !(c.opciones ?? []).filter((o) => o.trim()).length) return `La lista "${c.etiqueta}" no tiene opciones.`;
     if (c.tipo === "tabla") {
       if (!(c.columnas ?? []).length) return `La tabla "${c.etiqueta}" no tiene columnas.`;
       const idsc = new Set<string>();
@@ -317,10 +319,45 @@ export function vacio(v: unknown): boolean {
   return v === null || v === undefined || (typeof v === "string" && !v.trim()) || (Array.isArray(v) && v.length === 0);
 }
 
-/** Campos obligatorios sin responder (las fotos y firmas cuentan por archivos). */
+// ------------------------------------------------------------------ "Otro, ¿cuál?"
+// Un campo con id "{x}_otro" depende de la lista o casillas "{x}" que tenga la opción "Otro": se
+// pide solo cuando "Otro" está marcado, y entonces es obligatorio (FOR-02: registro de
+// competencia). Es una convención del renderizador; la plantilla no cambia.
+
+const OTRO = /^otro$/i;
+
+/** La lista/casillas de la que depende `c`, y su opción "Otro". */
+export function dependeDe(c: Campo, campos: Campo[]): { padre: Campo; opcion: string } | null {
+  if (!c.id.endsWith("_otro")) return null;
+  const padre = campos.find((p) => p.id === c.id.slice(0, -"_otro".length) && (p.tipo === "lista" || p.tipo === "casillas"));
+  const opcion = padre?.opciones?.find((o) => OTRO.test(o.trim()));
+  return padre && opcion ? { padre, opcion } : null;
+}
+
+function marcado(v: unknown, opcion: string): boolean {
+  return Array.isArray(v) ? v.includes(opcion) : v === opcion;
+}
+
+/** ¿Se pide este campo con estas respuestas? (los "¿cuál?" solo si se marcó "Otro") */
+export function campoVisible(c: Campo, campos: Campo[], respuestas: Record<string, unknown>): boolean {
+  const d = dependeDe(c, campos);
+  return !d || marcado(respuestas[d.padre.id], d.opcion);
+}
+
+/** Las respuestas sin lo que quedó escrito en un "¿cuál?" que ya no se pide (para guardar). */
+export function sinOcultos(campos: Campo[], respuestas: Record<string, unknown>): Record<string, unknown> {
+  const r = { ...respuestas };
+  for (const c of campos) if (!campoVisible(c, campos, respuestas)) delete r[c.id];
+  return r;
+}
+
+/**
+ * Campos obligatorios sin responder (las fotos y firmas cuentan por archivos). Unas casillas
+ * obligatorias piden al menos una marcada; un "¿cuál?" visible es obligatorio.
+ */
 export function faltantes(campos: Campo[], respuestas: Record<string, unknown>, archivosPorCampo: Record<string, number>): string[] {
   return campos
-    .filter((c) => c.obligatorio && c.tipo !== "seccion")
+    .filter((c) => c.tipo !== "seccion" && campoVisible(c, campos, respuestas) && (c.obligatorio || dependeDe(c, campos)))
     .filter((c) => (c.tipo === "foto" || c.tipo === "firma" ? !(archivosPorCampo[c.id] > 0) : vacio(respuestas[c.id])))
     .map((c) => c.etiqueta);
 }

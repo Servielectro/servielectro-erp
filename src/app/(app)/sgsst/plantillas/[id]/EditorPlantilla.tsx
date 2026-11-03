@@ -66,7 +66,7 @@ export function EditorPlantilla({ inicial, gestiona }: { inicial: Plantilla; ges
       id: idDesdeEtiqueta(etiqueta, p.campos.map((c) => c.id)),
       tipo,
       etiqueta,
-      ...(tipo === "lista" ? { opciones: [] } : {}),
+      ...(tipo === "lista" || tipo === "casillas" ? { opciones: [] } : {}),
       ...(tipo === "tabla" ? { columnas: [] } : {}),
     };
     poner({ campos: [...p.campos, nuevo] });
@@ -309,6 +309,12 @@ function EditorCampo({
             Se puede marcar más de una
           </label>
         </>
+      )}
+      {c.tipo === "casillas" && (
+        <label className="block text-xs font-medium text-slate-700">
+          Casillas (una por línea; con una «Otro», el campo «{c.id}_otro» se pide solo si la marcan)
+          <textarea disabled={dis} value={(c.opciones ?? []).join("\n")} onChange={(e) => onCambio({ opciones: e.target.value.split("\n") })} rows={4} className={CAMPO} />
+        </label>
       )}
       {c.tipo === "tabla" && <EditorColumnas c={c} dis={dis} onCambio={onCambio} />}
       <p className="text-xs text-slate-400">Identificador: {c.id}</p>

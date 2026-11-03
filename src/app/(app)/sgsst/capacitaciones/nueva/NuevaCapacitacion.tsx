@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { FormularioSst } from "@/components/sst/FormularioSst";
-import { faltantes, type Campo } from "@/lib/sst/plantillas";
+import { faltantes, sinOcultos, type Campo } from "@/lib/sst/plantillas";
 import { hoyBogota } from "@/lib/tecnico/captura";
 
 const CAMPO = "mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-base";
@@ -27,7 +27,7 @@ export function NuevaCapacitacion({ plantillaId, campos }: { plantillaId: string
     const id = crypto.randomUUID();
     const { error } = await createClient()
       .from("sst_formatos")
-      .insert({ id, plantilla_id: plantillaId, fecha, lugar: lugar.trim(), respuestas });
+      .insert({ id, plantilla_id: plantillaId, fecha, lugar: lugar.trim(), respuestas: sinOcultos(campos, respuestas) });
     setGuardando(false);
     if (error) return setError(error.message);
     router.push(`/sgsst/capacitaciones/${id}`);
