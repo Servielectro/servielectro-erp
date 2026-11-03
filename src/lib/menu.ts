@@ -150,6 +150,7 @@ function armarSecciones(a: AccesosMenu): SeccionMenu[] {
         { nombre: "Plazos de reporte", href: "/sgsst/plazos", palabras: "plazo días arl eps investigación" },
         { nombre: "Personal", href: "/sgsst/personal", palabras: "examen médico aptitud alturas afiliación eps arl epp capacitación contratista" },
         { nombre: "Equipos contra caídas", href: "/sgsst/equipos", palabras: "arnés eslinga epcc inspección equipo hoja de vida" },
+        { nombre: "Capacitaciones e inducción", href: "/sgsst/capacitaciones", palabras: "for-02 inducción reinducción capacitación asistencia firma charla" },
         { nombre: "Actas de obra", href: "/sgsst/actas-obra", palabras: "acta obra firmada inicio proyecto técnicos en obra" },
         // Último, a propósito (Jhojan: "en la parte de abajo, el último módulo").
         { nombre: "Sugerencias para la aplicación", href: "/sgsst/sugerencias", palabras: "sugerencia nota mejora libreta idea" },
