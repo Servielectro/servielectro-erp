@@ -142,9 +142,11 @@ export interface PorFirmarCliente {
   proyecto_id: string;
   proyecto_codigo: string | null;
   estado: string;
+  /** Migración 137: la vista solo trae lo ENVIADO al cliente. */
+  enviado_cliente_en: string | null;
   ya_firmado: boolean;
 }
-export const COLUMNAS_POR_FIRMAR_CLIENTE = "formato_id, codigo, formato, fecha, proyecto_id, proyecto_codigo, estado, ya_firmado";
+export const COLUMNAS_POR_FIRMAR_CLIENTE = "formato_id, codigo, formato, fecha, proyecto_id, proyecto_codigo, estado, enviado_cliente_en, ya_firmado";
 
 export const TIPO_FORMACION: Record<string, string> = {
   certificado_alturas: "Trabajo en alturas",

@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { fechaEnvio } from "@/lib/sst/envio-cliente";
 import { COLUMNAS_POR_FIRMAR_CLIENTE, fechaCorta, type PorFirmarCliente } from "@/lib/cliente-portal";
 
-// Actas de sus obras donde firma el contratante (v_cliente_por_firmar: borradores cuya plantilla
-// pide la firma sst_cliente). Nada más: los formatos internos no aparecen aquí.
+// Actas de sus obras donde firma el contratante (v_cliente_por_firmar: borradores ENVIADOS al cliente,
+// migración 137, cuya plantilla pide la firma sst_cliente). Lo no enviado no aparece aquí.
 export default async function FirmasClientePage() {
   const supabase = await createClient();
   const { data, error } = await supabase.from("v_cliente_por_firmar").select(COLUMNAS_POR_FIRMAR_CLIENTE).order("fecha");
@@ -59,6 +60,7 @@ function Fila({ f }: { f: PorFirmarCliente }) {
             {f.codigo} · {fechaCorta(f.fecha)}
             {f.proyecto_codigo ? ` · ${f.proyecto_codigo}` : ""}
           </span>
+          {f.enviado_cliente_en && !f.ya_firmado && <span className="block text-xs text-slate-500">Te la enviaron el {fechaEnvio(f.enviado_cliente_en)}</span>}
           <span className={`block text-sm font-semibold ${f.ya_firmado ? "text-green-700" : "text-amber-800"}`}>
             {f.ya_firmado ? "✓ Firmada por el contratante" : "Pendiente: leer y firmar"}
           </span>

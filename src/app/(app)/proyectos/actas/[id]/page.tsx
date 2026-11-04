@@ -7,6 +7,7 @@ import { VistaFormato } from "@/components/sst/VistaFormato";
 import { AccionesFormato } from "@/app/(app)/sgsst/formatos/[id]/AccionesFormato";
 import { DescartarBorrador } from "@/components/DescartarBorrador";
 import { SeguirEditando } from "@/components/sst/SeguirEditando";
+import { EnviarAlCliente } from "@/components/sst/EnviarAlCliente";
 
 export default async function ActaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -21,6 +22,15 @@ export default async function ActaPage({ params }: { params: Promise<{ id: strin
   ]);
   const descartable = !porQueNo.error && porQueNo.data === null;
   if (!f || f.ambito !== "proyectos") notFound();
+  // Portal del cliente (migración 137): solo las actas de un proyecto cuya plantilla pide la firma del contratante.
+  const llevaContratante = f.plantilla.firmas.some((x) => x.rol === "sst_cliente");
+  const [envioRes, publicadaRes] = llevaContratante
+    ? await Promise.all([
+        supabase.from("sst_formatos").select("proyecto_id, enviado_cliente_en").eq("id", id).maybeSingle(),
+        supabase.from("cliente_portal_documentos").select("id").eq("formato_id", id).is("retirado_en", null).limit(1),
+      ])
+    : [null, null];
+  const envio = (envioRes?.data ?? null) as { proyecto_id: string | null; enviado_cliente_en: string | null } | null;
   // Editable = lo que dice el registro, igual que la base: borrador y sin ninguna firma.
   const editable = trabaja && f.estado === "borrador" && !conFirmas.error && conFirmas.data === false && f.firmas.length === 0;
   return (
@@ -34,6 +44,16 @@ export default async function ActaPage({ params }: { params: Promise<{ id: strin
         </Link>
       </div>
       {editable && <SeguirEditando href={`/actas/campo?formato=${id}`} />}
+      {envio?.proyecto_id && (
+        <EnviarAlCliente
+          formatoId={id}
+          estado={f.estado}
+          enviadoEn={envio.enviado_cliente_en}
+          firmoContratante={f.firmas.some((x) => x.rol === "sst_cliente")}
+          publicada={!!publicadaRes?.data?.length}
+          puedeEnviar={trabaja}
+        />
+      )}
       <VistaFormato f={f} />
       {descartable && <DescartarBorrador funcion="fn_descartar_formato" id={id} que="el acta" volverA="/proyectos/actas" />}
       <AccionesFormato id={id} estado={f.estado} gestiona={gestiona} ambito="proyectos" />

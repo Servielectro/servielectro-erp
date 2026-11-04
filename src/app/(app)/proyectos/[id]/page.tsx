@@ -7,6 +7,7 @@ import { COLUMNAS_PROYECTO, ESTADO_PROYECTO, type Proyecto } from "@/lib/supabas
 import { FormProyecto } from "../FormProyecto";
 import { ESTADO_FORMATO } from "@/lib/sst/plantillas";
 import { hoyBogota } from "@/lib/cliente-portal";
+import { estadoEnvio } from "@/lib/sst/envio-cliente";
 import { PortalProyecto, type DocumentoObra, type FormatoCerrado, type Publicacion } from "./PortalProyecto";
 import { PersonalObra, type Asignacion, type PersonaElegible } from "./PersonalObra";
 
@@ -53,8 +54,8 @@ export default async function ProyectoPage({
       .order("fecha_programada", { ascending: false })
       .limit(50),
     // Migración 85: las actas de esta obra (acta de inicio, de reunión…).
-    supabase.from("sst_formatos").select("id, plantilla_id, fecha, estado").eq("ambito", "proyectos").eq("proyecto_id", id).order("fecha", { ascending: false }).limit(50),
-    supabase.from("sst_plantillas").select("id, nombre").eq("ambito", "proyectos"),
+    supabase.from("sst_formatos").select("id, plantilla_id, fecha, estado, enviado_cliente_en").eq("ambito", "proyectos").eq("proyecto_id", id).order("fecha", { ascending: false }).limit(50),
+    supabase.from("sst_plantillas").select("id, nombre, firmas").eq("ambito", "proyectos"),
   ]);
   // Portal del cliente (migración 134): lo publicado, lo que se puede publicar y el personal en obra.
   const [publicacionesRes, documentosRes, cerradosRes, plantillasTodasRes, asignacionesRes, personalRes] = await Promise.all([
@@ -70,6 +71,9 @@ export default async function ProyectoPage({
     supabase.from("proyecto_personal").select("id, empleado_id, rol_en_obra, desde, hasta").eq("proyecto_id", id).order("desde"),
     supabase.rpc("fn_sst_personal"),
   ]);
+  const publicadasActivas = new Set(
+    ((publicacionesRes.data ?? []) as { formato_id: string | null; retirado_en: string | null }[]).filter((x) => x.formato_id && !x.retirado_en).map((x) => x.formato_id as string),
+  );
   const nombreCualquierPlantilla = new Map(((plantillasTodasRes.data ?? []) as { id: string; nombre: string }[]).map((x) => [x.id, x.nombre]));
   const formatosCerrados: FormatoCerrado[] = ((cerradosRes.data ?? []) as { id: string; plantilla_id: string; fecha: string; ambito: string }[]).map((f) => ({
     id: f.id,
@@ -78,8 +82,16 @@ export default async function ProyectoPage({
     ambito: f.ambito,
   }));
 
-  const actas = (actasRes.data ?? []) as { id: string; plantilla_id: string; fecha: string; estado: string }[];
-  const nombrePlantilla = new Map(((plantillasActasRes.data ?? []) as { id: string; nombre: string }[]).map((x) => [x.id, x.nombre]));
+  const actas = (actasRes.data ?? []) as { id: string; plantilla_id: string; fecha: string; estado: string; enviado_cliente_en: string | null }[];
+  const plantillasActas = (plantillasActasRes.data ?? []) as { id: string; nombre: string; firmas: { rol: string }[] | null }[];
+  const nombrePlantilla = new Map(plantillasActas.map((x) => [x.id, x.nombre]));
+  // Migración 137: estado de cada acta frente al cliente (solo las que llevan firma del contratante).
+  const conContratante = new Set(plantillasActas.filter((x) => (x.firmas ?? []).some((r) => r.rol === "sst_cliente")).map((x) => x.id));
+  const actasCliente = actas.filter((a) => conContratante.has(a.plantilla_id));
+  const firmasContratanteRes = actasCliente.length
+    ? await supabase.from("sst_formato_firmas").select("formato_id").eq("rol", "sst_cliente").in("formato_id", actasCliente.map((a) => a.id))
+    : { data: [] };
+  const firmoContratante = new Set(((firmasContratanteRes.data ?? []) as { formato_id: string }[]).map((x) => x.formato_id));
   const visitas = visitasRes.error ? [] : (visitasRes.data ?? []);
   const anio = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota", year: "numeric" }).format(new Date());
 
@@ -160,6 +172,18 @@ export default async function ProyectoPage({
                 <p className="text-xs text-slate-600">
                   {a.fecha} · {ESTADO_FORMATO[a.estado] ?? a.estado}
                 </p>
+                {conContratante.has(a.plantilla_id) && (
+                  <p className="text-xs font-semibold text-slate-700">
+                    {
+                      estadoEnvio({
+                        estado: a.estado,
+                        enviadoEn: a.enviado_cliente_en,
+                        firmoContratante: firmoContratante.has(a.id),
+                        publicada: publicadasActivas.has(a.id),
+                      }).texto
+                    }
+                  </p>
+                )}
               </Link>
             </li>
           ))}
