@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { leerFormato } from "@/lib/sst/formato-servidor";
 import { COLUMNAS_LECTURA, type Lectura, type Material } from "@/lib/sst/materiales";
-import { SesionCapacitacion } from "./SesionCapacitacion";
+import { SesionCapacitacion, type Convocado } from "./SesionCapacitacion";
 
 // La pantalla de hoy: el celular pasa de mano en mano y cada participante firma el FOR-02.
 export default async function CapacitacionPage({ params }: { params: Promise<{ id: string }> }) {
@@ -41,6 +41,8 @@ export default async function CapacitacionPage({ params }: { params: Promise<{ i
         supabase.from("sst_plan_evidencias").select("id, descripcion, path, subida_en").eq("formato_id", f.id).is("anulada_en", null).order("subida_en"),
       ])
     : [{ data: null }, { data: [] }];
+  // Convocados (migración 131): usuarios de la app que firman desde su bandeja de Técnico.
+  const convocadosRes = await supabase.from("sst_formato_convocados").select("id, perfil_id, nombre, documento, cargo, convocado_en").eq("formato_id", f.id).order("convocado_en");
   return (
     <div className="mx-auto w-full max-w-xl flex-1 space-y-3 p-4">
       <Link href="/sgsst/capacitaciones" className="text-sm text-slate-600 underline">
@@ -59,6 +61,7 @@ export default async function CapacitacionPage({ params }: { params: Promise<{ i
         gestiona={gestiona}
         yo={perfil?.cedula ? { nombre: perfil.nombre ?? "", documento: perfil.cedula } : null}
         itemPlan={(itemRes.data as { id: string; codigo: string; estandar: string; valor: number | null } | null) ?? null}
+        convocadosIniciales={(convocadosRes.data ?? []) as Convocado[]}
         evidenciasIniciales={(evidenciasRes.data ?? []) as { id: string; descripcion: string; path: string | null; subida_en: string }[]}
         materiales={materiales}
         materialesSinPublicar={sinPublicar}

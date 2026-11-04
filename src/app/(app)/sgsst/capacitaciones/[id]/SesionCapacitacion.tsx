@@ -36,6 +36,16 @@ interface Evidencia {
   subida_en: string;
 }
 
+/** Migración 131: usuario de la app convocado a firmar este formato desde su bandeja de Técnico. */
+export interface Convocado {
+  id: string;
+  perfil_id: string;
+  nombre: string;
+  documento: string;
+  cargo: string | null;
+  convocado_en: string;
+}
+
 type Rol = "tecnico" | "responsable_sst";
 interface Datos {
   rol: Rol;
@@ -79,6 +89,7 @@ export function SesionCapacitacion({
   yo,
   itemPlan,
   evidenciasIniciales,
+  convocadosIniciales,
 }: {
   id: string;
   fecha: string;
@@ -102,10 +113,12 @@ export function SesionCapacitacion({
   yo: { nombre: string; documento: string } | null;
   itemPlan: ItemPlan | null;
   evidenciasIniciales: Evidencia[];
+  convocadosIniciales: Convocado[];
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [estado, setEstado] = useState(estadoInicial);
   const [asistentes, setAsistentes] = useState(asistentesIniciales);
+  const [convocados, setConvocados] = useState(convocadosIniciales);
   const [firmas, setFirmas] = useState(firmasIniciales);
   const [eligiendo, setEligiendo] = useState(false);
   const [datos, setDatos] = useState<Datos | null>(null);
@@ -135,7 +148,13 @@ export function SesionCapacitacion({
   const participantes = firmas.filter((f) => f.rol === "tecnico");
   const capacitador = firmas.find((f) => f.rol === "responsable_sst");
   const yaFirmaron = new Set(participantes.map((f) => docComparable(f.documento)));
-  const pendientes = asistentes.filter((a) => !yaFirmaron.has(docComparable(a.documento)));
+  // Quiénes deben firmar: la lista de asistentes (tecnicos_en_obra) más los convocados (131). La
+  // base acepta la firma de un participante que esté en cualquiera de las dos.
+  const esperados: Asistente[] = [
+    ...asistentes,
+    ...convocados.filter((c) => !asistentes.some((a) => docComparable(a.documento) === docComparable(c.documento))).map((c) => ({ nombre: c.nombre, documento: c.documento, cargo: c.cargo })),
+  ];
+  const pendientes = esperados.filter((a) => !yaFirmaron.has(docComparable(a.documento)));
   // Quién puede tocar su nombre en este celular: la gestión pasa el celular a todos; un técnico
   // desde su cuenta, solo él (si su cédula está en la lista y no ha firmado).
   const [miCedula, setMiCedula] = useState(yo?.documento ?? "");
@@ -145,7 +164,7 @@ export function SesionCapacitacion({
     setError(null);
     const d = docComparable(miCedula);
     if (!d) return setError("Escriba su cédula.");
-    const a = asistentes.find((x) => docComparable(x.documento) === d);
+    const a = esperados.find((x) => docComparable(x.documento) === d);
     if (!a) return setError("Esa cédula no está en la lista de asistentes de esta capacitación. Pídale a la responsable SG-SST que la revise.");
     if (yaFirmaron.has(d)) return setError("Esa cédula ya firmó esta capacitación.");
     empezar({ rol: "tecnico", nombre: a.nombre, documento: a.documento, cargo: a.cargo ?? "" });
@@ -500,7 +519,7 @@ export function SesionCapacitacion({
           )}
           {materiales.map((m) => {
             const leyeron = new Set(lecturas.filter((l) => l.material_id === m.id && l.cerrado_en).map((l) => docComparable(l.documento)));
-            const deLista = asistentes.filter((a) => leyeron.has(docComparable(a.documento))).length;
+            const deLista = esperados.filter((a) => leyeron.has(docComparable(a.documento))).length;
             return (
               <div key={m.id} className="space-y-2">
                 <p className="text-base">
@@ -509,20 +528,20 @@ export function SesionCapacitacion({
                     Versión {m.version}
                     {m.minutos_lectura ? ` · unos ${m.minutos_lectura} min` : ""}
                     {m.obligatorio ? " · se lee antes de firmar" : ""}
-                    {asistentes.length > 0 && ` · lo leyeron ${deLista} de ${asistentes.length}`}
+                    {esperados.length > 0 && ` · lo leyeron ${deLista} de ${esperados.length}`}
                   </span>
                 </p>
                 {abierto && puedeTrabajar && pendientes.length > 0 && (
                   <button
                     type="button"
-                    disabled={guardando || asistentes.length === 0 || faltaEncabezado.length > 0}
+                    disabled={guardando || esperados.length === 0 || faltaEncabezado.length > 0}
                     onClick={() => (setAviso(null), setError(null), setPorAbrir(m), setEligiendo(true))}
                     className={`${BOTON_GRANDE} bg-blue-700 text-white disabled:bg-slate-300`}
                   >
                     📖 Abrir y leer
                   </button>
                 )}
-                {abierto && puedeTrabajar && asistentes.length === 0 && <p className="text-sm text-slate-600">Se abre cuando esté la lista de asistentes: cada lectura queda a nombre de quien lee.</p>}
+                {abierto && puedeTrabajar && esperados.length === 0 && <p className="text-sm text-slate-600">Se abre cuando esté la lista de asistentes: cada lectura queda a nombre de quien lee.</p>}
               </div>
             );
           })}
@@ -534,14 +553,14 @@ export function SesionCapacitacion({
         <div className="space-y-3">
           {faltaEncabezado.length > 0 ? (
             !gestiona && <p className="rounded-xl bg-amber-50 px-4 py-3 text-base text-amber-900">Al encabezado le falta: {faltaEncabezado.join(", ")}. Lo completa la responsable SG-SST.</p>
-          ) : asistentes.length === 0 ? (
-            <p className="rounded-xl bg-amber-50 px-4 py-3 text-base text-amber-900">{gestiona ? "Primero anote la lista de asistentes (abajo). Sin lista la base no deja firmar." : "Todavía no hay lista de asistentes: la arma la responsable SG-SST."}</p>
+          ) : esperados.length === 0 ? (
+            <p className="rounded-xl bg-amber-50 px-4 py-3 text-base text-amber-900">{gestiona ? "Primero convoque a los técnicos o anote la lista de asistentes (abajo). Sin lista la base no deja firmar." : "Todavía no hay lista de asistentes: la arma la responsable SG-SST."}</p>
           ) : (
             <button type="button" onClick={() => (setAviso(null), setError(null), setEligiendo(true))} disabled={pendientes.length === 0} className={`${BOTON_GRANDE} bg-slate-900 text-white disabled:bg-slate-300`}>
               {pendientes.length ? (gestiona ? `Firmar (${pendientes.length} por firmar)` : "Leer y firmar con mi cédula") : "Ya firmaron todos"}
             </button>
           )}
-          {gestiona && !capacitador && asistentes.length > 0 && faltaEncabezado.length === 0 && (
+          {gestiona && !capacitador && esperados.length > 0 && faltaEncabezado.length === 0 && (
             <button
               type="button"
               onClick={() => empezar({ rol: "responsable_sst", nombre: String(respuestas.dirigida_por ?? ""), documento: "", cargo: "" })}
@@ -558,7 +577,18 @@ export function SesionCapacitacion({
         </div>
       )}
 
-      {gestiona && <PanelFirmas asistentes={asistentes} firmas={firmas} lecturas={lecturas} materiales={materiales} />}
+      {gestiona && <PanelFirmas asistentes={esperados} convocados={convocados} firmas={firmas} lecturas={lecturas} materiales={materiales} />}
+
+      {gestiona && (
+        <Convocar
+          formatoId={id}
+          abierto={abierto}
+          convocados={convocados}
+          firmados={yaFirmaron}
+          ocupados={esperados.map((e) => docComparable(e.documento))}
+          onCambio={setConvocados}
+        />
+      )}
 
       {gestiona && (
         <section className="space-y-2 rounded-2xl border border-slate-300 p-4">
@@ -720,7 +750,7 @@ const fechaHoraCorta = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleString("es-CO", { timeZone: "America/Bogota", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
 
 /** Para la responsable: cada asistente con su firma (hora) y cuánto leyó; quien falta, primero. */
-function PanelFirmas({ asistentes, firmas, lecturas, materiales }: { asistentes: Asistente[]; firmas: Firma[]; lecturas: Lectura[]; materiales: Material[] }) {
+function PanelFirmas({ asistentes, convocados, firmas, lecturas, materiales }: { asistentes: Asistente[]; convocados: Convocado[]; firmas: Firma[]; lecturas: Lectura[]; materiales: Material[] }) {
   if (!asistentes.length) return null;
   const filas = asistentes
     .map((a) => {
@@ -738,6 +768,10 @@ function PanelFirmas({ asistentes, firmas, lecturas, materiales }: { asistentes:
         Quién firmó: {asistentes.length - faltan} de {asistentes.length}
         {faltan > 0 ? <span className="text-amber-800"> · faltan {faltan}</span> : <span className="text-green-700"> · completos</span>}
       </h2>
+      {/* Los convocados firman desde su celular: esto trae lo último de la base. */}
+      <button type="button" onClick={() => window.location.reload()} className="min-h-11 rounded-lg border border-slate-300 px-3 text-sm">
+        ↻ Actualizar
+      </button>
       <ul className="divide-y divide-slate-200">
         {filas.map(({ a, firma, segundos, leyo, abiertas }) => (
           <li key={a.documento} className="flex items-start justify-between gap-2 py-2">
@@ -745,6 +779,7 @@ function PanelFirmas({ asistentes, firmas, lecturas, materiales }: { asistentes:
               <p className="font-semibold">{a.nombre}</p>
               <p className="text-sm text-slate-600">
                 CC {a.documento}
+                {convocados.some((c) => docComparable(c.documento) === docComparable(a.documento)) && " · 📲 desde su bandeja"}
                 {materiales.length > 0 && (leyo ? ` · 📖 ${duracion(segundos)}` : abiertas ? " · material abierto sin cerrar" : " · sin leer")}
               </p>
             </div>
@@ -759,6 +794,153 @@ function PanelFirmas({ asistentes, firmas, lecturas, materiales }: { asistentes:
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+/**
+ * Convocar (migración 131): se escoge un usuario de la app y se escriben su nombre y cédula REALES
+ * (los perfiles de los técnicos no están enlazados a empleados: el dato no está en el sistema y no
+ * se inventa). Le aparece en Técnico → Documentos por firmar, y la base solo le deja firmar con esa
+ * cédula. Se quita solo en borrador y si no ha firmado (lo exige la política de delete).
+ */
+function Convocar({
+  formatoId,
+  abierto,
+  convocados,
+  firmados,
+  ocupados,
+  onCambio,
+}: {
+  formatoId: string;
+  abierto: boolean;
+  convocados: Convocado[];
+  firmados: Set<string>;
+  ocupados: string[];
+  onCambio: (c: Convocado[]) => void;
+}) {
+  const supabase = useMemo(() => createClient(), []);
+  const [usuarios, setUsuarios] = useState<{ id: string; nombre: string; rol: string }[] | null>(null);
+  const [errUsuarios, setErrUsuarios] = useState<string | null>(null);
+  const [perfil, setPerfil] = useState("");
+  const [nombre, setNombre] = useState("");
+  const [documento, setDocumento] = useState("");
+  const [cargo, setCargo] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+
+  useEffect(() => {
+    if (!abierto) return;
+    void supabase.rpc("fn_sst_usuarios_convocables").then(({ data, error }) => {
+      if (error) setErrUsuarios(/does not exist|Could not find/i.test(error.message) ? "Falta aplicar la migración 20261203000132 (lista de usuarios para convocar)." : error.message);
+      else setUsuarios((data ?? []) as { id: string; nombre: string; rol: string }[]);
+    });
+  }, [abierto, supabase]);
+
+  const libres = (usuarios ?? []).filter((u) => !convocados.some((c) => c.perfil_id === u.id));
+  const roles = [...new Set(libres.map((u) => u.rol))];
+
+  async function convocar() {
+    setError(null);
+    if (!perfil) return setError("Escoja el usuario de la app.");
+    if (!nombre.trim()) return setError("Escriba el nombre completo.");
+    if (!docComparable(documento)) return setError("Escriba la cédula real (la del documento de identidad).");
+    if (ocupados.includes(docComparable(documento))) return setError("Esa cédula ya está en la lista o convocada.");
+    setOcupado(true);
+    const { data, error } = await supabase
+      .from("sst_formato_convocados")
+      .insert({ formato_id: formatoId, perfil_id: perfil, nombre: nombre.trim(), documento: documento.trim(), cargo: cargo.trim() || null })
+      .select("id, perfil_id, nombre, documento, cargo, convocado_en")
+      .single();
+    setOcupado(false);
+    if (error) return setError(error.message);
+    onCambio([...convocados, data as Convocado]);
+    setPerfil("");
+    setNombre("");
+    setDocumento("");
+    setCargo("");
+  }
+
+  async function quitar(c: Convocado) {
+    if (!confirm(`¿Quitar a ${c.nombre}? Ya no le aparecerá para firmar.`)) return;
+    setError(null);
+    setOcupado(true);
+    const { data, error } = await supabase.from("sst_formato_convocados").delete().eq("id", c.id).select("id");
+    setOcupado(false);
+    if (error) return setError(error.message);
+    if (!data?.length) return setError("No se pudo quitar (¿ya firmó o el formato está cerrado?).");
+    onCambio(convocados.filter((x) => x.id !== c.id));
+  }
+
+  return (
+    <section className="space-y-2 rounded-2xl border border-slate-300 p-4">
+      <h2 className="text-base font-bold text-slate-900">Convocados a firmar desde su celular ({convocados.length})</h2>
+      <p className="text-sm text-slate-600">Les aparece en Técnico → Documentos por firmar. Solo pueden firmar con la cédula que escriba aquí.</p>
+      <ul className="space-y-1">
+        {convocados.map((c) => {
+          const firmo = firmados.has(docComparable(c.documento));
+          return (
+            <li key={c.id} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">{c.nombre}</p>
+                <p className="text-sm text-slate-600">
+                  CC {c.documento}
+                  {c.cargo ? ` · ${c.cargo}` : ""}
+                  {firmo ? " · ✓ firmó" : " · pendiente"}
+                </p>
+              </div>
+              {abierto && !firmo && (
+                <button type="button" disabled={ocupado} onClick={() => void quitar(c)} className="min-h-11 rounded-lg border border-slate-300 px-3 text-sm">
+                  Quitar
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {abierto && (
+        <div className="space-y-2 rounded-xl bg-slate-50 p-3">
+          {errUsuarios && <p className="text-sm text-red-800">{errUsuarios}</p>}
+          {!errUsuarios && usuarios === null && <p className="text-sm text-slate-600">Cargando usuarios…</p>}
+          {usuarios && (
+            <>
+              <label className="block text-sm font-medium">
+                Usuario de la app
+                <select
+                  value={perfil}
+                  onChange={(e) => {
+                    setPerfil(e.target.value);
+                    // El nombre de la cuenta como punto de partida; la cédula NO se precarga.
+                    if (!nombre.trim()) setNombre(libres.find((u) => u.id === e.target.value)?.nombre.replace("(sin nombre)", "") ?? "");
+                  }}
+                  className={CAMPO}
+                >
+                  <option value="">Escoja…</option>
+                  {roles.map((r) => (
+                    <optgroup key={r} label={r}>
+                      {libres
+                        .filter((u) => u.rol === r)
+                        .map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.nombre}
+                          </option>
+                        ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
+              <input placeholder="Nombre completo (como en la cédula)" value={nombre} onChange={(e) => setNombre(e.target.value)} className={CAMPO} />
+              <input placeholder="Cédula" inputMode="numeric" autoComplete="off" value={documento} onChange={(e) => setDocumento(e.target.value)} className={CAMPO} />
+              <input placeholder="Cargo (opcional)" value={cargo} onChange={(e) => setCargo(e.target.value)} className={CAMPO} />
+              {error && <p className="text-sm text-red-800">{error}</p>}
+              <button type="button" disabled={ocupado} onClick={() => void convocar()} className="min-h-12 w-full rounded-xl bg-slate-800 text-base font-semibold text-white disabled:bg-slate-300">
+                Convocar
+              </button>
+            </>
+          )}
+        </div>
+      )}
+      {!abierto && error && <p className="text-sm text-red-800">{error}</p>}
     </section>
   );
 }

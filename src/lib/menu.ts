@@ -129,6 +129,8 @@ function armarSecciones(a: AccesosMenu): SeccionMenu[] {
         { nombre: "Mis permisos", href: "/tecnico/permisos", palabras: "permiso calamidad cita" },
         { nombre: "Mis abonos de nómina", href: "/tecnico/abonos", palabras: "abono adelanto" },
         { nombre: "Mis documentos y certificados", href: "/tecnico/documentos", palabras: "desprendible certificado firmar" },
+        // Migración 131: formatos SG-SST a los que lo convocaron (no le da el módulo SG-SST).
+        { nombre: "Documentos por firmar", href: "/tecnico/por-firmar", palabras: "firmar capacitación inducción convocado pendiente sst for-02 material" },
       ],
     });
   }

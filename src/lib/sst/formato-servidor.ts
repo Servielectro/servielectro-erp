@@ -88,7 +88,7 @@ export async function leerFormato(supabase: Db, id: string): Promise<FormatoComp
 
   // "Llenado por —" / "Registrada por —": fn_sst_personal solo trae a quien tiene ficha de empleado
   // con perfil_id (y solo a quien ve el personal). Los usuarios sin ficha (o un lector sin permiso de
-  // Personal) quedaban en guion. fn_sst_nombres_formato (migración 131) da el nombre de la cuenta a
+  // Personal) quedaban en guion. fn_sst_nombres_formato (migración 132) da el nombre de la cuenta a
   // quien ve el formato; sin ella, perfiles (solo alcanza al propio usuario o a Configuración).
   const sinNombre = [...new Set([f.creado_por, f.aprobado_por, ...firmas.map((x) => x.registrada_por)].filter((u): u is string => !!u && !nombres.has(u)))];
   if (sinNombre.length) {
