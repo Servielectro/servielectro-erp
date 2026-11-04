@@ -10,6 +10,7 @@ import { hoyBogota } from "@/lib/cliente-portal";
 import { estadoEnvio } from "@/lib/sst/envio-cliente";
 import { PortalProyecto, type DocumentoObra, type FormatoCerrado, type Publicacion } from "./PortalProyecto";
 import { PersonalObra, type Asignacion, type PersonaElegible } from "./PersonalObra";
+import { LoQueVeElCliente, type PublicadoVisible } from "./LoQueVeElCliente";
 
 const ESTADO_VISITA: Record<string, string> = {
   programada: "Programada",
@@ -74,6 +75,12 @@ export default async function ProyectoPage({
   const publicadasActivas = new Set(
     ((publicacionesRes.data ?? []) as { formato_id: string | null; retirado_en: string | null }[]).filter((x) => x.formato_id && !x.retirado_en).map((x) => x.formato_id as string),
   );
+  // Para «Lo que ve el cliente»: si nadie del cliente tiene usuario, nadie lo ve (solo con permiso de Configuración).
+  const usuariosClienteRes = p.cliente_id
+    ? await supabase.from("cliente_usuarios").select("perfil_id", { count: "exact", head: true }).eq("cliente_id", p.cliente_id).eq("activo", true)
+    : null;
+  const veUsuariosCliente = await tienePermiso("configuracion", "consultar");
+  const usuariosActivos = usuariosClienteRes && !usuariosClienteRes.error && veUsuariosCliente ? (usuariosClienteRes.count ?? 0) : null;
   const nombreCualquierPlantilla = new Map(((plantillasTodasRes.data ?? []) as { id: string; nombre: string }[]).map((x) => [x.id, x.nombre]));
   const formatosCerrados: FormatoCerrado[] = ((cerradosRes.data ?? []) as { id: string; plantilla_id: string; fecha: string; ambito: string }[]).map((f) => ({
     id: f.id,
@@ -112,6 +119,21 @@ export default async function ProyectoPage({
         </p>
       )}
 
+      {/* Datos del proyecto PLEGADOS (Jhojan: comían media pantalla antes de lo que importa). Una línea
+          de resumen; se abre para corregir y guardar. <details> funciona sin JavaScript. */}
+      <details className="group rounded-lg border border-slate-300 bg-white">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-sm [&::-webkit-details-marker]:hidden">
+          <span className="min-w-0 truncate text-slate-700">
+            <span className="font-semibold text-slate-900">{p.clientes?.nombre ?? (p.cliente_id ? "Cliente" : "Sin cliente")}</span>
+            {" · "}
+            {p.fecha_inicio ?? "sin inicio"} → {p.fecha_fin_estimada ?? "sin fin"}
+          </span>
+          <span className="shrink-0 text-xs font-semibold text-slate-600 underline">
+            <span className="group-open:hidden">{puedeEditar ? "Editar datos" : "Ver datos"}</span>
+            <span className="hidden group-open:inline">Cerrar</span>
+          </span>
+        </summary>
+        <div className="border-t border-slate-200 p-1">
       {puedeEditar ? (
         <FormProyecto
           id={p.id}
@@ -139,6 +161,8 @@ export default async function ProyectoPage({
           <p className="pt-2 text-xs text-slate-500">Editar proyectos requiere el módulo Proyectos en nivel “trabajar”.</p>
         </div>
       )}
+        </div>
+      </details>
 
       <div className="mb-2 mt-6 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-slate-900">Actas de la obra</h2>
@@ -194,6 +218,16 @@ export default async function ProyectoPage({
       <Link href={`/proyectos/reuniones?proyecto=${p.id}`} className="mt-3 flex min-h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800">
         🎙 Reuniones de la obra (grabar, acta, compromisos)
       </Link>
+
+      <LoQueVeElCliente
+        tieneCliente={!!p.cliente_id}
+        publicados={((publicacionesRes.data ?? []) as (PublicadoVisible & { retirado_en: string | null })[]).filter((x) => !x.retirado_en)}
+        porFirmar={actasCliente
+          .filter((a) => a.estado === "borrador" && a.enviado_cliente_en && !firmoContratante.has(a.id))
+          .map((a) => ({ id: a.id, nombre: `${nombrePlantilla.get(a.plantilla_id) ?? "Acta"} · ${a.fecha}`, enviadoEn: a.enviado_cliente_en as string }))}
+        personasHoy={((asignacionesRes.data ?? []) as Asignacion[]).filter((x) => x.desde <= hoyBogota() && (!x.hasta || x.hasta >= hoyBogota())).length}
+        usuariosActivos={usuariosActivos}
+      />
 
       <PortalProyecto
         proyectoId={p.id}

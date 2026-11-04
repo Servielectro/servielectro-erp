@@ -27,6 +27,7 @@ export function EnviarAlCliente({
   firmoContratante,
   publicada,
   puedeEnviar,
+  sinBotonEnviar,
 }: {
   formatoId: string;
   estado: string;
@@ -34,6 +35,8 @@ export function EnviarAlCliente({
   firmoContratante: boolean;
   publicada: boolean;
   puedeEnviar: boolean;
+  /** Acta con cierre automático: enviar va junto con la firma del contratista (FirmasActa). */
+  sinBotonEnviar?: boolean;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -75,7 +78,7 @@ export function EnviarAlCliente({
       {aviso && <p className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-800">{aviso}</p>}
       {error && <p className="whitespace-pre-wrap rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
 
-      {puedeEnviar && e.clave === "borrador" && (
+      {puedeEnviar && !sinBotonEnviar && e.clave === "borrador" && (
         <button type="button" disabled={pendiente} onClick={enviar} className="flex min-h-12 w-full items-center justify-center rounded-md bg-slate-900 px-3 text-sm font-semibold text-white disabled:bg-slate-400">
           {pendiente ? "Enviando…" : "Enviar al cliente para firma"}
         </button>
@@ -99,8 +102,8 @@ export function EnviarAlCliente({
             Retirar
           </button>
         ))}
-      {e.clave === "borrador" && <p className="text-xs text-slate-500">Mientras no se envíe, el cliente no ve esta acta. Al enviarla, la lee y firma desde su portal; cuando quede sellada se publica sola.</p>}
-      {!puedeEnviar && e.clave === "borrador" && <p className="text-xs text-slate-500">Enviar al cliente requiere Proyectos en nivel “trabajar”.</p>}
+      {e.clave === "borrador" && !sinBotonEnviar && <p className="text-xs text-slate-500">Mientras no se envíe, el cliente no ve esta acta. Al enviarla, la lee y firma desde su portal; cuando quede sellada se publica sola.</p>}
+      {!puedeEnviar && !sinBotonEnviar && e.clave === "borrador" && <p className="text-xs text-slate-500">Enviar al cliente requiere Proyectos en nivel “trabajar”.</p>}
     </section>
   );
 }

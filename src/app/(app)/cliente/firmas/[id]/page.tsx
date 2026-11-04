@@ -20,7 +20,7 @@ export default async function FirmarActaClientePage({ params }: { params: Promis
   const f = await leerFormato(supabase, id);
   if (!f) notFound();
 
-  // Integridad para el contratante (migración 138). Sin ella, error → se queda el "Firmado y sellado" sin afirmar más.
+  // Integridad para el contratante (migración 140). Sin ella, error → se queda el "Firmado y sellado" sin afirmar más.
   if (f.hash_contenido) {
     const integro = await supabase.rpc("fn_cliente_formato_integro", { p_formato_id: id });
     if (!integro.error && typeof integro.data === "boolean") f.integro = integro.data;

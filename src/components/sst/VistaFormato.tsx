@@ -107,7 +107,7 @@ function Sello({ f, paraCliente }: { f: FormatoCompleto; paraCliente?: boolean }
   if (f.estado === "anulado") {
     return <p className="rounded-lg border border-slate-400 bg-slate-100 px-3 py-2 text-sm text-slate-800">Anulado el {fechaHora(f.anulado_en)}: {f.motivo_anulacion}</p>;
   }
-  // Si al cliente no le llegó la verificación (fn_cliente_formato_integro, migración 138, falló o no
+  // Si al cliente no le llegó la verificación (fn_cliente_formato_integro, migración 140, falló o no
   // está): sin esto vería "todavía no está cerrado" en un acta sellada. Se dice lo que consta.
   if (paraCliente && f.integro === null && f.sellado_en) {
     return (
