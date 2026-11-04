@@ -5,6 +5,7 @@ import { seccionesMenu } from "@/lib/menu";
 import { VentanaBuscador } from "@/components/BuscadorSecciones";
 import { VentanaProblema } from "@/components/RegistrarProblema";
 import Link from "next/link";
+import { logout } from "@/app/logout/actions";
 import {
   aplicarContenido,
   exportarBaseDatos,
@@ -41,9 +42,12 @@ export function MenuPrincipal({
   onCerrar,
   accesos,
   abrirEn,
+  usuario,
 }: {
   onCerrar: () => void;
   accesos: AccesosMenu;
+  /** Correo de la sesión, para decir quién está antes de "Cerrar sesión". */
+  usuario?: string | null;
   /** En pantalla ancha (sin hamburguesa) se abre directo en "Base de datos". */
   abrirEn?: "basedatos";
 }) {
@@ -497,6 +501,15 @@ export function MenuPrincipal({
           >
             ⚠ Registrar problema u observación
           </button>
+          {/* En pantalla angosta este menú es el ÚNICO lugar para salir (en ancha está en "Cuenta ▾").
+              Faltaba para todos los roles: solo había un botón en el inicio, al que el cliente nunca llega. */}
+          <div className="my-1 border-t border-slate-100" />
+          {usuario && <p className="truncate px-3 py-1 text-xs text-slate-500">Sesión de {usuario}</p>}
+          <form action={logout}>
+            <button type="submit" className="flex min-h-11 w-full items-center rounded-md px-3 text-left text-sm font-semibold text-slate-800 hover:bg-slate-50">
+              Cerrar sesión
+            </button>
+          </form>
         </div>
         {reportando && (
           <VentanaProblema

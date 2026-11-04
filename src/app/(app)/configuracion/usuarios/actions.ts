@@ -38,6 +38,18 @@ async function contexto() {
   };
 }
 
+// El rol Cliente (portal del cliente, migración 134) NO se asigna desde aquí: sin su fila en
+// cliente_usuarios la cuenta queda con el rol pero sin cliente ("Tu acceso al portal no está
+// activo"). Se crea en Configuración → Usuarios del portal del cliente, que hace las dos cosas.
+const AVISO_ROL_CLIENTE =
+  "El rol «Cliente» se asigna desde Configuración → Usuarios del portal del cliente: ahí se escoge a qué cliente pertenece la cuenta.";
+
+async function esRolCliente(supabase: Awaited<ReturnType<typeof createClient>>, rolId: string | null): Promise<boolean> {
+  if (!rolId) return false;
+  const { data } = await supabase.from("roles").select("nombre").eq("id", rolId).maybeSingle();
+  return (data as { nombre: string } | null)?.nombre === "Cliente";
+}
+
 function refrescar() {
   // Los permisos cambian qué ve cada quien en la home y el menú.
   revalidatePath("/", "layout");
@@ -52,6 +64,7 @@ export async function asignarRol(
   if (usuarioId === ctx.userId) {
     return { ok: false, error: "No puedes cambiar tu propio rol" };
   }
+  if (await esRolCliente(ctx.supabase, rolId)) return { ok: false, error: AVISO_ROL_CLIENTE };
   const { error } = await ctx.supabase
     .from("perfiles")
     .upsert({ id: usuarioId, rol_id: rolId }, { onConflict: "id" });
@@ -79,6 +92,8 @@ export async function crearUsuario(input: {
       error: "Falta configurar la clave secreta de Supabase en Vercel (SUPABASE_SECRET_KEY)",
     };
   }
+
+  if (await esRolCliente(ctx.supabase, input.rolId)) return { ok: false, error: AVISO_ROL_CLIENTE };
 
   const nombre = input.nombre.trim();
   const email = input.email.trim().toLowerCase();

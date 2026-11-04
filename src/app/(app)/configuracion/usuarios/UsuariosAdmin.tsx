@@ -281,8 +281,9 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
                 >
                   <option value="">Sin rol (sin acceso)</option>
                   {datos.roles.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.nombre}
+                    // Cliente: solo desde «Usuarios del portal del cliente» (pide el cliente). Si ya lo tiene, se muestra.
+                    <option key={r.id} value={r.id} disabled={r.nombre === "Cliente" && u.rolId !== r.id}>
+                      {r.nombre === "Cliente" && u.rolId !== r.id ? "Cliente (se asigna en Usuarios del portal del cliente)" : r.nombre}
                     </option>
                   ))}
                 </select>
@@ -576,8 +577,8 @@ function NuevoUsuarioForm({
       >
         <option value="">Sin rol por ahora (no ve ningún módulo)</option>
         {roles.map((r) => (
-          <option key={r.id} value={r.id}>
-            {r.nombre}
+          <option key={r.id} value={r.id} disabled={r.nombre === "Cliente"}>
+            {r.nombre === "Cliente" ? "Cliente (se crea en Usuarios del portal del cliente)" : r.nombre}
           </option>
         ))}
       </select>

@@ -72,17 +72,28 @@ export async function crearUsuarioCliente(input: {
   }
   const nuevo = data.user.id;
 
-  // Si algo falla después, se deshace la cuenta: un usuario sin enlace quedaría huérfano.
+  // Orden a propósito: perfil SIN rol → enlace con el cliente → recién ahí el rol Cliente. Así nunca
+  // existe, ni por un instante, una cuenta con rol Cliente sin su fila en cliente_usuarios: si algo
+  // falla a mitad, lo que queda es una cuenta sin rol (no ve nada), no una cuenta "Cliente" huérfana.
+  // Y si falla, se borra la cuenta; si el borrado también falla, se dice con el correo, no se calla.
   const deshacer = async (motivo: string) => {
-    await admin.auth.admin.deleteUser(nuevo);
-    return { ok: false as const, error: motivo };
+    const { error: errBorrar } = await admin.auth.admin.deleteUser(nuevo);
+    if (errBorrar) {
+      return {
+        ok: false as const,
+        error: `${motivo} Además no se pudo borrar la cuenta ${email} (${errBorrar.message}): quedó SIN rol, así que no ve nada. Bórrala en Supabase → Authentication o vuelve a intentar.`,
+      };
+    }
+    return { ok: false as const, error: `${motivo} No se creó nada.` };
   };
   const { error: errPerfil } = await ctx.supabase
     .from("perfiles")
-    .upsert({ id: nuevo, rol_id: rol.id, nombre, cedula: cedula || null }, { onConflict: "id" });
-  if (errPerfil) return deshacer(`No se pudo asignar el rol Cliente (${errPerfil.message}).`);
+    .upsert({ id: nuevo, rol_id: null, nombre, cedula: cedula || null }, { onConflict: "id" });
+  if (errPerfil) return deshacer(`No se pudo crear el perfil (${errPerfil.message}).`);
   const { error: errEnlace } = await ctx.supabase.from("cliente_usuarios").insert({ perfil_id: nuevo, cliente_id: input.clienteId, cargo: input.cargo.trim() || null });
   if (errEnlace) return deshacer(`No se pudo enlazar con el cliente (${errEnlace.message}).`);
+  const { error: errRol } = await ctx.supabase.from("perfiles").update({ rol_id: rol.id }).eq("id", nuevo);
+  if (errRol) return deshacer(`No se pudo asignar el rol Cliente (${errRol.message}).`);
 
   revalidatePath("/configuracion/portal-cliente");
   return { ok: true, id: nuevo };

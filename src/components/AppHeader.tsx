@@ -305,7 +305,7 @@ export function AppHeader({ accesos, usuario }: { accesos: AccesosMenu; usuario?
 
       {reportando && <VentanaProblema administra={accesos.configResponsable} onCerrar={() => setReportando(false)} />}
       {menuAbierto && (
-        <MenuPrincipal onCerrar={() => setMenuAbierto(false)} accesos={accesos} abrirEn={menuAbierto === "basedatos" ? "basedatos" : undefined} />
+        <MenuPrincipal onCerrar={() => setMenuAbierto(false)} accesos={accesos} usuario={usuario} abrirEn={menuAbierto === "basedatos" ? "basedatos" : undefined} />
       )}
     </>
   );
