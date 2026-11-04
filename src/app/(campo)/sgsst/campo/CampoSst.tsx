@@ -8,6 +8,7 @@ import { comprimirFoto, hoyBogota, obtenerUbicacion, sha256 } from "@/lib/tecnic
 import { borrar, dePadre, deVisita, guardar, guardarYEncolar, leer, leerMeta, guardarMeta, todos } from "@/lib/tecnico/db";
 import { createClient } from "@/lib/supabase/client";
 import { descartarImagenFirma } from "@/lib/sst/firma-huerfana";
+import { EnvioCliente, useEnvioCliente } from "./EnvioCliente";
 import { useCola, nuevoId } from "@/lib/sst/campo";
 import { dispositivoActual, type PlantillaLocal, type SstArchivoLocal, type SstFirmaLocal, type SstFormatoLocal } from "@/lib/sst/local";
 import { iniciaMismoDia, sumarDiasHabiles } from "@/lib/fechas/dias-habiles";
@@ -433,6 +434,10 @@ function EditorFormato({
     };
   }, [id]);
 
+  // Migraciones 137/139: estado frente al cliente y si el acta se cierra sola. Lo sabe el sistema, no el celular.
+  const conContratante = ambito === "proyectos" && !!f?.proyectoId && !!f?.plantilla.firmas.some((p) => p.rol === "sst_cliente");
+  const envio = useEnvioCliente(id, conContratante);
+
   // Una firma que la base rechazó NO existe: no cuenta para sellar ni se muestra como hecha.
   const idsFirmaRechazada = new Set(rechazados.filter((r) => r.tipo === "sst_firma").map((r) => r.id));
   const motivoRechazo = new Map(rechazados.map((r) => [r.id, r.ultimoError]));
@@ -605,6 +610,7 @@ function EditorFormato({
     await recargar();
     const despues = await leer<SstFirmaLocal>("sst_firmas", firma.id);
     if (despues?.subida) {
+      void envio.recargar();
       setAvisoPendiente(null);
       setAviso(`✓ Firma de ${firma.nombre} registrada en el sistema.`);
     } else if (despues?.rechazada) {
@@ -870,14 +876,27 @@ function EditorFormato({
               ) : (
                 puedeOtra && (
                   <button type="button" disabled={verificando} onClick={() => void pedirFirma(p.rol + p.etiqueta)} className="mt-2 flex min-h-11 w-full items-center justify-center rounded-lg border-2 border-slate-400 text-sm font-semibold">
-                    ✍ {p.diaria ? (hechas.length ? "Firmar hoy" : "Firmar") : hechas.length && ROL_LISTA[p.rol] ? "Firma otro técnico" : "Firmar"}
+                    ✍ {p.rol === "sst_cliente" && conContratante ? "Firmar aquí con el cliente" : p.diaria ? (hechas.length ? "Firmar hoy" : "Firmar") : hechas.length && ROL_LISTA[p.rol] ? "Firma otro técnico" : "Firmar"}
                   </button>
                 )
               )}
             </div>
           );
         })}
-        {f.cerrado ? (
+        {conContratante && envio.datos && (
+          <EnvioCliente formatoId={id} datos={envio.datos} recargar={envio.recargar} supabase={envio.supabase} subirAhora={subirAhora} />
+        )}
+        {envio.datos?.cierreAutomatico ? (
+          envio.datos.estado === "borrador" ? (
+            <p className="rounded-md bg-slate-100 px-3 py-2 text-center text-sm text-slate-700">
+              {faltanFirmas.length > 0
+                ? `El acta se cierra sola cuando firme ${faltanFirmas.join(" y ").toLowerCase()}: no hay que cerrarla a mano.`
+                : "El acta se cierra sola al registrarse la última firma: no hay que cerrarla a mano."}
+            </p>
+          ) : (
+            <p className="rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-900">✓ Acta firmada por todos: quedó cerrada y sellada.</p>
+          )
+        ) : f.cerrado ? (
           <p className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-900">Cerrado en este celular{pendientes ? `: falta subir ${pendientes}.` : " y subido."}</p>
         ) : (
           <>

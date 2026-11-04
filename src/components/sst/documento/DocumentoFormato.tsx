@@ -156,7 +156,6 @@ function ActaInicio({ f }: { f: FormatoCompleto }) {
   const ciudad = t("ciudad");
   const alcance = parsearAlcance(t("alcance"));
   const personal = nombresDe(t("req_personal_nombres"));
-  const multa = pesos(r.multa_diaria);
 
   const siNo = (k: string) => (r[k] === true ? <td className="r si">SÍ</td> : r[k] === false ? <td className="r no">NO</td> : <td className="r pend">—</td>);
 
@@ -353,19 +352,6 @@ function ActaInicio({ f }: { f: FormatoCompleto }) {
             </tr>
           </tbody>
         </table>
-        <div className="aviso">
-          A partir de la fecha de inicio oficial corre el plazo contractual y, en caso de mora imputable al contratista, la multa pactada en el
-          contrato
-          {multa ? (
-            <>
-              {" "}
-              (<b>{multa}</b> diarios
-              {texto(r.multa_tope_pct) ? `, con tope del ${texto(r.multa_tope_pct)}%` : ""})
-            </>
-          ) : null}
-          .
-        </div>
-
         <h2>7. Constancia</h2>
         <p>
           Verificado el cumplimiento de los requisitos previos relacionados en el numeral 4, las partes dejan constancia del{" "}
@@ -528,7 +514,6 @@ const CSS = `
 .doc-formato .si{color:#15803d}
 .doc-formato .no{color:var(--rojo)}
 .doc-formato .pend{color:var(--g500);font-weight:400;font-style:italic}
-.doc-formato .aviso{border-left:3px solid var(--rojo);background:#fef2f2;padding:8px 11px;margin:9px 0;font-size:9.5pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .doc-formato .firmas{display:flex;gap:26px;margin-top:26px;break-inside:avoid}
 .doc-formato .firma{flex:1;border:1px solid var(--g300);padding:10px 12px;min-height:148px;display:flex;flex-direction:column;justify-content:flex-start}
 .doc-formato .firma .rol{font-size:8.5pt;text-transform:uppercase;letter-spacing:.6px;color:var(--g600);font-weight:700;margin-bottom:6px}
