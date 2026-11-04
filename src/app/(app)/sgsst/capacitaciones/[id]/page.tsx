@@ -28,6 +28,19 @@ export default async function CapacitacionPage({ params }: { params: Promise<{ i
   const publicados = (publicadosRes.data ?? []) as Omit<Material, "obligatorio">[];
   const materiales: Material[] = publicados.map((m) => ({ ...m, obligatorio: exigidos.find((e) => e.codigo === m.codigo)?.obligatorio ?? true }));
   const sinPublicar = exigidos.filter((e) => !publicados.some((m) => m.codigo === e.codigo)).map((e) => e.codigo);
+  // Responsable (Victoria): encabezado, lista, capacitador, sellar, panel y evidencias. "trabajar"
+  // (técnico): leer y firmar, y solo a su nombre (la cédula de su perfil).
+  const gestiona = nivel === "responsable";
+  const { data: usuario } = await supabase.auth.getUser();
+  const perfilRes = usuario.user ? await supabase.from("perfiles").select("nombre, cedula").eq("id", usuario.user.id).maybeSingle() : { data: null };
+  const perfil = perfilRes.data as { nombre: string | null; cedula: string | null } | null;
+  // Estándar 1.2.2 del año de la sesión (el plan anual, migración 108) y las evidencias ya amarradas a este FOR-02.
+  const [itemRes, evidenciasRes] = gestiona
+    ? await Promise.all([
+        supabase.from("sst_plan_items").select("id, codigo, estandar, valor").eq("codigo", "1.2.2").eq("anio", Number(f.fecha.slice(0, 4))).is("archivado_en", null).limit(1).maybeSingle(),
+        supabase.from("sst_plan_evidencias").select("id, descripcion, path, subida_en").eq("formato_id", f.id).is("anulada_en", null).order("subida_en"),
+      ])
+    : [{ data: null }, { data: [] }];
   return (
     <div className="mx-auto w-full max-w-xl flex-1 space-y-3 p-4">
       <Link href="/sgsst/capacitaciones" className="text-sm text-slate-600 underline">
@@ -41,8 +54,12 @@ export default async function CapacitacionPage({ params }: { params: Promise<{ i
         respuestas={f.respuestas}
         estadoInicial={f.estado}
         asistentesIniciales={(f.tecnicos_en_obra ?? []).map((t) => ({ nombre: t.nombre, documento: t.documento, cargo: (t.cargo as string | null | undefined) ?? null }))}
-        firmasIniciales={f.firmas.map((x) => ({ id: x.id, rol: x.rol, nombre: x.nombre, documento: x.documento, cargo: x.cargo }))}
+        firmasIniciales={f.firmas.map((x) => ({ id: x.id, rol: x.rol, nombre: x.nombre, documento: x.documento, cargo: x.cargo, firmada_en_dispositivo: x.firmada_en_dispositivo, recibida_en: x.recibida_en }))}
         puedeTrabajar={nivel === "trabajar" || nivel === "responsable"}
+        gestiona={gestiona}
+        yo={perfil?.cedula ? { nombre: perfil.nombre ?? "", documento: perfil.cedula } : null}
+        itemPlan={(itemRes.data as { id: string; codigo: string; estandar: string; valor: number | null } | null) ?? null}
+        evidenciasIniciales={(evidenciasRes.data ?? []) as { id: string; descripcion: string; path: string | null; subida_en: string }[]}
         materiales={materiales}
         materialesSinPublicar={sinPublicar}
         lecturasIniciales={(lecturasRes.data ?? []) as Lectura[]}

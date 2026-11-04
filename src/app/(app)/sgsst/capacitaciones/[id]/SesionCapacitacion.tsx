@@ -18,6 +18,22 @@ interface Firma {
   nombre: string;
   documento: string;
   cargo: string | null;
+  firmada_en_dispositivo?: string;
+  recibida_en?: string;
+}
+
+/** El estándar 1.2.2 del plan del año de la sesión (sst_plan_items, migración 108). */
+interface ItemPlan {
+  id: string;
+  codigo: string;
+  estandar: string;
+  valor: number | null;
+}
+interface Evidencia {
+  id: string;
+  descripcion: string;
+  path: string | null;
+  subida_en: string;
 }
 
 type Rol = "tecnico" | "responsable_sst";
@@ -59,6 +75,10 @@ export function SesionCapacitacion({
   materiales,
   materialesSinPublicar,
   lecturasIniciales,
+  gestiona,
+  yo,
+  itemPlan,
+  evidenciasIniciales,
 }: {
   id: string;
   fecha: string;
@@ -72,6 +92,12 @@ export function SesionCapacitacion({
   materiales: Material[];
   materialesSinPublicar: string[];
   lecturasIniciales: Lectura[];
+  /** Nivel "responsable" en la sección: encabezado, lista, capacitador, sellar, panel y evidencias. */
+  gestiona: boolean;
+  /** El usuario (cédula de su perfil): con "trabajar" solo firma a su propio nombre. */
+  yo: { nombre: string; documento: string } | null;
+  itemPlan: ItemPlan | null;
+  evidenciasIniciales: Evidencia[];
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [estado, setEstado] = useState(estadoInicial);
@@ -91,6 +117,7 @@ export function SesionCapacitacion({
   const [leyendo, setLeyendo] = useState<Leyendo | null>(null);
   // Material que se pidió abrir desde el bloque general: se abre al tocar el nombre de quien lee.
   const [porAbrir, setPorAbrir] = useState<Material | null>(null);
+  const [evidencias, setEvidencias] = useState(evidenciasIniciales);
 
   // Si la página se va con el material abierto (bloqueo, pestaña cerrada), la lectura se cierra igual.
   useEffect(() => {
@@ -105,6 +132,10 @@ export function SesionCapacitacion({
   const capacitador = firmas.find((f) => f.rol === "responsable_sst");
   const yaFirmaron = new Set(participantes.map((f) => docComparable(f.documento)));
   const pendientes = asistentes.filter((a) => !yaFirmaron.has(docComparable(a.documento)));
+  // Quién puede tocar su nombre en este celular: la gestión pasa el celular a todos; un técnico
+  // desde su cuenta, solo él (si su cédula está en la lista y no ha firmado).
+  const elegibles = gestiona ? pendientes : pendientes.filter((a) => !!yo && docComparable(a.documento) === docComparable(yo.documento));
+  const yoEnLista = !!yo && asistentes.some((a) => docComparable(a.documento) === docComparable(yo.documento));
   const listaSellada = firmas.length > 0;
   // La base no deja firmar con un obligatorio del encabezado vacío (p. ej. una sesión creada por SQL).
   const faltaEncabezado = faltantes(campos, respuestas, {});
@@ -123,7 +154,7 @@ export function SesionCapacitacion({
   }
 
   async function recargarFirmas() {
-    const { data } = await supabase.from("sst_formato_firmas").select("id, rol, nombre, documento, cargo").eq("formato_id", id).order("recibida_en");
+    const { data } = await supabase.from("sst_formato_firmas").select("id, rol, nombre, documento, cargo, firmada_en_dispositivo, recibida_en").eq("formato_id", id).order("recibida_en");
     if (data) setFirmas(data as Firma[]);
   }
 
@@ -251,7 +282,59 @@ export function SesionCapacitacion({
     if (error) return setError(error.message);
     if (!data?.length) return setError("No se pudo cerrar (¿ya estaba cerrado?). Recargue la página.");
     setEstado("firmado");
-    setAviso("Capacitación cerrada y sellada.");
+    // Cierre del circuito: la capacitación sellada queda como evidencia del estándar 1.2.2.
+    const ev = await usarComoEvidencia();
+    setAviso(`Capacitación cerrada y sellada.${ev ? ` ${ev}` : ""}`);
+  }
+
+  /** Fila en sst_plan_evidencias con el FOR-02 (y opcionalmente un archivo ya subido a plan/{item}/). */
+  async function amarrarEvidencia(descripcion: string, path: string | null): Promise<string | null> {
+    if (!itemPlan) return "No está el estándar 1.2.2 en el plan de este año: créalo en Plan de trabajo.";
+    const { data, error } = await supabase
+      .from("sst_plan_evidencias")
+      .insert({ item_id: itemPlan.id, descripcion, path, formato_id: id })
+      .select("id, descripcion, path, subida_en")
+      .single();
+    if (error) return error.message;
+    setEvidencias((e) => [...e, data as Evidencia]);
+    return null;
+  }
+
+  async function usarComoEvidencia(): Promise<string | null> {
+    if (evidencias.some((e) => e.path === null)) return null;
+    const er = await amarrarEvidencia(`FOR-02 firmado: ${String(respuestas.tema ?? "capacitación")} (${fecha})`, null);
+    if (er) {
+      setError(`Quedó sellada, pero no se registró como evidencia del plan: ${er}`);
+      return null;
+    }
+    return `Quedó como evidencia del estándar ${itemPlan?.codigo}.`;
+  }
+
+  async function subirEvaluacion(archivo: File) {
+    setError(null);
+    setAviso(null);
+    if (!itemPlan) return setError("No está el estándar 1.2.2 en el plan de este año: créalo en Plan de trabajo.");
+    setGuardando(true);
+    try {
+      const nombre = archivo.name.replace(/[^\w.\-]+/g, "_");
+      // La ruta que exigen el CHECK de sst_plan_evidencias y la política de Storage (plan/{item}/...).
+      const path = `plan/${itemPlan.id}/${Date.now()}-evaluacion-${id}-${nombre}`;
+      const { error: eS } = await supabase.storage.from("sgsst").upload(path, archivo, { contentType: archivo.type || undefined, upsert: false });
+      if (eS) throw new Error(`No se subió el archivo: ${eS.message}`);
+      const er = await amarrarEvidencia(`Evaluación (Google Forms) de la capacitación: ${String(respuestas.tema ?? "")} (${fecha}) · ${archivo.name}`, path);
+      if (er) throw new Error(er);
+      setAviso("✓ Resultado de la evaluación guardado y amarrado a esta capacitación.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  async function verArchivo(path: string) {
+    const { data, error } = await supabase.storage.from("sgsst").createSignedUrl(path, 600);
+    if (error || !data) return setError(`No se pudo abrir: ${error?.message ?? "sin enlace"}`);
+    window.open(data.signedUrl, "_blank", "noopener");
   }
 
   if (leyendo) {
@@ -293,7 +376,7 @@ export function SesionCapacitacion({
       {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-base text-red-800">{error}</p>}
       {guardando && <p className="rounded-xl bg-slate-100 px-4 py-3 text-lg">Guardando…</p>}
 
-      {abierto && puedeTrabajar && !listaSellada && faltaEncabezado.length > 0 && !guardando && (
+      {abierto && gestiona && !listaSellada && faltaEncabezado.length > 0 && !guardando && (
         <div className="space-y-3 rounded-2xl border-2 border-amber-500 bg-amber-50 p-4">
           <p className="text-base font-bold text-amber-900">Antes de firmar falta llenar: {faltaEncabezado.join(", ")}.</p>
           <FormularioSst campos={campos} respuestas={borradorEncabezado} onCambio={(c, v) => setBorradorEncabezado((r) => ({ ...r, [c]: v }))} />
@@ -362,8 +445,8 @@ export function SesionCapacitacion({
       {abierto && puedeTrabajar && !datos && eligiendo && !guardando && (
         <div className="space-y-2 rounded-2xl border-2 border-slate-900 p-4">
           <p className="text-lg font-bold">{porAbrir ? "¿Quién va a leer? Toque su nombre" : "Toque su nombre"}</p>
-          {pendientes.length === 0 && <p className="text-base text-slate-600">Ya firmaron todos los de la lista.</p>}
-          {pendientes.map((a) => (
+          {elegibles.length === 0 && <p className="text-base text-slate-600">{gestiona ? "Ya firmaron todos los de la lista." : "Ya firmaste, o tu cédula no está en la lista de esta capacitación."}</p>}
+          {elegibles.map((a) => (
             <button
               key={a.documento}
               type="button"
@@ -403,7 +486,7 @@ export function SesionCapacitacion({
                     {asistentes.length > 0 && ` · lo leyeron ${deLista} de ${asistentes.length}`}
                   </span>
                 </p>
-                {abierto && puedeTrabajar && (
+                {abierto && puedeTrabajar && (gestiona || elegibles.length > 0) && (
                   <button
                     type="button"
                     disabled={guardando || asistentes.length === 0 || faltaEncabezado.length > 0}
@@ -423,14 +506,18 @@ export function SesionCapacitacion({
       {/* Listo para el siguiente */}
       {abierto && puedeTrabajar && !datos && !eligiendo && !guardando && (
         <div className="space-y-3">
-          {faltaEncabezado.length > 0 ? null : asistentes.length === 0 ? (
-            <p className="rounded-xl bg-amber-50 px-4 py-3 text-base text-amber-900">Primero anote la lista de asistentes (abajo). Sin lista la base no deja firmar.</p>
+          {faltaEncabezado.length > 0 ? (
+            !gestiona && <p className="rounded-xl bg-amber-50 px-4 py-3 text-base text-amber-900">Al encabezado le falta: {faltaEncabezado.join(", ")}. Lo completa la responsable SG-SST.</p>
+          ) : asistentes.length === 0 ? (
+            <p className="rounded-xl bg-amber-50 px-4 py-3 text-base text-amber-900">{gestiona ? "Primero anote la lista de asistentes (abajo). Sin lista la base no deja firmar." : "Todavía no hay lista de asistentes: la arma la responsable SG-SST."}</p>
+          ) : !gestiona && !yoEnLista ? (
+            <p className="rounded-xl bg-slate-100 px-4 py-3 text-base text-slate-700">{yo ? "Tu cédula no está en la lista de esta capacitación." : "Tu perfil no tiene cédula: pídele a quien administra usuarios que la agregue."}</p>
           ) : (
-            <button type="button" onClick={() => (setAviso(null), setError(null), setEligiendo(true))} disabled={pendientes.length === 0} className={`${BOTON_GRANDE} bg-slate-900 text-white disabled:bg-slate-300`}>
-              {pendientes.length ? `Firmar (${pendientes.length} por firmar)` : "Ya firmaron todos"}
+            <button type="button" onClick={() => (setAviso(null), setError(null), setEligiendo(true))} disabled={elegibles.length === 0} className={`${BOTON_GRANDE} bg-slate-900 text-white disabled:bg-slate-300`}>
+              {gestiona ? (pendientes.length ? `Firmar (${pendientes.length} por firmar)` : "Ya firmaron todos") : elegibles.length ? "Leer y firmar" : "✓ Ya firmaste"}
             </button>
           )}
-          {!capacitador && asistentes.length > 0 && faltaEncabezado.length === 0 && (
+          {gestiona && !capacitador && asistentes.length > 0 && faltaEncabezado.length === 0 && (
             <button
               type="button"
               onClick={() => empezar({ rol: "responsable_sst", nombre: String(respuestas.dirigida_por ?? ""), documento: "", cargo: "" })}
@@ -439,10 +526,58 @@ export function SesionCapacitacion({
               Firma del capacitador
             </button>
           )}
-          <button type="button" onClick={cerrar} className="min-h-14 w-full rounded-2xl bg-green-700 px-4 text-lg font-semibold text-white">
-            Cerrar y sellar
-          </button>
+          {gestiona && (
+            <button type="button" onClick={cerrar} className="min-h-14 w-full rounded-2xl bg-green-700 px-4 text-lg font-semibold text-white">
+              Cerrar y sellar
+            </button>
+          )}
         </div>
+      )}
+
+      {gestiona && <PanelFirmas asistentes={asistentes} firmas={firmas} lecturas={lecturas} materiales={materiales} />}
+
+      {gestiona && (
+        <section className="space-y-2 rounded-2xl border border-slate-300 p-4">
+          <h2 className="text-base font-bold text-slate-900">Evidencias del plan{itemPlan ? ` · estándar ${itemPlan.codigo}` : ""}</h2>
+          {!itemPlan && <p className="text-sm text-amber-800">No hay ítem 1.2.2 en el plan del año {fecha.slice(0, 4)}: sin él no se puede amarrar la evidencia.</p>}
+          {evidencias.length === 0 && <p className="text-sm text-slate-600">Todavía nada amarrado a esta capacitación.</p>}
+          <ul className="space-y-1">
+            {evidencias.map((e) => (
+              <li key={e.id} className="rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                <p>{e.descripcion}</p>
+                <p className="text-xs text-slate-600">
+                  {fechaHoraCorta(e.subida_en)}
+                  {e.path && (
+                    <button type="button" onClick={() => void verArchivo(e.path!)} className="ml-2 min-h-9 underline">
+                      Ver archivo
+                    </button>
+                  )}
+                </p>
+              </li>
+            ))}
+          </ul>
+          {itemPlan && estado !== "borrador" && estado !== "anulado" && !evidencias.some((e) => e.path === null) && (
+            <button type="button" disabled={guardando} onClick={() => void usarComoEvidencia().then((m) => m && setAviso(m))} className="min-h-12 w-full rounded-xl border-2 border-slate-900 text-base font-semibold">
+              Usar como evidencia del plan ({itemPlan.codigo})
+            </button>
+          )}
+          {itemPlan && (
+            <label className="block min-h-12 w-full cursor-pointer rounded-xl bg-slate-900 px-4 py-3 text-center text-base font-semibold text-white">
+              Subir resultado de la evaluación (Forms: PDF o Excel)
+              <input
+                type="file"
+                accept=".pdf,.xlsx,.xls,.csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
+                className="hidden"
+                disabled={guardando}
+                onChange={(ev) => {
+                  const a = ev.target.files?.[0];
+                  ev.target.value = "";
+                  if (a) void subirEvaluacion(a);
+                }}
+              />
+            </label>
+          )}
+        </section>
       )}
 
       {/* Firmas capturadas */}
@@ -470,7 +605,7 @@ export function SesionCapacitacion({
       <ListaAsistentes
         asistentes={asistentes}
         pendientes={pendientes}
-        editable={abierto && puedeTrabajar && !listaSellada}
+        editable={abierto && gestiona && !listaSellada}
         onGuardar={guardarLista}
         lectura={(doc) => {
           if (!materiales.length) return null;
@@ -553,6 +688,53 @@ function ListaAsistentes({
           </button>
         </div>
       )}
+    </section>
+  );
+}
+
+const fechaHoraCorta = (iso: string | null | undefined) =>
+  iso ? new Date(iso).toLocaleString("es-CO", { timeZone: "America/Bogota", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
+
+/** Para la responsable: cada asistente con su firma (hora) y cuánto leyó; quien falta, primero. */
+function PanelFirmas({ asistentes, firmas, lecturas, materiales }: { asistentes: Asistente[]; firmas: Firma[]; lecturas: Lectura[]; materiales: Material[] }) {
+  if (!asistentes.length) return null;
+  const filas = asistentes
+    .map((a) => {
+      const d = docComparable(a.documento);
+      const firma = firmas.find((f) => f.rol === "tecnico" && docComparable(f.documento) === d);
+      const leidas = materiales.flatMap((m) => lecturasDe(lecturas, m.id, a.documento));
+      const abiertas = lecturas.filter((l) => docComparable(l.documento) === d && !l.cerrado_en).length;
+      return { a, firma, segundos: leidas.reduce((t, l) => t + (l.segundos ?? 0), 0), leyo: leidas.length > 0, abiertas };
+    })
+    .sort((x, y) => Number(!!x.firma) - Number(!!y.firma));
+  const faltan = filas.filter((f) => !f.firma).length;
+  return (
+    <section className="space-y-2 rounded-2xl border-2 border-slate-900 p-4">
+      <h2 className="text-base font-bold text-slate-900">
+        Quién firmó: {asistentes.length - faltan} de {asistentes.length}
+        {faltan > 0 ? <span className="text-amber-800"> · faltan {faltan}</span> : <span className="text-green-700"> · completos</span>}
+      </h2>
+      <ul className="divide-y divide-slate-200">
+        {filas.map(({ a, firma, segundos, leyo, abiertas }) => (
+          <li key={a.documento} className="flex items-start justify-between gap-2 py-2">
+            <div className="min-w-0">
+              <p className="font-semibold">{a.nombre}</p>
+              <p className="text-sm text-slate-600">
+                CC {a.documento}
+                {materiales.length > 0 && (leyo ? ` · 📖 ${duracion(segundos)}` : abiertas ? " · material abierto sin cerrar" : " · sin leer")}
+              </p>
+            </div>
+            {firma ? (
+              <span className="shrink-0 rounded-md bg-green-50 px-2 py-1 text-right text-sm text-green-800">
+                ✓ firmó
+                <span className="block text-xs">{fechaHoraCorta(firma.firmada_en_dispositivo ?? firma.recibida_en)}</span>
+              </span>
+            ) : (
+              <span className="shrink-0 rounded-md bg-amber-100 px-2 py-1 text-sm font-semibold text-amber-900">falta</span>
+            )}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso } from "@/lib/permisos";
 import { BloqueVencimientos } from "@/components/vencimientos/Vencimientos";
+import { CapacitacionesPendientes } from "@/components/sst/CapacitacionesPendientes";
 
 export default async function SgsstPage() {
   const supabase = await createClient();
@@ -30,6 +31,9 @@ export default async function SgsstPage() {
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6 lg:max-w-6xl">
       <h1 className="mb-4 text-center text-sm font-bold text-slate-900">SG-SST</h1>
+      <div className="mb-4 empty:hidden">
+        <CapacitacionesPendientes />
+      </div>
       <div className="mb-4">
         <BloqueVencimientos modulo="sgsst" titulo="Vencimientos de SG-SST" />
       </div>

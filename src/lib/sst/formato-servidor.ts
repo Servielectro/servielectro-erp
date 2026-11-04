@@ -85,6 +85,17 @@ export async function leerFormato(supabase: Db, id: string): Promise<FormatoComp
 
   const archivos = (archivosRes.data ?? []) as { id: string; campo_id: string; path: string }[];
   const firmas = (firmasRes.data ?? []) as (Omit<FirmaRegistrada, "url" | "registrada_por_nombre"> & { imagen_path: string })[];
+
+  // "Llenado por —" / "Registrada por —": fn_sst_personal solo trae a quien tiene ficha de empleado
+  // con perfil_id (y solo a quien ve el personal). Los usuarios sin ficha (o un lector sin permiso de
+  // Personal) quedaban en guion. fn_sst_nombres_formato (migración 131) da el nombre de la cuenta a
+  // quien ve el formato; sin ella, perfiles (solo alcanza al propio usuario o a Configuración).
+  const sinNombre = [...new Set([f.creado_por, f.aprobado_por, ...firmas.map((x) => x.registrada_por)].filter((u): u is string => !!u && !nombres.has(u)))];
+  if (sinNombre.length) {
+    const porFuncion = await supabase.rpc("fn_sst_nombres_formato", { p_formato_id: id });
+    const filas = porFuncion.error ? (await supabase.from("perfiles").select("id, nombre").in("id", sinNombre)).data : porFuncion.data;
+    for (const p of (filas ?? []) as { id: string; nombre: string | null }[]) if (p.nombre && !nombres.has(p.id)) nombres.set(p.id, p.nombre);
+  }
   const rutas = [...archivos.map((a) => a.path), ...firmas.map((x) => x.imagen_path)];
   const enlaces = new Map<string, string>();
   if (rutas.length) {

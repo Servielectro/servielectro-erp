@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/app/logout/actions";
 import { getMisPermisos } from "@/lib/permisos";
 import { BloqueVencimientos } from "@/components/vencimientos/Vencimientos";
+import { CapacitacionesPendientes } from "@/components/sst/CapacitacionesPendientes";
 
 const MODULOS = [
   { id: "comercial", nombre: "Comercial", icono: "💼", href: "/comercial", activo: true },
@@ -59,6 +60,10 @@ export default async function Home() {
         </form>
       </div>
 
+      {/* Capacitaciones FOR-02 en borrador que esperan la firma de este usuario. */}
+      <div className="mb-4 empty:hidden">
+        <CapacitacionesPendientes />
+      </div>
       {/* Lo que se vence (migraciones 119 y 122): lo primero que se ve al entrar. */}
       <div className="mb-4">
         <BloqueVencimientos />

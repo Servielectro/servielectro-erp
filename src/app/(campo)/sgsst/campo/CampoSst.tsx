@@ -10,6 +10,7 @@ import { useCola, nuevoId } from "@/lib/sst/campo";
 import { dispositivoActual, type PlantillaLocal, type SstArchivoLocal, type SstFirmaLocal, type SstFormatoLocal } from "@/lib/sst/local";
 import { iniciaMismoDia, sumarDiasHabiles } from "@/lib/fechas/dias-habiles";
 import { HojaFormato, tieneHojaPropia } from "@/components/sst/papel/HojaFormato";
+import { HojaAjustable } from "@/components/sst/papel/HojaAjustable";
 import {
   AMBITO,
   avisosDeFirma,
@@ -501,7 +502,8 @@ function EditorFormato({
             Cerrar
           </button>
         </div>
-        <div className="flex-1 overflow-auto p-2">
+        <div className="flex-1 overflow-y-auto bg-white">
+          <HojaAjustable>
           <HojaFormato
             d={{
               codigo: f.plantilla.codigo,
@@ -514,6 +516,7 @@ function EditorFormato({
               firmas: firmas.map((x) => ({ rol: x.rol, nombre: x.nombre, documento: x.documento, cargo: x.cargo || null, url: urls[x.id] ?? null, firmadaEn: x.firmadaEn })),
             }}
           />
+          </HojaAjustable>
         </div>
       </div>
     );
