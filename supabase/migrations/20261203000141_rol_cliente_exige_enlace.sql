@@ -36,7 +36,19 @@ as $$
 declare
   v_perfil uuid;
 begin
-  v_perfil := case when tg_table_name = 'perfiles' then new.id else old.perfil_id end;
+  -- OJO: no usar un CASE aquí. plpgsql arma la expresión como una sola consulta y
+  -- resuelve AMBAS ramas contra el registro, así que sobre `perfiles` reventaba con
+  -- "record old has no field perfil_id". Con IF/ELSE sí evalúa solo la rama que toca.
+  if tg_table_name = 'perfiles' then
+    v_perfil := new.id;
+  else
+    v_perfil := old.perfil_id;
+  end if;
+
+  if v_perfil is null then
+    return null;
+  end if;
+
   if exists (select 1 from perfiles p join roles r on r.id = p.rol_id
               where p.id = v_perfil and r.nombre = 'Cliente')
      and not exists (select 1 from cliente_usuarios cu where cu.perfil_id = v_perfil) then
@@ -68,3 +80,7 @@ create constraint trigger trg_cliente_usuarios_enlace
 --      → debe fallar con "Una cuenta con rol Cliente necesita su cliente enlazado".
 --   2) delete from cliente_usuarios where perfil_id = <tintalafasevi>;   → debe fallar.
 --   3) begin; insert into cliente_usuarios (...); update perfiles set rol_id = <Cliente> ...; commit;  → pasa.
+
+-- Verificado en producción: con Tintalá enlazado, `delete from cliente_usuarios` de esa
+-- fila rebota con "Una cuenta con rol Cliente necesita su cliente enlazado". Como el
+-- disparador es DIFERIDO, el error salta al cerrar la transacción, no en la sentencia.
