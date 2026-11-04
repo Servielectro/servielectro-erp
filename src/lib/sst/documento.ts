@@ -142,3 +142,27 @@ export function dispositivoCorto(ua: string | null | undefined): string | null {
   const nav = /Edg\//.test(ua) ? "Edge" : /SamsungBrowser/i.test(ua) ? "Samsung Internet" : /Chrome\//.test(ua) ? "Chrome" : /Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : null;
   return [so, nav].filter(Boolean).join(" · ") || "Navegador web";
 }
+
+/**
+ * Cédula de quien firma un documento: 6 a 10 dígitos (se aceptan puntos y espacios al escribirla).
+ * Devuelve el problema en palabras, o null si está bien. En un documento legal no entra basura.
+ */
+export function problemaCedula(c: string): string | null {
+  const t = c.trim();
+  if (!t) return "Escribe el número de cédula de quien firma.";
+  const d = t.replace(/[.\s]/g, "");
+  if (!/^\d+$/.test(d)) return "La cédula solo lleva números.";
+  if (d.length < 6 || d.length > 10) return `La cédula tiene ${d.length} dígitos: debe tener entre 6 y 10. Revísala.`;
+  return null;
+}
+
+/** La cédula como se guarda: solo los dígitos. */
+export const soloDigitos = (c: string) => c.replace(/\D/g, "");
+
+/** Nombre y apellido de la PERSONA que firma (dos palabras como mínimo). */
+export function problemaNombre(n: string): string | null {
+  const palabras = n.trim().split(/\s+/).filter((p) => p.replace(/[^\p{L}]/gu, "").length >= 2);
+  if (!n.trim()) return "Escribe el nombre y apellido de quien firma.";
+  if (palabras.length < 2) return "Escribe el nombre Y el apellido de la persona que firma.";
+  return null;
+}

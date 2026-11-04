@@ -9,6 +9,7 @@ import { borrar, dePadre, deVisita, guardar, guardarYEncolar, leer, leerMeta, gu
 import { createClient } from "@/lib/supabase/client";
 import { descartarImagenFirma } from "@/lib/sst/firma-huerfana";
 import { EnvioCliente, useEnvioCliente } from "./EnvioCliente";
+import { problemaCedula, problemaNombre } from "@/lib/sst/documento";
 import { useCola, nuevoId } from "@/lib/sst/campo";
 import { dispositivoActual, type PlantillaLocal, type SstArchivoLocal, type SstFirmaLocal, type SstFormatoLocal } from "@/lib/sst/local";
 import { iniciaMismoDia, sumarDiasHabiles } from "@/lib/fechas/dias-habiles";
@@ -942,7 +943,11 @@ function FormDatosFirma({
     cargo: "",
     empresa: esCliente ? "" : "Servielectro SAS",
   });
-  const falta = !d.nombre.trim() ? "Escribe el nombre de quien firma." : !d.cargo.trim() ? "Escribe su cargo." : !d.documento.trim() ? "Escribe su número de cédula." : esCliente && !d.empresa.trim() ? "Escribe la empresa del cliente." : null;
+  // Técnico de la lista: sus datos ya vienen anotados. Los demás: persona con nombre y apellido y una
+  // cédula de 6 a 10 dígitos (en un documento legal no entra basura).
+  const falta = fijo
+    ? null
+    : (problemaNombre(d.nombre) ?? (!d.cargo.trim() ? "Escribe su cargo." : null) ?? problemaCedula(d.documento) ?? (esCliente && !d.empresa.trim() ? "Escribe la empresa del cliente." : null));
   const lista = `personal-${pedida.rol}`;
   return (
     <div className="mt-2 space-y-2 rounded-md bg-slate-50 p-2">

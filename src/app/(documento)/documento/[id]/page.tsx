@@ -12,9 +12,9 @@ import { BarraDocumento } from "./BarraDocumento";
  *    para firma o publicadas. Para cualquier otro formato leerFormato devuelve null → 404.
  * El documento solo pinta lo que está en el acta y sus firmas, igual para las dos partes.
  */
-export default async function DocumentoPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ volver?: string }> }) {
+export default async function DocumentoPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ volver?: string; imprimir?: string }> }) {
   const { id } = await params;
-  const { volver } = await searchParams;
+  const { volver, imprimir } = await searchParams;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const supabase = await createClient();
   const {
@@ -50,7 +50,7 @@ export default async function DocumentoPage({ params, searchParams }: { params: 
     <div className="min-h-screen bg-[#8a8f98] pb-8 print:min-h-0 print:bg-white print:p-0">
       {/* El título es el nombre sugerido al "Guardar como PDF". */}
       <title>{`${f.plantilla.nombre}${codigoObra ? ` · ${codigoObra}` : ""}`}</title>
-      <BarraDocumento volver={destino} borrador={f.estado === "borrador"} />
+      <BarraDocumento volver={destino} borrador={f.estado === "borrador"} autoImprimir={imprimir === "1"} />
       <DocumentoFormato f={f} />
     </div>
   );

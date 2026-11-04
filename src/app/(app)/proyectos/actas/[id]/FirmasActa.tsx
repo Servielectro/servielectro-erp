@@ -7,6 +7,7 @@ import { FirmaPantallaCompleta } from "@/app/(campo)/tecnico/FirmaPantallaComple
 import { obtenerUbicacion } from "@/lib/tecnico/captura";
 import type { Ubicacion } from "@/lib/tecnico/db";
 import { registrarFirmaEnLinea } from "@/lib/sst/firmar-en-linea";
+import { problemaCedula, problemaNombre, soloDigitos } from "@/lib/sst/documento";
 
 const BOTON = "flex min-h-14 w-full items-center justify-center rounded-xl px-4 text-base font-bold";
 const CAMPO = "mt-0.5 w-full min-h-12 rounded-lg border border-slate-300 bg-white px-3 text-base";
@@ -66,13 +67,14 @@ export function FirmasActa({
 
   const datosDe = (r: Rol) => (r === "responsable_sst" ? contratista : contratante);
   const etiquetaDe = (r: Rol) => (r === "responsable_sst" ? etiquetas.contratista : etiquetas.contratante);
-  const doc = (d: Firmante) => d.documento.replace(/[^0-9A-Za-z]/g, "");
+  const doc = (d: Firmante) => soloDigitos(d.documento);
 
   async function aFirma(r: Rol, modo: "sitio" | "enviar" | "solo") {
     const d = datosDe(r);
     setError(null);
-    if (d.nombre.trim().length < 3) return setError("Escribe el nombre completo de quien firma.");
-    if (doc(d).length < 5) return setError("Escribe el número de cédula de quien firma.");
+    // Una persona con nombre y apellido, y una cédula de verdad: en un documento legal no entra basura.
+    const problema = problemaNombre(d.nombre) ?? problemaCedula(d.documento);
+    if (problema) return setError(problema);
     // La primera firma exige el acta completa (fn_sst_firma_reglas). Se pregunta a la base ANTES de
     // abrir el pad: que no lo descubra al final, con la firma ya dibujada.
     if (!firmados.contratista && !firmados.contratante) {
