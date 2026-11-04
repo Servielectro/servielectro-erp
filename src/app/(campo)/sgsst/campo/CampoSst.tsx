@@ -5,7 +5,9 @@ import Link from "next/link";
 import { FormularioSst, type ArchivoVista } from "@/components/sst/FormularioSst";
 import { FirmaPantallaCompleta } from "@/app/(campo)/tecnico/FirmaPantallaCompleta";
 import { comprimirFoto, hoyBogota, obtenerUbicacion, sha256 } from "@/lib/tecnico/captura";
-import { dePadre, deVisita, guardar, guardarYEncolar, leer, leerMeta, guardarMeta, todos } from "@/lib/tecnico/db";
+import { borrar, dePadre, deVisita, guardar, guardarYEncolar, leer, leerMeta, guardarMeta, todos } from "@/lib/tecnico/db";
+import { createClient } from "@/lib/supabase/client";
+import { descartarImagenFirma } from "@/lib/sst/firma-huerfana";
 import { useCola, nuevoId } from "@/lib/sst/campo";
 import { dispositivoActual, type PlantillaLocal, type SstArchivoLocal, type SstFirmaLocal, type SstFormatoLocal } from "@/lib/sst/local";
 import { iniciaMismoDia, sumarDiasHabiles } from "@/lib/fechas/dias-habiles";
@@ -223,6 +225,19 @@ export function CampoSst({
         personal={personal}
         pendientes={pendientesDe(abierto)}
         rechazados={rechazadosDe(abierto)}
+        subirAhora={cola.subir}
+        traerDelServidor={async () => {
+          // La copia del celular quedó con una plantilla vieja (la oficina pasó el acta a otra versión):
+          // nada de lo que suba ese formato entra. Se descartan los envíos del formato (todos mandan la
+          // plantilla vieja), los rechazados y las firmas que la base rechazó, y se trae la del sistema.
+          for (const c of (await deVisita<{ id: string; tipo: string }>("cola", abierto)).filter((c) => c.tipo === "sst_formato")) await borrar("cola", c.id);
+          for (const c of cola.rechazados.filter((c) => c.visitaId === abierto)) await borrar("cola", c.id);
+          for (const x of await dePadre<SstFirmaLocal>("sst_firmas", abierto)) if (x.rechazada) await borrar("sst_firmas", x.id);
+          const r = await traerFormato(abierto, proyectos);
+          await cola.refrescar();
+          await recargarLocales();
+          return r.aviso;
+        }}
         onVolver={async () => {
           setAbierto(null);
           await recargarLocales();
@@ -345,6 +360,8 @@ function EditorFormato({
   personal,
   pendientes,
   rechazados,
+  subirAhora,
+  traerDelServidor,
   onVolver,
   onCambio,
 }: {
@@ -355,17 +372,29 @@ function EditorFormato({
   proyectos: { id: string; nombre: string }[];
   personal: string[];
   pendientes: number;
-  rechazados: { ultimoError: string | null }[];
+  rechazados: { id: string; tipo: string; ultimoError: string | null }[];
+  /** Sube ya lo que esté en la cola (con señal). */
+  subirAhora: () => Promise<void>;
+  /** Reemplaza la copia del celular por la del sistema. Devuelve un aviso si no se pudo. */
+  traerDelServidor: () => Promise<string | null>;
   onVolver: () => void;
   onCambio: () => void;
 }) {
   const [f, setF] = useState<SstFormatoLocal | null>(null);
   const [archivos, setArchivos] = useState<SstArchivoLocal[]>([]);
-  const [firmas, setFirmas] = useState<SstFirmaLocal[]>([]);
+  const [todasFirmas, setFirmas] = useState<SstFirmaLocal[]>([]);
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [firmando, setFirmando] = useState<{ tipo: "campo"; campoId: string; etiqueta: string } | { tipo: "cierre"; pedida: FirmaPedida; datos: DatosFirma } | null>(null);
   const [agregando, setAgregando] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  /** Guardada en el celular pero todavía NO registrada en el sistema. */
+  const [avisoPendiente, setAvisoPendiente] = useState<string | null>(null);
+  /** Lo que impide firmar, visto contra el SISTEMA (no contra la copia del celular). */
+  const [bloqueo, setBloqueo] = useState<string | null>(null);
+  /** La oficina pasó el formato a otra versión de la plantilla: la copia del celular ya no sirve. */
+  const [versionNueva, setVersionNueva] = useState<number | null>(null);
+  const [verificando, setVerificando] = useState(false);
+  const [trayendo, setTrayendo] = useState(false);
   const [previa, setPrevia] = useState(false);
   const espera = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -386,6 +415,50 @@ function EditorFormato({
     const t = setTimeout(() => void recargar(), 0);
     return () => clearTimeout(t);
   }, [recargar]);
+
+  // Con señal, al abrir: ¿la copia del celular tiene la misma plantilla que el sistema? Si la oficina
+  // pasó el documento a otra versión, todo lo que suba este celular rebota ("la plantilla no se cambia").
+  useEffect(() => {
+    if (!navigator.onLine) return;
+    let vivo = true;
+    void (async () => {
+      const local = await leer<SstFormatoLocal>("sst_formatos", id);
+      if (!local) return;
+      const { data } = await createClient().from("sst_formatos").select("plantilla_id, sst_plantillas(version)").eq("id", id).maybeSingle();
+      const srv = data as { plantilla_id: string; sst_plantillas: { version: number } | null } | null;
+      if (vivo && srv && srv.plantilla_id !== local.plantilla.id) setVersionNueva(srv.sst_plantillas?.version ?? 0);
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [id]);
+
+  // Una firma que la base rechazó NO existe: no cuenta para sellar ni se muestra como hecha.
+  const idsFirmaRechazada = new Set(rechazados.filter((r) => r.tipo === "sst_firma").map((r) => r.id));
+  const motivoRechazo = new Map(rechazados.map((r) => [r.id, r.ultimoError]));
+  const firmasRechazadas = todasFirmas.filter((x) => !x.subida && (!!x.rechazada || idsFirmaRechazada.has(x.id)));
+  const firmas = todasFirmas.filter((x) => !firmasRechazadas.includes(x));
+  const formatoRechazado = rechazados.filter((r) => r.tipo === "sst_formato" || r.tipo === "sst_cerrar");
+
+  async function quitarFirmaRechazada(x: SstFirmaLocal) {
+    await borrar("sst_firmas", x.id);
+    await borrar("cola", x.id);
+    // Por si la imagen alcanzó a subir antes del rechazo (si ya se borró, no hace nada).
+    if (navigator.onLine) await descartarImagenFirma(x.formatoId, x.id).catch(() => undefined);
+    await recargar();
+    onCambio();
+  }
+
+  async function traerVersionDelSistema() {
+    setTrayendo(true);
+    const problema = await traerDelServidor();
+    setTrayendo(false);
+    if (problema) return setBloqueo(problema);
+    setVersionNueva(null);
+    setBloqueo(null);
+    await recargar();
+    setAviso("Se trajo la versión del sistema. Revisa los datos antes de firmar.");
+  }
 
   // Guardado con un respiro (no se encola en cada letra).
   const calendario = useMemo(() => (festivos ? new Set(festivos) : null), [festivos]);
@@ -429,7 +502,43 @@ function EditorFormato({
     ? [...firmasQueFaltan(f.plantilla.firmas.filter((p) => p.rol !== "tecnico"), firmas), ...sinFirmar.map((t) => t.nombre)]
     : firmasQueFaltan(f.plantilla.firmas, firmas);
 
-  function pedirFirma(clave: string) {
+  async function pedirFirma(clave: string) {
+    if (!f) return;
+    setBloqueo(null);
+    setAviso(null);
+    if (navigator.onLine) {
+      // Antes de abrir el pad: subir lo pendiente y preguntarle al SISTEMA, no a la copia del celular.
+      setVerificando(true);
+      try {
+        if (espera.current) {
+          clearTimeout(espera.current);
+          espera.current = null;
+          await guardarYEncolar("sst_formatos", f, { id: f.id, tipo: "sst_formato", visitaId: f.id });
+        }
+        await subirAhora();
+        const supabase = createClient();
+        const [srv, falt] = await Promise.all([
+          supabase.from("sst_formatos").select("plantilla_id, estado, sst_plantillas(version)").eq("id", f.id).maybeSingle(),
+          // Los campos faltantes solo frenan la PRIMERA firma (fn_sst_firma_reglas).
+          firmas.length === 0 ? supabase.rpc("fn_sst_faltantes", { p_formato_id: f.id }) : Promise.resolve({ data: [] as string[], error: null }),
+        ]);
+        const d = srv.data as { plantilla_id: string; estado: string; sst_plantillas: { version: number } | null } | null;
+        if (!srv.error) {
+          if (!d) return setBloqueo("Este documento todavía no llegó al sistema (mira el aviso en rojo). Si firmas ahora, la firma no quedaría registrada.");
+          if (d.plantilla_id !== f.plantilla.id) {
+            setVersionNueva(d.sst_plantillas?.version ?? 0);
+            return setBloqueo("Este documento cambió de versión en la oficina. Trae la versión del sistema antes de firmar.");
+          }
+          if (d.estado !== "borrador") return setBloqueo("Este documento ya está cerrado en el sistema: no recibe más firmas.");
+          const faltan = (falt.data ?? []) as string[];
+          if (!falt.error && faltan.length) return setBloqueo(`Antes de firmar falta llenar: ${faltan.join(", ")}.`);
+        }
+      } catch {
+        // Se cayó la señal a mitad: sigue como sin señal (la firma queda en el celular, sin contar).
+      } finally {
+        setVerificando(false);
+      }
+    }
     if (f && firmas.length === 0) {
       const sin = [...avisosDeFirma(f.plantilla.campos, f.respuestas), ...avisosDePersonas(f.plantilla.firmas, lista)];
       if (
@@ -479,9 +588,32 @@ function EditorFormato({
     await guardarYEncolar("sst_firmas", firma, { id: firma.id, tipo: "sst_firma", visitaId: f.id });
     setFirmando(null);
     setAgregando(null);
-    setAviso(`Firmó ${firma.nombre}.`);
+    setAviso(null);
+    setAvisoPendiente(null);
     await recargar();
     onCambio();
+    // Firmar en el celular NO es haber firmado: cuenta cuando la base la acepta. Con señal se sube ya
+    // y se dice qué pasó; sin señal se dice que todavía no cuenta.
+    if (!navigator.onLine) {
+      setAvisoPendiente(
+        `La firma de ${firma.nombre} quedó guardada en este celular, SIN señal: todavía NO cuenta como firmada. Se registra cuando vuelva la señal; si la base la rechaza, aquí aparece en rojo.`,
+      );
+      return;
+    }
+    setAvisoPendiente(`Registrando la firma de ${firma.nombre} en el sistema…`);
+    await subirAhora();
+    await recargar();
+    const despues = await leer<SstFirmaLocal>("sst_firmas", firma.id);
+    if (despues?.subida) {
+      setAvisoPendiente(null);
+      setAviso(`✓ Firma de ${firma.nombre} registrada en el sistema.`);
+    } else if (despues?.rechazada) {
+      setAvisoPendiente(null); // el bloque rojo de arriba dice por qué
+    } else {
+      setAvisoPendiente(
+        `La firma de ${firma.nombre} está guardada en este celular pero todavía NO quedó registrada en el sistema. Se reintenta sola; no cierres sesión ni borres los datos del navegador.`,
+      );
+    }
   }
 
   async function cerrar() {
@@ -562,13 +694,47 @@ function EditorFormato({
           </button>
         )}
       </div>
-      {rechazados.length > 0 && (
-        <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-900">
-          {rechazados.map((r, i) => (
-            <p key={i}>{r.ultimoError}</p>
+      {/* Una firma que la base rechazó: grande y arriba. Es lo peor que puede pasar en un documento firmado. */}
+      {firmasRechazadas.map((x) => (
+        <div key={x.id} role="alert" className="space-y-2 rounded-xl border-4 border-red-600 bg-red-50 p-4 text-red-900">
+          <p className="text-lg font-bold">✗ La firma de {x.nombre} NO quedó registrada</p>
+          <p className="text-base">{x.rechazada ?? motivoRechazo.get(x.id) ?? "La base no la aceptó."}</p>
+          <p className="text-sm">El documento sigue sin esa firma. Corrige lo que dice arriba y vuelve a firmar.</p>
+          <button type="button" onClick={() => void quitarFirmaRechazada(x)} className="min-h-11 w-full rounded-lg border-2 border-red-700 bg-white text-sm font-semibold text-red-800">
+            Entendido: quitar esta firma del celular
+          </button>
+        </div>
+      ))}
+      {versionNueva !== null && (
+        <div role="alert" className="space-y-2 rounded-xl border-4 border-amber-500 bg-amber-50 p-4 text-amber-950">
+          <p className="text-lg font-bold">Este documento cambió de versión en la oficina{versionNueva ? ` (ahora versión ${versionNueva})` : ""}</p>
+          <p className="text-sm">
+            Este celular tiene la versión {f.plantilla.version}: lo que llenes o firmes aquí NO se guarda en el sistema. Trae la versión del sistema y revisa los datos (lo
+            que se llenó en este celular después del cambio no llegó y hay que volver a ponerlo).
+          </p>
+          <button type="button" disabled={trayendo} onClick={() => void traerVersionDelSistema()} className="min-h-12 w-full rounded-lg bg-amber-600 text-base font-bold text-white disabled:opacity-50">
+            {trayendo ? "Trayendo…" : "Traer la versión del sistema"}
+          </button>
+        </div>
+      )}
+      {formatoRechazado.length > 0 && versionNueva === null && (
+        <div role="alert" className="rounded-xl border-2 border-red-600 bg-red-50 px-4 py-3 text-base text-red-900">
+          <p className="font-bold">Los cambios de este documento NO se están guardando en el sistema:</p>
+          {[...new Set(formatoRechazado.map((r) => r.ultimoError))].map((m, i) => (
+            <p key={i} className="text-sm">
+              {m}
+            </p>
           ))}
         </div>
       )}
+      {bloqueo && (
+        <div role="alert" className="rounded-xl border-4 border-red-600 bg-red-50 px-4 py-3 text-red-900">
+          <p className="text-lg font-bold">Todavía no se puede firmar</p>
+          <p className="text-base">{bloqueo}</p>
+        </div>
+      )}
+      {verificando && <p className="rounded-lg bg-slate-100 px-3 py-2 text-base">Revisando el documento en el sistema antes de firmar…</p>}
+      {avisoPendiente && <p className="rounded-xl border-2 border-amber-500 bg-amber-50 px-4 py-3 text-base font-semibold text-amber-950">{avisoPendiente}</p>}
 
       <section className="space-y-3 rounded-lg border border-slate-200 bg-white p-3">
         <label className="block text-sm font-medium">
@@ -660,7 +826,11 @@ function EditorFormato({
                     {h.nombre} · CC {h.documento}
                     {h.cargo ? ` · ${h.cargo}` : ""}
                     {p.diaria ? ` · ${diaDeFirma(h.firmadaEn)}` : ""}
-                    <span className="block text-xs text-slate-500">{h.subida ? "Subida" : "Por subir"}</span>
+                    {h.subida ? (
+                      <span className="block text-xs font-semibold text-green-800">✓ Registrada en el sistema</span>
+                    ) : (
+                      <span className="block text-xs font-semibold text-amber-800">⏳ Guardada en el celular: todavía NO cuenta</span>
+                    )}
                   </span>
                 </div>
               ))}
@@ -682,7 +852,7 @@ function EditorFormato({
                     <button
                       key={t.documento}
                       type="button"
-                      onClick={() => pedirFirma(`tec:${docComparable(t.documento)}`)}
+                      disabled={verificando} onClick={() => void pedirFirma(`tec:${docComparable(t.documento)}`)}
                       className="mt-2 flex min-h-11 w-full items-center justify-center rounded-lg border-2 border-slate-400 text-sm font-semibold"
                     >
                       ✍ {p.diaria ? "Firma de hoy:" : "Firma"} {t.nombre}
@@ -699,7 +869,7 @@ function EditorFormato({
                 />
               ) : (
                 puedeOtra && (
-                  <button type="button" onClick={() => pedirFirma(p.rol + p.etiqueta)} className="mt-2 flex min-h-11 w-full items-center justify-center rounded-lg border-2 border-slate-400 text-sm font-semibold">
+                  <button type="button" disabled={verificando} onClick={() => void pedirFirma(p.rol + p.etiqueta)} className="mt-2 flex min-h-11 w-full items-center justify-center rounded-lg border-2 border-slate-400 text-sm font-semibold">
                     ✍ {p.diaria ? (hechas.length ? "Firmar hoy" : "Firmar") : hechas.length && ROL_LISTA[p.rol] ? "Firma otro técnico" : "Firmar"}
                   </button>
                 )

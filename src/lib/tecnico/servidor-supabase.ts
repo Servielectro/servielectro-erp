@@ -6,6 +6,7 @@ import type { FirmaLocal, FotoLocal, JornadaLocal, SugerenciaLocal, TareaLocal, 
 import type { SstArchivoLocal, SstFirmaLocal, SstFormatoLocal, SstReporteFotoLocal, SstReporteLocal } from "@/lib/sst/local";
 import { guardar, leer } from "./db";
 import { ErrorPermanente, SinConexionError, type Servidor } from "./sync";
+import { descartarImagenFirma } from "@/lib/sst/firma-huerfana";
 
 // Códigos de Postgres que reintentar no arregla: excepción del candado o de una regla
 // (P0001), sin permiso por RLS (42501), y datos que la base no acepta.
@@ -178,6 +179,10 @@ export function servidorSupabase(supabase: SupabaseClient): Servidor {
         { onConflict: "id", ignoreDuplicates: true },
       );
       revisar(error);
+    },
+
+    async descartarImagenFirmaSst(formatoId, firmaId) {
+      await descartarImagenFirma(formatoId, firmaId);
     },
 
     async cerrarFormatoSst(formatoId) {

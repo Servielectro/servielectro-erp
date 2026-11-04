@@ -5,9 +5,9 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { FirmaPantallaCompleta } from "@/app/(campo)/tecnico/FirmaPantallaCompleta";
-import { obtenerUbicacion, sha256 } from "@/lib/tecnico/captura";
+import { obtenerUbicacion } from "@/lib/tecnico/captura";
 import type { Ubicacion } from "@/lib/tecnico/db";
-import { dispositivoActual } from "@/lib/sst/local";
+import { registrarFirmaEnLinea } from "@/lib/sst/firmar-en-linea";
 
 const BOTON = "flex min-h-14 w-full items-center justify-center rounded-xl px-4 text-lg font-bold";
 const CAMPO = "mt-0.5 w-full min-h-12 rounded-lg border border-slate-300 bg-white px-3 text-base";
@@ -57,29 +57,13 @@ export function FirmarContratante({
     setGuardando(true);
     setError(null);
     try {
-      const firmaId = crypto.randomUUID();
-      const ruta = `formatos/${formatoId}/firma-${firmaId}.png`;
-      const [huella, gps] = await Promise.all([sha256(png), ubicacion.current ?? obtenerUbicacion()]);
-      const subida = await supabase.storage.from("sgsst").upload(ruta, png, { contentType: "image/png", upsert: false });
-      if (subida.error) throw new Error(`No se pudo guardar la imagen de la firma (${subida.error.message}). Avísale a Servielectro.`);
-      const { error } = await supabase.from("sst_formato_firmas").insert({
-        id: firmaId,
-        formato_id: formatoId,
-        rol: "sst_cliente",
-        nombre: nombre.trim(),
-        documento: docLimpio,
-        cargo: cargo.trim() || null,
-        empresa: empresa.trim() || null,
-        imagen_path: ruta,
-        imagen_sha256: huella,
-        firmada_en_dispositivo: new Date().toISOString(),
-        dispositivo: dispositivoActual() || null,
-        gps_estado: gps.estado,
-        lat: gps.lat,
-        lng: gps.lng,
-        hash_contenido: "lo-pone-la-base",
-      });
-      if (error) throw new Error(error.message);
+      const r = await registrarFirmaEnLinea(
+        supabase,
+        { formatoId, rol: "sst_cliente", nombre: nombre.trim(), documento: docLimpio, cargo: cargo.trim() || null, empresa: empresa.trim() || null },
+        png,
+        await (ubicacion.current ?? obtenerUbicacion()),
+      );
+      if (!r.ok) throw new Error(r.error);
       setFirmo(true);
       router.refresh();
     } catch (e) {
@@ -107,7 +91,12 @@ export function FirmarContratante({
   return (
     <section className="space-y-3 rounded-xl border-2 border-slate-900 bg-white p-4">
       <h2 className="text-lg font-bold">Firmar como contratante</h2>
-      {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-base text-red-800">{error}</p>}
+      {error && (
+        <div role="alert" className="rounded-xl border-4 border-red-600 bg-red-50 px-4 py-3 text-red-900">
+          <p className="text-lg font-bold">✗ No quedó firmada</p>
+          <p className="text-base">{error}</p>
+        </div>
+      )}
       <label className="block">
         <span className="text-sm text-slate-600">Nombre completo</span>
         <input value={nombre} onChange={(e) => setNombre(e.target.value)} autoComplete="name" className={CAMPO} />

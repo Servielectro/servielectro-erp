@@ -4,9 +4,9 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { FirmaPantallaCompleta } from "@/app/(campo)/tecnico/FirmaPantallaCompleta";
-import { obtenerUbicacion, sha256 } from "@/lib/tecnico/captura";
+import { obtenerUbicacion } from "@/lib/tecnico/captura";
 import type { Ubicacion } from "@/lib/tecnico/db";
-import { dispositivoActual } from "@/lib/sst/local";
+import { registrarFirmaEnLinea } from "@/lib/sst/firmar-en-linea";
 
 const BOTON = "flex min-h-14 w-full items-center justify-center rounded-xl px-4 text-base font-bold";
 const CAMPO = "mt-0.5 w-full min-h-12 rounded-lg border border-slate-300 bg-white px-3 text-base";
@@ -68,47 +68,42 @@ export function FirmasActa({
   const etiquetaDe = (r: Rol) => (r === "responsable_sst" ? etiquetas.contratista : etiquetas.contratante);
   const doc = (d: Firmante) => d.documento.replace(/[^0-9A-Za-z]/g, "");
 
-  function aFirma(r: Rol, modo: "sitio" | "enviar" | "solo") {
+  async function aFirma(r: Rol, modo: "sitio" | "enviar" | "solo") {
     const d = datosDe(r);
     setError(null);
     if (d.nombre.trim().length < 3) return setError("Escribe el nombre completo de quien firma.");
     if (doc(d).length < 5) return setError("Escribe el número de cédula de quien firma.");
+    // La primera firma exige el acta completa (fn_sst_firma_reglas). Se pregunta a la base ANTES de
+    // abrir el pad: que no lo descubra al final, con la firma ya dibujada.
+    if (!firmados.contratista && !firmados.contratante) {
+      setGuardando(true);
+      const { data, error } = await supabase.rpc("fn_sst_faltantes", { p_formato_id: formatoId });
+      setGuardando(false);
+      const faltan = (data ?? []) as string[];
+      if (!error && faltan.length) {
+        setPaso(null);
+        return setError(`Todavía no se puede firmar. Antes de firmar falta llenar: ${faltan.join(", ")}.`);
+      }
+    }
     ubicacion.current = obtenerUbicacion();
     setPaso({ modo, quien: r, etapa: "firma" });
   }
 
-  async function guardarFirma(r: Rol, modo: "sitio" | "enviar" | "solo", png: Blob) {
+  async function guardarFirma(r0: Rol, modo: "sitio" | "enviar" | "solo", png: Blob) {
     setPaso(null);
     setGuardando(true);
     setError(null);
     setAviso(null);
-    const d = datosDe(r);
+    const d = datosDe(r0);
     try {
-      const firmaId = crypto.randomUUID();
-      const ruta = `formatos/${formatoId}/firma-${firmaId}.png`;
-      const [huella, gps] = await Promise.all([sha256(png), ubicacion.current ?? obtenerUbicacion()]);
-      const subida = await supabase.storage.from("sgsst").upload(ruta, png, { contentType: "image/png", upsert: false });
-      if (subida.error) throw new Error(`No se pudo subir la firma: ${subida.error.message}`);
-      // Sin .select(): la fila la completa la base (hash, quién, cuándo) y el disparador de la 139 sella si ya están todas.
-      const { error } = await supabase.from("sst_formato_firmas").insert({
-        id: firmaId,
-        formato_id: formatoId,
-        rol: r,
-        nombre: d.nombre.trim(),
-        documento: doc(d),
-        cargo: d.cargo.trim() || null,
-        empresa: d.empresa.trim() || null,
-        imagen_path: ruta,
-        imagen_sha256: huella,
-        firmada_en_dispositivo: new Date().toISOString(),
-        dispositivo: dispositivoActual() || null,
-        gps_estado: gps.estado,
-        lat: gps.lat,
-        lng: gps.lng,
-        hash_contenido: "lo-pone-la-base",
-      });
-      if (error) throw new Error(error.message);
-      const ahora = { ...firmados, [r === "responsable_sst" ? "contratista" : "contratante"]: true };
+      const r = await registrarFirmaEnLinea(
+        supabase,
+        { formatoId, rol: r0, nombre: d.nombre.trim(), documento: doc(d), cargo: d.cargo.trim() || null, empresa: d.empresa.trim() || null },
+        png,
+        await (ubicacion.current ?? obtenerUbicacion()),
+      );
+      if (!r.ok) throw new Error(r.error);
+      const ahora = { ...firmados, [r0 === "responsable_sst" ? "contratista" : "contratante"]: true };
       setFirmados(ahora);
 
       if (modo === "enviar") {
@@ -118,7 +113,7 @@ export function FirmasActa({
         } else {
           setAviso("Firmaste y el acta quedó enviada al cliente. Cuando él firme desde su portal, se sella y se publica sola.");
         }
-      } else if (modo === "sitio" && r === "responsable_sst" && !ahora.contratante) {
+      } else if (modo === "sitio" && r0 === "responsable_sst" && !ahora.contratante) {
         // Enseguida la del contratante, en este mismo dispositivo.
         setPaso({ modo: "sitio", quien: "pasar", etapa: "datos" });
       } else if (ahora.contratista && ahora.contratante && otrasFaltan.length === 0) {
@@ -180,9 +175,9 @@ export function FirmasActa({
         <p className="text-sm text-amber-900">
           {etiquetas.contratante}: revise sus datos (la cédula la escribe usted) y firme. Puede leer el acta completa más abajo antes de firmar.
         </p>
-        {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-base text-red-800">{error}</p>}
+        {error && <ErrorFirma texto={error} />}
         <div className="rounded-xl bg-white p-3">{formulario("sst_cliente")}</div>
-        <button type="button" disabled={guardando} onClick={() => aFirma("sst_cliente", "sitio")} className={`${BOTON} bg-slate-900 text-white disabled:bg-slate-400`}>
+        <button type="button" disabled={guardando} onClick={() => void aFirma("sst_cliente", "sitio")} className={`${BOTON} bg-slate-900 text-white disabled:bg-slate-400`}>
           Firmar como contratante
         </button>
         <button type="button" onClick={() => setPaso(null)} className="min-h-11 w-full text-sm text-slate-700 underline">
@@ -200,9 +195,9 @@ export function FirmasActa({
         <h2 className="text-lg font-bold">{etiquetaDe(r)}</h2>
         {modo === "sitio" && r === "responsable_sst" && <p className="text-sm text-slate-600">Después de tu firma, en este mismo dispositivo, firma el contratante.</p>}
         {modo === "enviar" && <p className="text-sm text-slate-600">Después de tu firma, el acta se le envía al cliente para que firme desde su portal.</p>}
-        {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-base text-red-800">{error}</p>}
+        {error && <ErrorFirma texto={error} />}
         {formulario(r)}
-        <button type="button" disabled={guardando} onClick={() => aFirma(r, modo)} className={`${BOTON} bg-slate-900 text-white disabled:bg-slate-400`}>
+        <button type="button" disabled={guardando} onClick={() => void aFirma(r, modo)} className={`${BOTON} bg-slate-900 text-white disabled:bg-slate-400`}>
           Firmar
         </button>
         <button type="button" onClick={() => setPaso(null)} className="min-h-11 w-full text-sm text-slate-700 underline">
@@ -230,7 +225,7 @@ export function FirmasActa({
         ))}
       </ul>
       {aviso && <p className="rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">{aviso}</p>}
-      {error && <p className="whitespace-pre-wrap rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
+      {error && <ErrorFirma texto={error} />}
       {guardando && <p className="text-sm text-slate-600">Guardando…</p>}
 
       {!ambos && !firmados.contratista && (
@@ -315,5 +310,17 @@ export function FirmasActa({
 
       {otrasFaltan.length > 0 && <p className="text-xs text-slate-500">Las demás firmas obligatorias se toman desde «Seguir llenando / firmar» en campo.</p>}
     </section>
+  );
+}
+
+/** El rechazo de una firma, grande: la pantalla NO queda como si hubiera firmado. */
+function ErrorFirma({ texto }: { texto: string }) {
+  // La firma entró pero el envío al cliente no: no se puede decir "no quedó firmado".
+  const firmoPeroNoEnvio = texto.startsWith("Tu firma quedó registrada");
+  return (
+    <div role="alert" className="rounded-xl border-4 border-red-600 bg-red-50 px-4 py-3 text-red-900">
+      <p className="text-lg font-bold">{firmoPeroNoEnvio ? "Firmado, pero NO se envió al cliente" : "✗ No quedó firmado"}</p>
+      <p className="whitespace-pre-wrap text-base">{texto}</p>
+    </div>
   );
 }

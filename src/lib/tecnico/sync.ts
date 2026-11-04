@@ -46,6 +46,8 @@ export interface Servidor {
   guardarFormatoSst(f: SstFormatoLocal): Promise<void>;
   registrarArchivoSst(a: SstArchivoLocal, ruta: string): Promise<void>;
   registrarFirmaSst(f: SstFirmaLocal, ruta: string): Promise<void>;
+  /** Borra la imagen de una firma que la base rechazó (si no, queda huérfana en Storage). */
+  descartarImagenFirmaSst?(formatoId: string, firmaId: string): Promise<void>;
   cerrarFormatoSst(formatoId: string): Promise<void>;
   guardarReporteSst(r: SstReporteLocal): Promise<void>;
   registrarFotoReporteSst(f: SstReporteFotoLocal, ruta: string): Promise<void>;
@@ -254,8 +256,25 @@ async function enviarUno(servidor: Servidor, envio: EnvioPendiente) {
       const f = await leer<SstFirmaLocal>("sst_firmas", envio.id);
       if (!f || !f.blob) return;
       const ruta = rutaFirmaSst(f);
+      // La imagen va primero: la última firma de un acta con cierre automático la sella al entrar,
+      // y con el acta sellada el bucket ya no recibe la imagen.
       await servidor.subirArchivoSst(ruta, f.blob, "image/png");
-      await servidor.registrarFirmaSst(f, ruta);
+      try {
+        await servidor.registrarFirmaSst(f, ruta);
+      } catch (e) {
+        if (e instanceof ErrorPermanente) {
+          // La base no la aceptó (p. ej. "Antes de firmar falta llenar: …"). La firma NO existe: se
+          // borra su imagen del servidor y en el celular queda marcada como rechazada, con el motivo,
+          // para que la pantalla no la muestre como hecha.
+          try {
+            await servidor.descartarImagenFirmaSst?.(f.formatoId, f.id);
+          } catch {
+            // Si no se pudo borrar, queda para limpiar a mano; la firma igual queda como rechazada.
+          }
+          await guardar("sst_firmas", { ...f, blob: null, rechazada: e.message });
+        }
+        throw e;
+      }
       await guardar("sst_firmas", { ...f, blob: null, subida: true });
       return;
     }

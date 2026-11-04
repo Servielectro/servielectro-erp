@@ -6,7 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 import { FormularioSst } from "@/components/sst/FormularioSst";
 import { VisorPdf } from "@/components/sst/VisorPdf";
 import { FirmaPantallaCompleta } from "@/app/(campo)/tecnico/FirmaPantallaCompleta";
-import { obtenerUbicacion, sha256 } from "@/lib/tecnico/captura";
+import { obtenerUbicacion } from "@/lib/tecnico/captura";
+import { registrarFirmaEnLinea } from "@/lib/sst/firmar-en-linea";
 import type { Ubicacion } from "@/lib/tecnico/db";
 import { dispositivoActual } from "@/lib/sst/local";
 import type { Campo } from "@/lib/sst/plantillas";
@@ -107,28 +108,13 @@ export function FirmarConvocado({
     setGuardando(true);
     setError(null);
     try {
-      const firmaId = crypto.randomUUID();
-      const ruta = `formatos/${formatoId}/firma-${firmaId}.png`;
-      const [huella, gps] = await Promise.all([sha256(png), ubicacion.current ?? obtenerUbicacion()]);
-      const subida = await supabase.storage.from("sgsst").upload(ruta, png, { contentType: "image/png", upsert: false });
-      if (subida.error) throw new Error(`No se pudo subir la firma: ${subida.error.message}`);
-      const { error } = await supabase.from("sst_formato_firmas").insert({
-        id: firmaId,
-        formato_id: formatoId,
-        rol: "tecnico",
-        nombre: yo.nombre,
-        documento: yo.documento,
-        cargo: yo.cargo.trim() || null,
-        imagen_path: ruta,
-        imagen_sha256: huella,
-        firmada_en_dispositivo: new Date().toISOString(),
-        dispositivo: dispositivoActual() || null,
-        gps_estado: gps.estado,
-        lat: gps.lat,
-        lng: gps.lng,
-        hash_contenido: "lo-pone-la-base",
-      });
-      if (error) throw new Error(error.message);
+      const r = await registrarFirmaEnLinea(
+        supabase,
+        { formatoId, rol: "tecnico", nombre: yo.nombre, documento: yo.documento, cargo: yo.cargo.trim() || null, empresa: null },
+        png,
+        await (ubicacion.current ?? obtenerUbicacion()),
+      );
+      if (!r.ok) throw new Error(r.error);
       setFirme(true);
       setAviso("✓ Firmaste. Ya quedó registrado.");
     } catch (e) {
@@ -144,7 +130,12 @@ export function FirmarConvocado({
   return (
     <div className="space-y-4">
       {aviso && <p className="rounded-xl bg-green-50 px-4 py-3 text-lg font-semibold text-green-900">{aviso}</p>}
-      {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-base text-red-800">{error}</p>}
+      {error && (
+        <div role="alert" className="rounded-xl border-4 border-red-600 bg-red-50 px-4 py-3 text-red-900">
+          <p className="text-lg font-bold">{firme ? "Error" : "✗ No quedó firmado"}</p>
+          <p className="text-base">{error}</p>
+        </div>
+      )}
       {guardando && <p className="rounded-xl bg-white px-4 py-3 text-lg">Guardando…</p>}
 
       <section className="rounded-xl border border-slate-300 bg-white p-3">

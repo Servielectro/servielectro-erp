@@ -59,6 +59,11 @@ export interface SstFirmaLocal {
   ubicacion: Ubicacion;
   dispositivo: string;
   subida?: boolean;
+  /**
+   * La base RECHAZÓ esta firma (no quedó registrada): el motivo, en palabras. La firma no cuenta
+   * para nada en pantalla (ni sella, ni se muestra como hecha) y su imagen ya se borró del servidor.
+   */
+  rechazada?: string;
 }
 
 export interface SstReporteLocal {
