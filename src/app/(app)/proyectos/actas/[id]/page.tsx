@@ -58,8 +58,9 @@ export default async function ActaPage({ params }: { params: Promise<{ id: strin
         <Link href="/proyectos/actas" className="text-sm text-slate-600 underline">
           ← Actas de obra
         </Link>
-        <Link href={`/proyectos/actas/${id}/imprimir`} className="inline-flex min-h-11 items-center rounded-md border border-slate-300 px-3 text-sm font-semibold">
-          PDF / Imprimir
+        {/* El acta como documento (A4, prosa legal, firmas): para revisarla antes de firmar y para imprimir a PDF. */}
+        <Link href={`/documento/${id}?volver=/proyectos/actas/${id}`} className="inline-flex min-h-11 items-center rounded-md bg-slate-900 px-3 text-sm font-semibold text-white">
+          Vista previa
         </Link>
       </div>
       {editable && <SeguirEditando href={`/actas/campo?formato=${id}`} />}

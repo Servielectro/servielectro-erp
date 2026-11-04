@@ -28,6 +28,12 @@ export default async function FormatoPublicadoPage({ params }: { params: Promise
       <Link href="/cliente/documentos" className="flex min-h-11 items-center text-sm text-slate-600">
         ← Documentos
       </Link>
+      <Link
+        href={`/documento/${id}?volver=/cliente/documentos/formato/${id}`}
+        className="flex min-h-12 items-center justify-center rounded-xl border-2 border-slate-900 bg-white px-4 text-base font-semibold text-slate-900"
+      >
+        📄 Ver como documento (vista previa / PDF)
+      </Link>
       <VistaFormato f={f} paraCliente />
     </div>
   );

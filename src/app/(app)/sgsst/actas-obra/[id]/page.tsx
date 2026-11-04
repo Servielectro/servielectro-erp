@@ -15,8 +15,8 @@ export default async function ActaDeObraSgsstPage({ params }: { params: Promise<
         <Link href="/sgsst/actas-obra" className="text-sm text-slate-600 underline">
           ← Actas de obra
         </Link>
-        <Link href={`/sgsst/actas-obra/${id}/imprimir`} className="inline-flex min-h-11 items-center rounded-md border border-slate-300 px-3 text-sm font-semibold">
-          PDF / Imprimir
+        <Link href={`/documento/${id}?volver=/sgsst/actas-obra/${id}`} className="inline-flex min-h-11 items-center rounded-md bg-slate-900 px-3 text-sm font-semibold text-white">
+          Vista previa
         </Link>
       </div>
       <VistaFormato f={f} />

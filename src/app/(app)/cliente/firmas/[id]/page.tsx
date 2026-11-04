@@ -42,6 +42,13 @@ export default async function FirmarActaClientePage({ params }: { params: Promis
         ← Documentos por firmar
       </Link>
       <p className="rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-900">Lee el acta completa. Al final está el botón para firmarla como contratante.</p>
+      <Link
+        href={`/documento/${id}?volver=/cliente/firmas/${id}`}
+        className="flex min-h-12 items-center justify-center rounded-xl border-2 border-slate-900 bg-white px-4 text-base font-semibold text-slate-900"
+      >
+        📄 Ver como documento (vista previa / PDF)
+      </Link>
+
       <VistaFormato f={f} paraCliente />
       <FirmarContratante
         formatoId={id}
