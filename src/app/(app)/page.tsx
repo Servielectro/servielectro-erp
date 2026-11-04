@@ -34,6 +34,10 @@ export default async function Home() {
 
   // Solo los módulos con permiso (fn_mis_permisos). Las rutas se protegen aparte, en el servidor.
   const permisos = await getMisPermisos();
+  // Usuario del portal del cliente (migración 134): su único módulo es "cliente". Va directo a su
+  // portal; el inicio del ERP (vencimientos, módulos) no es para él.
+  const modulos = Object.keys(permisos);
+  if (modulos.length > 0 && modulos.every((m) => m === "cliente")) redirect("/cliente/proyectos");
   // Técnico exige tecnico/trabajar (su pantalla lo pide): con solo "consultar" la tarjeta
   // llevaría a una pantalla que lo devuelve al inicio.
   // Lo mismo Planificación: su pantalla pide planificacion/trabajar.

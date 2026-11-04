@@ -69,6 +69,18 @@ export default async function ConfiguracionPage() {
               </div>
             </Link>
             <Link
+              href="/configuracion/portal-cliente"
+              className="flex items-center gap-3 rounded-lg border border-slate-300 bg-white p-4 shadow-sm active:bg-slate-50"
+            >
+              <span className="text-2xl">🏢</span>
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Usuarios del portal del cliente</p>
+                <p className="text-xs text-slate-600">
+                  Cuentas para el administrador del conjunto: ve solo lo que se le publica. Activar y desactivar con motivo.
+                </p>
+              </div>
+            </Link>
+            <Link
               href="/configuracion/problemas"
               className="flex items-center gap-3 rounded-lg border border-slate-300 bg-white p-4 shadow-sm active:bg-slate-50"
             >

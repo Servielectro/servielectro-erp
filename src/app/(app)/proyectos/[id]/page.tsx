@@ -6,6 +6,9 @@ import { getClientesActivos, type ClienteResumen } from "@/lib/supabase/clientes
 import { COLUMNAS_PROYECTO, ESTADO_PROYECTO, type Proyecto } from "@/lib/supabase/proyectos";
 import { FormProyecto } from "../FormProyecto";
 import { ESTADO_FORMATO } from "@/lib/sst/plantillas";
+import { hoyBogota } from "@/lib/cliente-portal";
+import { PortalProyecto, type DocumentoObra, type FormatoCerrado, type Publicacion } from "./PortalProyecto";
+import { PersonalObra, type Asignacion, type PersonaElegible } from "./PersonalObra";
 
 const ESTADO_VISITA: Record<string, string> = {
   programada: "Programada",
@@ -53,6 +56,28 @@ export default async function ProyectoPage({
     supabase.from("sst_formatos").select("id, plantilla_id, fecha, estado").eq("ambito", "proyectos").eq("proyecto_id", id).order("fecha", { ascending: false }).limit(50),
     supabase.from("sst_plantillas").select("id, nombre").eq("ambito", "proyectos"),
   ]);
+  // Portal del cliente (migración 134): lo publicado, lo que se puede publicar y el personal en obra.
+  const [publicacionesRes, documentosRes, cerradosRes, plantillasTodasRes, asignacionesRes, personalRes] = await Promise.all([
+    supabase
+      .from("cliente_portal_documentos")
+      .select("id, categoria, titulo, descripcion, proyecto_documento_id, formato_id, path, bucket, publicado_en, retirado_en, motivo_retiro")
+      .eq("proyecto_id", id)
+      .order("publicado_en", { ascending: false }),
+    supabase.from("proyecto_documentos").select("id, tipo, nombre, path, reservado").eq("proyecto_id", id).eq("archivado", false).order("subido_en", { ascending: false }),
+    // Solo lo cerrado se publica. La RLS deja ver los de los ámbitos que esta persona ve.
+    supabase.from("sst_formatos").select("id, plantilla_id, fecha, ambito").eq("proyecto_id", id).in("estado", ["firmado", "aprobado"]).order("fecha", { ascending: false }).limit(100),
+    supabase.from("sst_plantillas").select("id, nombre"),
+    supabase.from("proyecto_personal").select("id, empleado_id, rol_en_obra, desde, hasta").eq("proyecto_id", id).order("desde"),
+    supabase.rpc("fn_sst_personal"),
+  ]);
+  const nombreCualquierPlantilla = new Map(((plantillasTodasRes.data ?? []) as { id: string; nombre: string }[]).map((x) => [x.id, x.nombre]));
+  const formatosCerrados: FormatoCerrado[] = ((cerradosRes.data ?? []) as { id: string; plantilla_id: string; fecha: string; ambito: string }[]).map((f) => ({
+    id: f.id,
+    nombre: nombreCualquierPlantilla.get(f.plantilla_id) ?? "Formato",
+    fecha: f.fecha,
+    ambito: f.ambito,
+  }));
+
   const actas = (actasRes.data ?? []) as { id: string; plantilla_id: string; fecha: string; estado: string }[];
   const nombrePlantilla = new Map(((plantillasActasRes.data ?? []) as { id: string; nombre: string }[]).map((x) => [x.id, x.nombre]));
   const visitas = visitasRes.error ? [] : (visitasRes.data ?? []);
@@ -145,6 +170,23 @@ export default async function ProyectoPage({
       <Link href={`/proyectos/reuniones?proyecto=${p.id}`} className="mt-3 flex min-h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800">
         🎙 Reuniones de la obra (grabar, acta, compromisos)
       </Link>
+
+      <PortalProyecto
+        proyectoId={p.id}
+        tieneCliente={!!p.cliente_id}
+        puedePublicar={proyectosTrabaja}
+        publicaciones={(publicacionesRes.data ?? []) as Publicacion[]}
+        documentos={(documentosRes.data ?? []) as DocumentoObra[]}
+        formatos={formatosCerrados}
+      />
+
+      <PersonalObra
+        proyectoId={p.id}
+        puedeEditar={proyectosTrabaja}
+        asignaciones={(asignacionesRes.data ?? []) as Asignacion[]}
+        personas={(personalRes.data ?? []) as PersonaElegible[]}
+        hoy={hoyBogota()}
+      />
 
       <h2 className="mb-2 mt-6 text-sm font-semibold text-slate-900">Visitas y obras del proyecto</h2>
       {visitas.length === 0 ? (

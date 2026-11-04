@@ -38,6 +38,23 @@ export function seccionesMenu(a: AccesosMenu): SeccionMenu[] {
 
 function armarSecciones(a: AccesosMenu): SeccionMenu[] {
   const s: SeccionMenu[] = [];
+  // Portal del cliente (migración 134): lo único que tiene el rol Cliente. Va primero porque, para
+  // ese usuario, es lo único del menú. Ningún rol interno lo trae por defecto.
+  if (a.modulos.includes("cliente")) {
+    s.push({
+      id: "cliente",
+      nombre: "Mi portal",
+      nombreLargo: "Portal del cliente",
+      href: "/cliente/proyectos",
+      palabras: "portal cliente conjunto administrador",
+      hijos: [
+        { nombre: "Mis proyectos", href: "/cliente/proyectos", palabras: "obra contrato estado fechas" },
+        { nombre: "Documentos del proyecto", href: "/cliente/documentos", palabras: "descargar contrato póliza acta informe plano factura cronograma" },
+        { nombre: "Personal en obra", href: "/cliente/personal", palabras: "técnicos cédula alturas curso afiliación ingreso portería" },
+        { nombre: "Documentos por firmar", href: "/cliente/firmas", palabras: "firmar acta contratante pendiente" },
+      ],
+    });
+  }
   if (a.modulos.includes("comercial")) {
     s.push({
       id: "comercial",
@@ -224,6 +241,7 @@ function armarSecciones(a: AccesosMenu): SeccionMenu[] {
           ? [
               { nombre: "👥 Grupos", href: "/configuracion/grupos", palabras: "grupos equipos" },
               { nombre: "🔁 Transferir tareas", href: "/configuracion/transferir", palabras: "transferir reasignar tareas" },
+              { nombre: "🏢 Usuarios del portal del cliente", href: "/configuracion/portal-cliente", palabras: "cliente portal acceso conjunto administrador externo usuario" },
               { nombre: "⚠ Reportes de problema", href: "/configuracion/problemas", palabras: "problema error bug falla daño reporte registrar" },
             ]
           : []),

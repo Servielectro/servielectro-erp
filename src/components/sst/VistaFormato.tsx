@@ -5,8 +5,12 @@ import { fechaHora, type FormatoCompleto } from "@/lib/sst/formato-servidor";
 import { AMBITO, ESTADO_FORMATO, tecnicosSinFirmar } from "@/lib/sst/plantillas";
 
 
-/** El formato completo, de solo lectura: contenido, firmas con su registro y el sello. */
-export function VistaFormato({ f, imprimir }: { f: FormatoCompleto; imprimir?: boolean }) {
+/**
+ * El formato completo, de solo lectura: contenido, firmas con su registro y el sello.
+ * `paraCliente` (portal del cliente): sin el registro interno de cada firma (GPS, equipo, quién la
+ * registró, quién llenó el formato). La huella y la hora de la firma sí, que son la evidencia.
+ */
+export function VistaFormato({ f, imprimir, paraCliente }: { f: FormatoCompleto; imprimir?: boolean; paraCliente?: boolean }) {
   return (
     <div className="space-y-4">
       <div>
@@ -19,11 +23,12 @@ export function VistaFormato({ f, imprimir }: { f: FormatoCompleto; imprimir?: b
           {f.lugar ? ` · ${f.lugar}` : ""}
         </p>
         <p className="text-xs text-slate-500">
-          Llenado por {f.creado_por_nombre ?? "—"} · {ESTADO_FORMATO[f.estado]}
+          {paraCliente ? "" : `Llenado por ${f.creado_por_nombre ?? "—"} · `}
+          {ESTADO_FORMATO[f.estado]}
         </p>
       </div>
 
-      <Sello f={f} />
+      <Sello f={f} paraCliente={paraCliente} />
 
       {tieneHojaPropia(f.plantilla.codigo) ? (
         // Migración 112: el formato como el papel (FOR-14, FOR-15). El registro de firmas va debajo.
@@ -72,15 +77,19 @@ export function VistaFormato({ f, imprimir }: { f: FormatoCompleto; imprimir?: b
                 <p className="mt-1 text-xs text-slate-600">
                   Firmó: {fechaHora(x.firmada_en_dispositivo)} (en el dispositivo) · recibida {fechaHora(x.recibida_en)}
                 </p>
-                <p className="text-xs text-slate-600">Registrada por {x.registrada_por_nombre ?? "—"}</p>
-                {x.lat !== null && x.lng !== null ? (
-                  <p className="text-xs text-slate-600">
-                    GPS {Number(x.lat).toFixed(5)}, {Number(x.lng).toFixed(5)}
-                  </p>
-                ) : (
-                  <p className="text-xs text-slate-600">GPS: {x.gps_estado?.replace("_", " ") ?? "—"}</p>
+                {!paraCliente && (
+                  <>
+                    <p className="text-xs text-slate-600">Registrada por {x.registrada_por_nombre ?? "—"}</p>
+                    {x.lat !== null && x.lng !== null ? (
+                      <p className="text-xs text-slate-600">
+                        GPS {Number(x.lat).toFixed(5)}, {Number(x.lng).toFixed(5)}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-slate-600">GPS: {x.gps_estado?.replace("_", " ") ?? "—"}</p>
+                    )}
+                    {x.dispositivo && <p className="truncate text-xs text-slate-400">Equipo: {x.dispositivo}</p>}
+                  </>
                 )}
-                {x.dispositivo && <p className="truncate text-xs text-slate-400">Equipo: {x.dispositivo}</p>}
                 <p className="truncate font-mono text-[10px] text-slate-400">Contenido firmado: {x.hash_contenido}</p>
               </div>
             ))}
@@ -94,9 +103,19 @@ export function VistaFormato({ f, imprimir }: { f: FormatoCompleto; imprimir?: b
   );
 }
 
-function Sello({ f }: { f: FormatoCompleto }) {
+function Sello({ f, paraCliente }: { f: FormatoCompleto; paraCliente?: boolean }) {
   if (f.estado === "anulado") {
     return <p className="rounded-lg border border-slate-400 bg-slate-100 px-3 py-2 text-sm text-slate-800">Anulado el {fechaHora(f.anulado_en)}: {f.motivo_anulacion}</p>;
+  }
+  // Si al cliente no le llegó la verificación (fn_cliente_formato_integro, migración 137, falló o no
+  // está): sin esto vería "todavía no está cerrado" en un acta sellada. Se dice lo que consta.
+  if (paraCliente && f.integro === null && f.sellado_en) {
+    return (
+      <div className="rounded-lg border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-900">
+        <p className="font-semibold">Firmado y sellado el {fechaHora(f.sellado_en)}</p>
+        <p className="truncate font-mono text-[10px]">Huella: {f.hash_contenido}</p>
+      </div>
+    );
   }
   if (f.integro === null) {
     return <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">Todavía no está cerrado: falta firmar o cerrarlo. Al cerrarlo queda sellado.</p>;
@@ -113,7 +132,10 @@ function Sello({ f }: { f: FormatoCompleto }) {
   ) : (
     <div className="rounded-lg border border-red-400 bg-red-50 px-3 py-2 text-sm text-red-900">
       <p className="font-semibold">✗ El contenido NO coincide con lo que se firmó</p>
-      <p>Alguien lo cambió por fuera del ERP después del sello. Este documento no sirve como evidencia tal como está: avisa a {AMBITO[f.ambito].gestion}.</p>
+      <p>
+        Alguien lo cambió por fuera del ERP después del sello. Este documento no sirve como evidencia tal como está: avisa a{" "}
+        {paraCliente ? "Servielectro" : AMBITO[f.ambito].gestion}.
+      </p>
     </div>
   );
 }
