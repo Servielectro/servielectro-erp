@@ -1,5 +1,5 @@
 -- Portal del cliente: verificación de integridad del acta para el contratante.
--- (Escrita como 0137; renumerada a 0138 porque la 0137 aplicada es acta_enviar_al_cliente_y_publicar.)
+-- (Escrita como 0137; renumerada a 0138 y luego a 0140: la 0137, 0138 y 0139 aplicadas son del acta de inicio.)
 --
 -- fn_sst_formato_integro y fn_sst_hash_formato exigen permiso sobre el módulo (o fn_sgsst_ve_acta):
 -- al cliente le devuelven null, y en el portal no se le podía decir si el acta que lee es

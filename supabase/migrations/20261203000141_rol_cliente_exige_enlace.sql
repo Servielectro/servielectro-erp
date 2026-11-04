@@ -1,4 +1,5 @@
 -- Candado: una cuenta con rol «Cliente» sin su fila en cliente_usuarios no puede existir.
+-- (Escrita como 0139; renumerada a 0141 porque la 0139 aplicada es acta_cierre_automatico.)
 --
 -- Pasó en producción (tintalafasevi@gmail.com, 2026-11-04): la cuenta quedó con rol Cliente y sin
 -- enlace, y el portal le decía "Tu acceso al portal no está activo". La app ya lo frena (la pantalla
