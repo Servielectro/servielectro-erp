@@ -124,19 +124,37 @@ export function PortalProyecto({
       const mime = MIME[extension(archivo.name)];
       if (!mime) return setError("Ese tipo de archivo no se acepta (PDF, imagen, Word, Excel o texto).");
       if (archivo.size > LIMITE_BYTES) return setError("El archivo pesa más de 15 MB.");
+      if (!TIPOS_OBRA.some((t) => t.id === tipoArchivo)) return setError("Escoge qué es el documento.");
       setSubiendo(true);
       try {
+        // El id lo pone el navegador y el insert va SIN .select(): pedir la fila de vuelta es un
+        // INSERT … RETURNING, que pasa por la política de SELECT (fn_proyecto_documento_visible, STABLE,
+        // busca la fila por id y no ve la que se está insertando) y rebota con "new row violates
+        // row-level security policy" aunque quien sube tenga todos los permisos.
+        const docId = crypto.randomUUID();
+        // La ruta tiene que empezar por el proyecto (check proyecto_documentos_path y política del bucket).
         const path = `${proyectoId}/${crypto.randomUUID()}-${nombreLimpio(archivo.name)}`;
         const sha = await sha256Archivo(archivo);
-        const s = await supabase.storage.from("documentos-proyectos").upload(path, archivo, { contentType: mime, upsert: false });
-        if (s.error) throw new Error(`No se pudo subir el archivo: ${s.error.message}`);
+        // Orden: registrar primero, subir después. El bucket no deja borrar desde la app: si se subiera
+        // primero y fallara el registro, el archivo quedaría huérfano sin forma de limpiarlo. Al revés,
+        // si falla la subida, la fila se archiva con motivo (eso sí lo permite la base).
         const r = await supabase
           .from("proyecto_documentos")
-          .insert({ proyecto_id: proyectoId, tipo: tipoArchivo, nombre: titulo.trim(), nombre_archivo: archivo.name, path, mime, bytes: archivo.size, sha256: sha, origen: "original", reservado: false })
-          .select("id")
-          .single();
-        if (r.error || !r.data) throw new Error(`Se subió el archivo pero no se pudo registrar como documento de la obra: ${r.error?.message ?? "sin respuesta"}`);
-        fuente = { tipo: "documento", id: r.data.id as string };
+          .insert({ id: docId, proyecto_id: proyectoId, tipo: tipoArchivo, nombre: titulo.trim(), nombre_archivo: archivo.name, path, mime, bytes: archivo.size, sha256: sha, origen: "original", reservado: false });
+        if (r.error) throw new Error(`No se pudo registrar el documento de la obra (no se subió nada): ${r.error.message}`);
+        const s = await supabase.storage.from("documentos-proyectos").upload(path, archivo, { contentType: mime, upsert: false });
+        if (s.error) {
+          const a = await supabase
+            .from("proyecto_documentos")
+            .update({ archivado: true, motivo_archivo: `No se pudo subir el archivo al publicar al portal: ${s.error.message}` })
+            .eq("id", docId);
+          throw new Error(
+            a.error
+              ? `No se pudo subir el archivo (${s.error.message}) y tampoco archivar su registro (${a.error.message}). Avísale a Jhojan: quedó «${titulo.trim()}» en los documentos de la obra sin archivo.`
+              : `No se pudo subir el archivo (${s.error.message}). Su registro quedó archivado con el motivo; vuelve a intentar.`,
+          );
+        }
+        fuente = { tipo: "documento", id: docId };
       } catch (e) {
         setSubiendo(false);
         return setError(e instanceof Error ? e.message : String(e));
