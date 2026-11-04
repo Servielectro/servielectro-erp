@@ -94,7 +94,11 @@ export function SesionCapacitacion({
   lecturasIniciales: Lectura[];
   /** Nivel "responsable" en la sección: encabezado, lista, capacitador, sellar, panel y evidencias. */
   gestiona: boolean;
-  /** El usuario (cédula de su perfil): con "trabajar" solo firma a su propio nombre. */
+  /**
+   * Cédula del perfil, solo para PRELLENAR la casilla (puede no haber: los técnicos no están
+   * enlazados a empleados ni tienen cédula en el sistema). Con "trabajar" la persona escribe su
+   * cédula y se busca en la lista de asistentes; no se le muestra la lista para tocar nombres.
+   */
   yo: { nombre: string; documento: string } | null;
   itemPlan: ItemPlan | null;
   evidenciasIniciales: Evidencia[];
@@ -134,8 +138,18 @@ export function SesionCapacitacion({
   const pendientes = asistentes.filter((a) => !yaFirmaron.has(docComparable(a.documento)));
   // Quién puede tocar su nombre en este celular: la gestión pasa el celular a todos; un técnico
   // desde su cuenta, solo él (si su cédula está en la lista y no ha firmado).
-  const elegibles = gestiona ? pendientes : pendientes.filter((a) => !!yo && docComparable(a.documento) === docComparable(yo.documento));
-  const yoEnLista = !!yo && asistentes.some((a) => docComparable(a.documento) === docComparable(yo.documento));
+  const [miCedula, setMiCedula] = useState(yo?.documento ?? "");
+
+  // Con "trabajar": la cédula escrita a mano tiene que estar en la lista y sin firma.
+  function seguirConCedula() {
+    setError(null);
+    const d = docComparable(miCedula);
+    if (!d) return setError("Escriba su cédula.");
+    const a = asistentes.find((x) => docComparable(x.documento) === d);
+    if (!a) return setError("Esa cédula no está en la lista de asistentes de esta capacitación. Pídale a la responsable SG-SST que la revise.");
+    if (yaFirmaron.has(d)) return setError("Esa cédula ya firmó esta capacitación.");
+    empezar({ rol: "tecnico", nombre: a.nombre, documento: a.documento, cargo: a.cargo ?? "" });
+  }
   const listaSellada = firmas.length > 0;
   // La base no deja firmar con un obligatorio del encabezado vacío (p. ej. una sesión creada por SQL).
   const faltaEncabezado = faltantes(campos, respuestas, {});
@@ -444,9 +458,21 @@ export function SesionCapacitacion({
       {/* Elegir el nombre */}
       {abierto && puedeTrabajar && !datos && eligiendo && !guardando && (
         <div className="space-y-2 rounded-2xl border-2 border-slate-900 p-4">
-          <p className="text-lg font-bold">{porAbrir ? "¿Quién va a leer? Toque su nombre" : "Toque su nombre"}</p>
-          {elegibles.length === 0 && <p className="text-base text-slate-600">{gestiona ? "Ya firmaron todos los de la lista." : "Ya firmaste, o tu cédula no está en la lista de esta capacitación."}</p>}
-          {elegibles.map((a) => (
+          {!gestiona ? (
+            <>
+              <label className="block text-lg font-bold">
+                {porAbrir ? "Para leer, escriba su cédula" : "Escriba su cédula"}
+                <input value={miCedula} inputMode="numeric" autoComplete="off" onChange={(e) => setMiCedula(e.target.value)} onKeyDown={(e) => e.key === "Enter" && seguirConCedula()} className={CAMPO} />
+              </label>
+              <button type="button" onClick={seguirConCedula} className={`${BOTON_GRANDE} bg-slate-900 text-white`}>
+                Continuar
+              </button>
+            </>
+          ) : (
+            <p className="text-lg font-bold">{porAbrir ? "¿Quién va a leer? Toque su nombre" : "Toque su nombre"}</p>
+          )}
+          {gestiona && pendientes.length === 0 && <p className="text-base text-slate-600">Ya firmaron todos los de la lista.</p>}
+          {gestiona && pendientes.map((a) => (
             <button
               key={a.documento}
               type="button"
@@ -486,7 +512,7 @@ export function SesionCapacitacion({
                     {asistentes.length > 0 && ` · lo leyeron ${deLista} de ${asistentes.length}`}
                   </span>
                 </p>
-                {abierto && puedeTrabajar && (gestiona || elegibles.length > 0) && (
+                {abierto && puedeTrabajar && pendientes.length > 0 && (
                   <button
                     type="button"
                     disabled={guardando || asistentes.length === 0 || faltaEncabezado.length > 0}
@@ -510,11 +536,9 @@ export function SesionCapacitacion({
             !gestiona && <p className="rounded-xl bg-amber-50 px-4 py-3 text-base text-amber-900">Al encabezado le falta: {faltaEncabezado.join(", ")}. Lo completa la responsable SG-SST.</p>
           ) : asistentes.length === 0 ? (
             <p className="rounded-xl bg-amber-50 px-4 py-3 text-base text-amber-900">{gestiona ? "Primero anote la lista de asistentes (abajo). Sin lista la base no deja firmar." : "Todavía no hay lista de asistentes: la arma la responsable SG-SST."}</p>
-          ) : !gestiona && !yoEnLista ? (
-            <p className="rounded-xl bg-slate-100 px-4 py-3 text-base text-slate-700">{yo ? "Tu cédula no está en la lista de esta capacitación." : "Tu perfil no tiene cédula: pídele a quien administra usuarios que la agregue."}</p>
           ) : (
-            <button type="button" onClick={() => (setAviso(null), setError(null), setEligiendo(true))} disabled={elegibles.length === 0} className={`${BOTON_GRANDE} bg-slate-900 text-white disabled:bg-slate-300`}>
-              {gestiona ? (pendientes.length ? `Firmar (${pendientes.length} por firmar)` : "Ya firmaron todos") : elegibles.length ? "Leer y firmar" : "✓ Ya firmaste"}
+            <button type="button" onClick={() => (setAviso(null), setError(null), setEligiendo(true))} disabled={pendientes.length === 0} className={`${BOTON_GRANDE} bg-slate-900 text-white disabled:bg-slate-300`}>
+              {pendientes.length ? (gestiona ? `Firmar (${pendientes.length} por firmar)` : "Leer y firmar con mi cédula") : "Ya firmaron todos"}
             </button>
           )}
           {gestiona && !capacitador && asistentes.length > 0 && faltaEncabezado.length === 0 && (
