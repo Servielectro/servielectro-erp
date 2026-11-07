@@ -226,8 +226,20 @@ function armarSecciones(a: AccesosMenu): SeccionMenu[] {
       ],
     });
   }
+  // Licitaciones (migración 143): el radar de SECOP II. «En seguimiento» está registrada como
+  // sección pero aún no tiene pantalla: no se enlaza hasta que exista.
   if (a.modulos.includes("licitaciones")) {
-    s.push({ id: "licitaciones", nombre: "Licitaciones", nota: "en construcción", href: "/licitaciones", palabras: "licitación secop pliegos", hijos: [] });
+    s.push({
+      id: "licitaciones",
+      nombre: "Licitaciones",
+      href: "/licitaciones",
+      palabras: "licitación secop pliegos contratación estatal",
+      hijos: [
+        { nombre: "Oportunidades", href: "/licitaciones/oportunidades", palabras: "radar procesos abiertos secop rup mínima cuantía régimen especial" },
+        { nombre: "Qué estamos buscando", href: "/licitaciones/criterios", palabras: "criterios palabras ciudades códigos unspsc modalidades" },
+        { nombre: "Historial de búsqueda", href: "/licitaciones/barridos", palabras: "barridos corridas búsquedas" },
+      ],
+    });
   }
   if (a.modulos.includes("configuracion")) {
     s.push({

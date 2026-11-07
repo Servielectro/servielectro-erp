@@ -1,0 +1,30 @@
+# Palabras de actividad por línea, para el radar de SECOP (ver palabras.mjs).
+# Una por fila: linea,palabra. Líneas: seguridad_electronica, redes, monitoreo, cercas.
+# Se compara sin tildes ni mayúsculas, al INICIO de una palabra; las del medio admiten plural y la
+# última calza por prefijo («cerca» calzaría «cercanía»).
+# Ver cuánto pescan:  node scripts/licitaciones/palabras.mjs probar scripts/licitaciones/palabras.csv
+# Estas 21 son las que confirmó Jhojan el 2026-11-07 y ya las carga la migración 143 (no hace falta
+# «cargar»). Las 5 de eléctrico salieron ese mismo día («Solo seguridad electrónica»). Las
+# decisiones (sin CERRAMIENTO, CAMARA ni TELEFONIA a secas…) están en la 143.
+linea,palabra
+cercas,CERCA ELECTRICA
+cercas,CERCA SENSORIZADA
+cercas,CERCA PERIMETRAL
+cercas,CERRAMIENTO ELECTRICO
+cercas,CONCERTINA
+cercas,HAGROY
+monitoreo,MONITOREO DE ALARMAS
+monitoreo,VIGILANCIA ELECTRONICA
+monitoreo,CENTRO DE MONITOREO
+redes,CABLEADO ESTRUCTURADO
+redes,RED DE FIBRA
+redes,FIBRA OPTICA
+redes,RED DE DATOS
+redes,PUNTOS DE DATOS
+redes,PUNTOS DE TELEFONIA
+redes,CENTRAL TELEFONICA
+seguridad_electronica,CAMARA DE SEGURIDAD
+seguridad_electronica,CAMARA DE VIDEO
+seguridad_electronica,CAMARA IP
+seguridad_electronica,CAMARAS
+seguridad_electronica,SISTEMA CONTRA INCENDIO
