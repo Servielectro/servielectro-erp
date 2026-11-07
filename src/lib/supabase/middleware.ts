@@ -29,7 +29,10 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAuthRoute = request.nextUrl.pathname.startsWith("/login");
+  // Comparación exacta, no startsWith: con un prefijo, cualquier ruta futura que empiece por
+  // "/login" (por ejemplo "/login-proveedores") quedaría abierta sin sesión. Las otras rutas
+  // públicas son la lista literal RUTAS_PUBLICAS de src/proxy.ts.
+  const isAuthRoute = request.nextUrl.pathname === "/login";
 
   if (!user && !isAuthRoute) {
     const url = request.nextUrl.clone();
