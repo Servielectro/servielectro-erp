@@ -5,7 +5,7 @@ import { ListaRadar } from "./ListaRadar";
 
 const CAMPOS =
   "id, id_del_proceso, entidad, departamento, ciudad, objeto, modalidad, presupuesto, cierra_en, url_secop, publicado_en, traida_en, " +
-  "dias_publicado_al_traer, requiere_rup, afinidad, criterios_que_coinciden, criterios_faltantes, actividad_por, lineas_que_calzaron, relevante";
+  "dias_publicado_al_traer, requiere_rup, afinidad, criterios_que_coinciden, criterios_faltantes, actividad_por, lineas_que_calzaron, relevante, estado";
 
 // Oportunidades: lo que trajo el radar de SECOP II y sigue abierto. Todo viene calculado de
 // v_licitaciones_radar (migración 143): aquí no se decide nada. Sin datos de relleno: si el

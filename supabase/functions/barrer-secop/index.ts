@@ -50,6 +50,9 @@ const CAMPOS = [
   "modalidad_de_contratacion", "tipo_de_contrato", "duracion", "unidad_de_duracion",
   "estado_del_procedimiento", "estado_de_apertura_del_proceso", "codigo_principal_de_categoria",
   "categorias_adicionales", "urlproceso",
+  // 147: id_del_portafolio (CO1.BDOS…) es la llave de los documentos en dmgg-8hin; la apertura de
+  // ofertas y si está adjudicado van a la ficha.
+  "id_del_portafolio", "fecha_de_apertura_de_respuesta", "adjudicado",
 ].join(",");
 
 /** Fecha local de Colombia, como la guarda Socrata (floating timestamp, sin zona). */

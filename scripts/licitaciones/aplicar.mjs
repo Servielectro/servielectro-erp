@@ -2,8 +2,8 @@
 // copia ni pega SQL). Solo la 143: `supabase db push` arrastraría también la 144 (cron, que va
 // apagado hasta ver qué trae el primer barrido a mano) y las 145/146 de Drive.
 //
-//   node scripts/licitaciones/aplicar.mjs migracion     → aplica la 143 en una transacción
-//   node scripts/licitaciones/aplicar.mjs verificar     → corre la verificación (se revierte sola)
+//   node scripts/licitaciones/aplicar.mjs migracion [143|147|148] → aplica esa migración en una transacción
+//   node scripts/licitaciones/aplicar.mjs verificar [143|147|148] → su verificación (se revierte sola)
 //   node scripts/licitaciones/aplicar.mjs barrido [dias] → dispara barrer-secop una vez (por pg_net,
 //                                                          con la clave de Vault: nunca pasa por acá)
 //   node scripts/licitaciones/aplicar.mjs ver-barrido   → el último barrido y la respuesta HTTP
@@ -15,8 +15,17 @@ import { createHash } from "node:crypto";
 
 const PROYECTO = "ehbgasnmsbqxruvjavis";
 const RAIZ = new URL("../../", import.meta.url);
-const MIGRACION = "supabase/migrations/20261203000143_licitaciones_radar_y_motor.sql";
-const VERIFICACION = "supabase/verificaciones/20261203000143_verificar.sql";
+// Las migraciones de licitaciones que este script sabe aplicar (una a la vez, nunca db push).
+const MIGRACIONES = {
+  143: "supabase/migrations/20261203000143_licitaciones_radar_y_motor.sql",
+  147: "supabase/migrations/20261203000147_licitaciones_ficha_y_puerta.sql",
+  148: "supabase/migrations/20261203000148_licitaciones_archivos_storage.sql",
+};
+const VERIFICACIONES = {
+  143: "supabase/verificaciones/20261203000143_verificar.sql",
+  147: "supabase/verificaciones/20261203000147_verificar.sql",
+  148: "supabase/verificaciones/20261203000148_verificar.sql",
+};
 
 async function sql(query) {
   const token = process.env.SUPABASE_ACCESS_TOKEN;
@@ -37,11 +46,16 @@ function leer(ruta) {
 }
 
 const [, , paso, arg] = process.argv;
+// migracion / verificar llevan el número: «migracion 147». Sin número, la 143 (como antes).
+const num = (paso === "migracion" || paso === "verificar") ? (arg ?? "143") : null;
+if (num && !MIGRACIONES[num]) throw new Error(`No conozco la migración ${num}. Conozco: ${Object.keys(MIGRACIONES).join(", ")}.`);
+const MIGRACION = num && MIGRACIONES[num], VERIFICACION = num && VERIFICACIONES[num];
 
 if (paso === "migracion") {
-  const ya = await sql(`select to_regprocedure('public.fn_licitaciones_ingerir(uuid,jsonb)') is not null as aplicada`);
+  const marca = { 143: "public.fn_licitaciones_ingerir(uuid,jsonb)", 147: "public.fn_licitacion_decidir(uuid,text,text)", 148: "public.fn_licitacion_decidir(uuid,text,text)" }[num];
+  const ya = await sql(`select to_regprocedure('${marca}') is not null as aplicada`);
   if (!ya.ok) throw new Error(ya.texto);
-  if (JSON.parse(ya.texto)[0]?.aplicada) console.log("Aviso: la función de la 143 ya existe; la migración es idempotente, se vuelve a pasar.");
+  if (JSON.parse(ya.texto)[0]?.aplicada) console.log(`Aviso: la ${num} ya parece aplicada; es idempotente, se vuelve a pasar.`);
   // begin/commit explícitos: si algo falla a la mitad, no queda nada a medias.
   const r = await sql(`begin;\n${leer(MIGRACION)}\ncommit;`);
   console.log(r.ok ? "APLICADA." : `NO SE APLICÓ (${r.status}):\n${r.texto}`);
@@ -51,7 +65,7 @@ if (paso === "migracion") {
 } else if (paso === "verificar") {
   const r = await sql(leer(VERIFICACION));
   // Termina en error a propósito: el informe viene en el mensaje.
-  const m = r.texto.match(/INFORME 143[\s\S]*?se deshizo\.\)/);
+  const m = r.texto.match(new RegExp(`INFORME ${num}[\\s\\S]*?se deshizo\\.\\)`));
   console.log(m ? m[0].replace(/\\n/g, "\n") : `Salida inesperada (${r.status}):\n${r.texto}`);
 } else if (paso === "barrido") {
   const dias = Number(arg) > 0 ? Number(arg) : 5;

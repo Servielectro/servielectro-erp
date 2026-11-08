@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
+import { nombreEstado, numeroEtapa } from "@/lib/licitaciones/etapas";
 import {
   type Barrido,
   type FilaRadar,
@@ -31,6 +33,7 @@ export function ListaRadar({ filas, ahoraIso, ultimo }: { filas: FilaRadar[]; ah
   const [modalidad, setModalidad] = useState("");
   const [ubicacion, setUbicacion] = useState("");
   const [semana, setSemana] = useState(false);
+  const [descartadas, setDescartadas] = useState(false);
 
   const opciones = useMemo(() => {
     const uniq = (xs: string[]) => [...new Set(xs.filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
@@ -42,6 +45,7 @@ export function ListaRadar({ filas, ahoraIso, ultimo }: { filas: FilaRadar[]; ah
   }, [filas]);
 
   const visibles = filas.filter((f) => {
+    if (!descartadas && f.estado === "descartada") return false;
     if (relevancia === "relevantes" && !f.relevante) return false;
     if (relevancia === "no_relevantes" && f.relevante) return false;
     if (linea && !(f.lineas_que_calzaron ?? []).includes(linea)) return false;
@@ -123,6 +127,12 @@ export function ListaRadar({ filas, ahoraIso, ultimo }: { filas: FilaRadar[]; ah
           Cierra esta semana
         </label>
       </div>
+      {filas.some((f) => f.estado === "descartada") && (
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" checked={descartadas} onChange={(e) => setDescartadas(e.target.checked)} />
+          Ver también las descartadas en el comité ({filas.filter((f) => f.estado === "descartada").length})
+        </label>
+      )}
 
       {visibles.length === 0 ? (
         <p className="rounded-lg border border-slate-300 bg-white p-4 text-center text-sm text-slate-600">
@@ -152,6 +162,12 @@ function Tarjeta({ f, ahora }: { f: FilaRadar; ahora: Date }) {
     <li className={`rounded-lg border bg-white p-3 shadow-sm ${f.relevante ? "border-slate-300" : "border-slate-200 opacity-80"}`}>
       {/* Lo que más importa primero: RUP y cierre. */}
       <div className="flex flex-wrap items-center gap-2">
+        {f.estado && (
+          <span className="rounded bg-brand-navy px-2 py-0.5 text-xs font-semibold text-white">
+            {numeroEtapa(f.estado) ? `${numeroEtapa(f.estado)} · ` : ""}
+            {nombreEstado(f.estado)}
+          </span>
+        )}
         {f.requiere_rup === false ? (
           <span className="rounded bg-emerald-600 px-2 py-0.5 text-xs font-bold text-white">SIN RUP · se puede presentar</span>
         ) : f.requiere_rup === true ? (
@@ -178,8 +194,10 @@ function Tarjeta({ f, ahora }: { f: FilaRadar; ahora: Date }) {
         )}
       </div>
 
-      <p className="mt-2 text-sm font-semibold text-slate-900">{f.entidad ?? "Sin entidad"}</p>
-      <p className="mt-0.5 line-clamp-3 text-sm text-slate-700">{f.objeto ?? "Sin objeto"}</p>
+      <Link href={`/licitaciones/oportunidades/${f.id}`} className="mt-2 block active:bg-slate-50">
+        <p className="text-sm font-semibold text-slate-900 underline decoration-slate-300 underline-offset-2">{f.entidad ?? "Sin entidad"}</p>
+        <p className="mt-0.5 line-clamp-3 text-sm text-slate-700">{f.objeto ?? "Sin objeto"}</p>
+      </Link>
       <p className="mt-1 text-xs text-slate-600">
         {f.modalidad ?? "Modalidad sin dato"} · {lugar(f)} · <b className="text-slate-800">{formatoPesos(f.presupuesto)}</b>
       </p>
@@ -221,7 +239,9 @@ function Tarjeta({ f, ahora }: { f: FilaRadar; ahora: Date }) {
       </div>
 
       <div className="mt-2 flex items-center justify-between gap-2">
-        <span className="text-xs text-slate-500">{f.id_del_proceso}</span>
+        <Link href={`/licitaciones/oportunidades/${f.id}`} className="inline-flex min-h-11 items-center rounded-lg bg-brand-navy px-3 text-sm font-semibold text-white">
+          Abrir la ficha
+        </Link>
         {f.url_secop ? (
           <a
             href={f.url_secop}

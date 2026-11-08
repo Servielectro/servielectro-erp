@@ -22,6 +22,7 @@ export interface FilaRadar {
   actividad_por: "unspsc" | "palabra" | "sin_criterio" | null;
   lineas_que_calzaron: string[] | null;
   relevante: boolean | null;
+  estado?: string | null; // etapa (147)
 }
 
 export interface Barrido {
