@@ -15,10 +15,6 @@ import { ANTES_DE_LA_PUERTA, ETAPAS, nombreEstado, numeroEtapa, pruebaContrataci
 import { Documentos, type Documento } from "./Documentos";
 import { Puerta, type Decision } from "./Puerta";
 
-// Subir archivos necesita los permisos del bucket (migración 148). Pasar a true cuando esté aplicada
-// y verificada: sin ellos, cada archivo rebotaría por RLS.
-const SUBIDA_ACTIVA = false;
-
 // La ficha de una licitación (migración 147). Todo lo que se ve sale de la base; lo que todavía no
 // existe (el análisis del pliego) se dice con todas las letras, no se deja en blanco.
 export default async function FichaLicitacion({ params }: { params: Promise<{ id: string }> }) {
@@ -226,7 +222,7 @@ export default async function FichaLicitacion({ params }: { params: Promise<{ id
       </section>
 
       {/* Los pliegos */}
-      <Documentos licitacionId={f.id} documentos={docs} puedeTraer={trabaja && f.origen !== "manual"} puedeEditar={trabaja} puedeSubir={trabaja && SUBIDA_ACTIVA} />
+      <Documentos licitacionId={f.id} documentos={docs} puedeTraer={trabaja && f.origen !== "manual"} puedeEditar={trabaja} puedeSubir={trabaja} />
 
       {/* Qué piden: el motor de análisis aún no existe. Se dice, no se deja en blanco. */}
       <section className="rounded-lg border border-amber-300 bg-amber-50 p-3">

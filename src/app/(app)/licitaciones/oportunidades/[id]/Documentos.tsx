@@ -282,7 +282,7 @@ export function Documentos({
         <p className="mt-2 text-sm text-slate-600">{puedeTraer ? "Aún no se ha traído la lista de documentos." : "Aún no hay documentos registrados."}</p>
       ) : (
         <>
-          <div className={`mt-3 flex-wrap items-center justify-between gap-2 ${puedeSubir ? "flex" : "hidden"}`}>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
             <p className={`text-sm font-semibold ${faltan.length ? "text-amber-900" : "text-emerald-800"}`}>
               {faltan.length
                 ? `Faltan ${faltan.length} de ${unicos.length} por subir${faltanReglas ? ` · ${faltanReglas} traen las reglas (pliego, invitación, estudios, anexos, matriz, adendas)` : ""}`
@@ -300,11 +300,9 @@ export function Documentos({
               <li key={d.id} className="flex flex-wrap items-center gap-2 py-2">
                 <div className="min-w-0 flex-1">
                   <p className="break-words text-sm text-slate-900">
-                    {puedeSubir && (
-                      <span className={`mr-1 rounded px-1.5 py-0.5 text-xs font-semibold ${d.path ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"}`}>
-                        {d.path ? "✓ Subido" : "Falta subir"}
-                      </span>
-                    )}
+                    <span className={`mr-1 rounded px-1.5 py-0.5 text-xs font-semibold ${d.path ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"}`}>
+                      {d.path ? "✓ Subido" : "Falta subir"}
+                    </span>
                     {d.nombre_original}
                   </p>
                   <p className="text-xs text-slate-500">

@@ -52,8 +52,8 @@ if (num && !MIGRACIONES[num]) throw new Error(`No conozco la migración ${num}. 
 const MIGRACION = num && MIGRACIONES[num], VERIFICACION = num && VERIFICACIONES[num];
 
 if (paso === "migracion") {
-  const marca = { 143: "public.fn_licitaciones_ingerir(uuid,jsonb)", 147: "public.fn_licitacion_decidir(uuid,text,text)", 148: "public.fn_licitacion_decidir(uuid,text,text)" }[num];
-  const ya = await sql(`select to_regprocedure('${marca}') is not null as aplicada`);
+  const marca = { 143: "public.fn_licitaciones_ingerir(uuid,jsonb)", 147: "public.fn_licitacion_decidir(uuid,text,text)", 148: null }[num];
+  const ya = await sql(marca ? `select to_regprocedure('${marca}') is not null as aplicada` : `select false as aplicada`);
   if (!ya.ok) throw new Error(ya.texto);
   if (JSON.parse(ya.texto)[0]?.aplicada) console.log(`Aviso: la ${num} ya parece aplicada; es idempotente, se vuelve a pasar.`);
   // begin/commit explícitos: si algo falla a la mitad, no queda nada a medias.
