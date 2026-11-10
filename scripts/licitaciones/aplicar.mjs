@@ -2,8 +2,8 @@
 // copia ni pega SQL). Solo la 143: `supabase db push` arrastraría también la 144 (cron, que va
 // apagado hasta ver qué trae el primer barrido a mano) y las 145/146 de Drive.
 //
-//   node scripts/licitaciones/aplicar.mjs migracion [143|147|148] → aplica esa migración en una transacción
-//   node scripts/licitaciones/aplicar.mjs verificar [143|147|148] → su verificación (se revierte sola)
+//   node scripts/licitaciones/aplicar.mjs migracion [143|147|148|149] → aplica esa migración en una transacción
+//   node scripts/licitaciones/aplicar.mjs verificar [143|147|148|149] → su verificación (se revierte sola)
 //   node scripts/licitaciones/aplicar.mjs barrido [dias] → dispara barrer-secop una vez (por pg_net,
 //                                                          con la clave de Vault: nunca pasa por acá)
 //   node scripts/licitaciones/aplicar.mjs ver-barrido   → el último barrido y la respuesta HTTP
@@ -20,11 +20,13 @@ const MIGRACIONES = {
   143: "supabase/migrations/20261203000143_licitaciones_radar_y_motor.sql",
   147: "supabase/migrations/20261203000147_licitaciones_ficha_y_puerta.sql",
   148: "supabase/migrations/20261203000148_licitaciones_archivos_storage.sql",
+  149: "supabase/migrations/20261203000149_licitaciones_afinar_criterios.sql",
 };
 const VERIFICACIONES = {
   143: "supabase/verificaciones/20261203000143_verificar.sql",
   147: "supabase/verificaciones/20261203000147_verificar.sql",
   148: "supabase/verificaciones/20261203000148_verificar.sql",
+  149: "supabase/verificaciones/20261203000149_verificar.sql",
 };
 
 async function sql(query) {
@@ -52,7 +54,7 @@ if (num && !MIGRACIONES[num]) throw new Error(`No conozco la migración ${num}. 
 const MIGRACION = num && MIGRACIONES[num], VERIFICACION = num && VERIFICACIONES[num];
 
 if (paso === "migracion") {
-  const marca = { 143: "public.fn_licitaciones_ingerir(uuid,jsonb)", 147: "public.fn_licitacion_decidir(uuid,text,text)", 148: null }[num];
+  const marca = { 143: "public.fn_licitaciones_ingerir(uuid,jsonb)", 147: "public.fn_licitacion_decidir(uuid,text,text)", 148: null, 149: null }[num];
   const ya = await sql(marca ? `select to_regprocedure('${marca}') is not null as aplicada` : `select false as aplicada`);
   if (!ya.ok) throw new Error(ya.texto);
   if (JSON.parse(ya.texto)[0]?.aplicada) console.log(`Aviso: la ${num} ya parece aplicada; es idempotente, se vuelve a pasar.`);

@@ -3,9 +3,10 @@
 # Se compara sin tildes ni mayúsculas, al INICIO de una palabra; las del medio admiten plural y la
 # última calza por prefijo («cerca» calzaría «cercanía»).
 # Ver cuánto pescan:  node scripts/licitaciones/palabras.mjs probar scripts/licitaciones/palabras.csv
-# Estas 21 son las que confirmó Jhojan el 2026-11-07 y ya las carga la migración 143 (no hace falta
+# Estas 20 son las que confirmó Jhojan y ya las cargó la migración 143 (no hace falta
 # «cargar»). Las 5 de eléctrico salieron ese mismo día («Solo seguridad electrónica»). Las
-# decisiones (sin CERRAMIENTO, CAMARA ni TELEFONIA a secas…) están en la 143.
+# decisiones (sin CERRAMIENTO, CAMARA ni TELEFONIA a secas…) están en la 143. CAMARAS se quitó el
+# 2026-11-08 (migración 149): el plural pesca «Cámaras de Comercio». No volverla a agregar.
 linea,palabra
 cercas,CERCA ELECTRICA
 cercas,CERCA SENSORIZADA
@@ -26,5 +27,4 @@ redes,CENTRAL TELEFONICA
 seguridad_electronica,CAMARA DE SEGURIDAD
 seguridad_electronica,CAMARA DE VIDEO
 seguridad_electronica,CAMARA IP
-seguridad_electronica,CAMARAS
 seguridad_electronica,SISTEMA CONTRA INCENDIO
