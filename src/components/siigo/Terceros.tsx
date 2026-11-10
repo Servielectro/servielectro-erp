@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { tienePermiso } from "@/lib/permisos";
 import { corteDe } from "@/lib/siigo";
 import { EncabezadoSiigo } from "./Corte";
 
@@ -27,7 +28,7 @@ export async function TercerosSiigo({ rol, q }: { rol: "cliente" | "proveedor"; 
     .limit(300);
   const limpio = q.replace(/[%,()]/g, " ").trim();
   if (limpio) consulta = consulta.or(`nombre.ilike.%${limpio}%,identificacion.ilike.%${limpio}%,nombre_comercial.ilike.%${limpio}%`);
-  const [al, res] = await Promise.all([corteDe(supabase, "siigo_terceros"), consulta]);
+  const [al, res, veAdministrativo] = await Promise.all([corteDe(supabase, "siigo_terceros"), consulta, rol === "cliente" ? tienePermiso("administrativo", "consultar") : false]);
   const filas = (res.data ?? []) as Tercero[];
   const base = rol === "cliente" ? "/contable/clientes" : "/contable/proveedores";
 
@@ -38,6 +39,23 @@ export async function TercerosSiigo({ rol, q }: { rol: "cliente" | "proveedor"; 
           ? "Los terceros marcados como cliente en Siigo. Si no aparecen en el ERP, la cotización y el proyecto no se pueden cruzar con sus facturas."
           : "Los terceros marcados como proveedor en Siigo."}
       </EncabezadoSiigo>
+      {/* Hay tres pantallas de «clientes» y solo una administra la ficha: se dice dónde está. */}
+      {rol === "cliente" && (
+        <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
+          Esto es el <b>espejo de Siigo, solo de lectura</b>: aquí no se crea ni se edita nada.{" "}
+          {veAdministrativo ? (
+            <>
+              Para crear o editar un cliente, ve a{" "}
+              <Link href="/administrativo/clientes" className="inline-flex min-h-11 items-center font-semibold underline">
+                Administrativo → Clientes
+              </Link>
+              .
+            </>
+          ) : (
+            "Los clientes se crean y editan en Administrativo → Clientes (pide ese módulo)."
+          )}
+        </p>
+      )}
       {al && (
         <form action={base} className="flex gap-2">
           <input name="q" defaultValue={q} placeholder="Nombre o NIT" className="min-h-11 flex-1 rounded-lg border border-slate-300 bg-white px-3 text-base" />

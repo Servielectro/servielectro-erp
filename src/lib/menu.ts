@@ -77,7 +77,8 @@ function armarSecciones(a: AccesosMenu): SeccionMenu[] {
       href: "/administrativo",
       palabras: "maestros terceros proveedores",
       hijos: [
-        { nombre: "Clientes", href: "/administrativo/clientes", palabras: "cliente nit dv empresa contacto sedes rut dian dirección facturación electrónica dane exportar excel" },
+        // Hay tres «clientes»: esta es la ficha (crear, editar, borrar). Contable es el espejo de Siigo y el CRM, el seguimiento.
+        { nombre: "Clientes (crear y editar)", href: "/administrativo/clientes", palabras: "cliente nuevo crear editar borrar ficha nit dv empresa contacto sedes rut dian dirección facturación electrónica dane exportar excel" },
         ...(a.administrativoTrabajar
           ? [{ nombre: "Importar clientes de SIIGO", href: "/administrativo/clientes/importar", nivel: 2 as const, palabras: "siigo importar excel subir terceros" }]
           : []),
@@ -103,6 +104,7 @@ function armarSecciones(a: AccesosMenu): SeccionMenu[] {
         { nombre: "Abonos de nómina", href: "/rrhh/abonos", palabras: "abono adelanto préstamo anticipo nómina quincena descuento transferencia" },
         { nombre: "Documentos del personal", href: "/rrhh/documentos", palabras: "desprendible desprendibles colilla de pago liquidación certificado firmar" },
         { nombre: "Plantillas Word (contrato)", href: "/rrhh/plantillas", palabras: "word docx modelo plantilla" },
+        { nombre: "Sugerencias para la aplicación", href: "/rrhh/sugerencias", palabras: "sugerencia nota mejora libreta idea" },
       ],
     });
   }
@@ -185,13 +187,14 @@ function armarSecciones(a: AccesosMenu): SeccionMenu[] {
       href: "/contable",
       palabras: "siigo contabilidad contadora",
       hijos: [
-        { nombre: "Clientes en Siigo", href: "/contable/clientes", palabras: "terceros siigo clientes nit" },
+        { nombre: "Clientes en Siigo (solo lectura)", href: "/contable/clientes", palabras: "terceros siigo clientes nit espejo" },
         { nombre: "Proveedores en Siigo", href: "/contable/proveedores", palabras: "terceros siigo proveedores nit" },
         { nombre: "Cuentas por tercero", href: "/contable/cuentas-tercero", palabras: "balance por tercero cartera 1305 saldo" },
         { nombre: "Balances", href: "/contable/balances", palabras: "balance de prueba puc cuentas saldos cierre" },
         { nombre: "IVA", href: "/contable/iva", palabras: "iva generado descontable dian cuatrimestre bimestre 2408 impuesto" },
         { nombre: "Conciliación con el ERP", href: "/contable/conciliacion", palabras: "cruzar terceros nit diferencias" },
         { nombre: "Conexión con Siigo", href: "/contable/conexion", palabras: "siigo api credenciales partner sincronización configuración" },
+        { nombre: "Sugerencias para la aplicación", href: "/contable/sugerencias", palabras: "sugerencia nota mejora libreta idea" },
       ],
     });
   }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { tienePermiso } from "@/lib/permisos";
 
 // CRM → Clientes: la cartera con cuántas cotizaciones tiene cada uno.
 // Los clientes se crean solos al guardar cotizaciones (o al leer un RUT).
@@ -17,7 +18,7 @@ export default async function CrmClientesPage(props: PageProps<"/comercial/crm/c
     const patron = `%${busqueda.replace(/[%_,()]/g, " ")}%`;
     consulta = consulta.or(`nombre.ilike.${patron},nit.ilike.${patron}`);
   }
-  const { data, error } = await consulta;
+  const [{ data, error }, veAdministrativo] = await Promise.all([consulta, tienePermiso("administrativo", "consultar")]);
 
   const clientes = (data ?? []) as {
     id: string;
@@ -37,6 +38,18 @@ export default async function CrmClientesPage(props: PageProps<"/comercial/crm/c
       <h1 className="mb-4 text-center text-sm font-bold text-slate-900">
         CRM — Clientes
       </h1>
+      {/* Hay tres pantallas de «clientes» y solo una administra la ficha: se dice dónde está. */}
+      <p className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
+        Esto es el <b>seguimiento comercial</b>: cada cliente con sus cotizaciones. La ficha (datos para facturar, RUT, sedes) se crea y edita en{" "}
+        {veAdministrativo ? (
+          <Link href="/administrativo/clientes" className="inline-flex min-h-11 items-center font-semibold underline">
+            Administrativo → Clientes
+          </Link>
+        ) : (
+          "Administrativo → Clientes (pide ese módulo)"
+        )}
+        .
+      </p>
 
       <form className="mb-4 flex gap-2">
         <input
