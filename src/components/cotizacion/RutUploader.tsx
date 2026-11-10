@@ -9,6 +9,8 @@ import {
 } from "@/app/(app)/comercial/cotizaciones/documentos-actions";
 import { useLecturaRut } from "@/lib/rut/useLecturaRut";
 import { ProgresoLectura } from "@/components/rut/LectorRut";
+import { useCatalogoResponsabilidades } from "@/components/rut/Responsabilidades";
+import { sugerenciaFiscal } from "@/lib/rut/propuesta";
 import type { ResultadoExtraccionRut } from "@/lib/documentos/extraer-rut";
 import type { Confianza } from "@/lib/documentos/rut-schema";
 
@@ -59,6 +61,9 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado, onLeidoClie
   const lectura = useRef(0);
   // La misma lectura que Administrativo y Nuevo cliente: subida directa y un proveedor a la vez.
   const lector = useLecturaRut();
+  const { catalogo } = useCatalogoResponsabilidades();
+  // La misma regla de IVA que el resto (49/53 mandan, luego 47/48, si no «no»). Es propuesta.
+  const ivaDe = (r: ResultadoExtraccionRut) => sugerenciaFiscal(r.extraccion.responsabilidades.codigos, catalogo, "sugiere_responsable_iva", { porDefecto: true });
 
   async function onArchivoSeleccionado(file: File) {
     if (!clienteNuevo && !clienteNombre.trim()) {
@@ -123,7 +128,8 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado, onLeidoClie
         correo: valorSiConfianza(e.correo),
         telefono: valorSiConfianza(e.telefono),
         tipoContribuyente: e.tipo_contribuyente,
-        responsableIva: e.responsabilidades.responsable_iva,
+        // Sin catálogo (no cargó) queda lo que leyó la IA, y si no, sin determinar.
+        responsableIva: ivaDe(resultado)?.valor ?? e.responsabilidades.responsable_iva,
         representanteLegal: valorSiConfianza(e.representante_legal),
         responsabilidades: e.responsabilidades.codigos,
       },
@@ -358,9 +364,12 @@ export function RutUploader({ clienteNombre, onCerrar, onConfirmado, onLeidoClie
                     className="w-full rounded-md border border-slate-300 bg-white/90 px-3 py-2 text-sm"
                   >
                     <option value="">Sin determinar — revisar a mano</option>
-                    <option value="si">Sí, responsable de IVA (código 48)</option>
-                    <option value="no">No responsable de IVA (código 49)</option>
+                    <option value="si">Sí, responsable de IVA</option>
+                    <option value="no">No responsable de IVA</option>
                   </select>
+                  {ivaDe(estado.resultado) && (
+                    <p className="mt-1 text-xs text-slate-600">Propuesta: {ivaDe(estado.resultado)!.porque}. Cámbialo si no es así.</p>
+                  )}
                   {estado.resultado.extraccion.responsabilidades.codigos.length > 0 && (
                     <p className="mt-1 text-xs text-slate-600">
                       Códigos leídos en casilla 53:{" "}

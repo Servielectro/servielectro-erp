@@ -7,7 +7,7 @@ import { LectorRut } from "@/components/rut/LectorRut";
 import { SelectorMunicipio } from "@/components/rut/SelectorMunicipio";
 import { useCatalogoResponsabilidades } from "@/components/rut/Responsabilidades";
 import { cargarMunicipios, describirResponsabilidad } from "@/lib/rut/catalogos";
-import { armarPropuesta, type PropuestaRut } from "@/lib/rut/propuesta";
+import { armarPropuesta, type PropuestaRut, type SugerenciaBool } from "@/lib/rut/propuesta";
 import type { RutLeido } from "@/lib/rut/useLecturaRut";
 
 export interface UbicacionCliente {
@@ -40,14 +40,15 @@ export function NuevoClienteModal({
   const [email, setEmail] = useState("");
   const [telefono, setTelefono] = useState("");
   const [contacto, setContacto] = useState("");
-  // Responsable de IVA: lo dice el RUT de ESTE cliente (casilla 53, código 48). Sin RUT,
-  // se marca a mano; nunca se deduce por el tipo de cliente.
-  const [responsableIva, setResponsableIva] = useState<"" | "si" | "no">("");
+  // IVA y renta: con RUT, lo propone la regla de @/lib/rut/propuesta (sugerenciaFiscal). Sin RUT,
+  // arrancan en «no» y «no» (regla de Jhojan, nov 2026); nunca se deducen por el tipo de cliente.
+  // Siempre editables: la persona lo cambia antes de guardar si sabe otra cosa.
+  const [responsableIva, setResponsableIva] = useState<"" | "si" | "no">("no");
   // Lo leído del RUT (el mismo lector de Administrativo → Clientes): propuesta que se revisa aquí.
   const [rut, setRut] = useState<{ archivo: RutParaCliente; propuesta: PropuestaRut; proveedor: string } | null>(null);
   const [avisoRut, setAvisoRut] = useState<string | null>(null);
   const [lugar, setLugar] = useState({ municipio: "", departamento: "", municipio_dane: "" });
-  const [declarante, setDeclarante] = useState<"" | "si" | "no">("");
+  const [declarante, setDeclarante] = useState<"" | "si" | "no">("no");
   const { catalogo } = useCatalogoResponsabilidades();
 
   async function aplicarRut(r: RutLeido) {
@@ -69,6 +70,9 @@ export function NuevoClienteModal({
     if (p.email) setEmail(p.email);
     if (p.telefono) setTelefono(p.telefono);
     if (p.contacto) setContacto(p.contacto);
+    // La propuesta del RUT queda marcada (con su porqué debajo); se puede cambiar antes de guardar.
+    if (p.responsable_iva) setResponsableIva(p.responsable_iva.valor ? "si" : "no");
+    if (p.declarante_renta) setDeclarante(p.declarante_renta.valor ? "si" : "no");
     if (p.municipio || p.municipio_dane) setLugar({ municipio: p.municipio, departamento: p.departamento, municipio_dane: p.municipio_dane ?? "" });
     setRut({
       archivo: { storagePath: r.storagePath, nombreArchivo: r.nombreArchivo, extraccion: r.resultado.extraccion, costoEstimadoUsd: r.resultado.costoEstimadoUsd },
@@ -206,6 +210,7 @@ export function NuevoClienteModal({
             <option value="si">Sí</option>
             <option value="no">No</option>
           </select>
+          <OrigenFiscal s={rut?.propuesta.responsable_iva ?? null} actual={responsableIva} sinRut="Sin RUT se asume no responsable. Cámbialo si sabes que sí lo es." />
           {rut?.propuesta.responsable_iva && responsableIva !== (rut.propuesta.responsable_iva.valor ? "si" : "no") && (
             <span className="mt-1 block rounded-md bg-sky-50 px-2 py-1 text-xs font-normal text-sky-950">
               Sugerencia: <b>{rut.propuesta.responsable_iva.valor ? "Sí" : "No"}</b>, {rut.propuesta.responsable_iva.porque}.{" "}
@@ -222,6 +227,7 @@ export function NuevoClienteModal({
             <option value="si">Sí</option>
             <option value="no">No</option>
           </select>
+          <OrigenFiscal s={rut?.propuesta.declarante_renta ?? null} actual={declarante} sinRut="Sin RUT se asume no declarante. Cámbialo si sabes que sí lo es." />
           {rut?.propuesta.declarante_renta && declarante !== (rut.propuesta.declarante_renta.valor ? "si" : "no") && (
             <span className="mt-1 block rounded-md bg-sky-50 px-2 py-1 text-xs font-normal text-sky-950">
               Sugerencia: <b>{rut.propuesta.declarante_renta.valor ? "Sí" : "No"}</b>, {rut.propuesta.declarante_renta.porque}.{" "}
@@ -304,5 +310,16 @@ export function NuevoClienteModal({
         </div>
       </div>
     </div>
+  );
+}
+
+/** De dónde sale lo que está marcado: del RUT (o lo que se asume si no trae el código), o del «sin RUT». */
+function OrigenFiscal({ s, actual, sinRut }: { s: SugerenciaBool | null; actual: "" | "si" | "no"; sinRut: string }) {
+  if (!s) return actual === "no" ? <span className="mt-1 block text-xs font-normal text-slate-500">{sinRut}</span> : null;
+  if (actual !== (s.valor ? "si" : "no")) return null; // la otra caja ofrece «Usar la sugerencia»
+  return (
+    <span className="mt-1 block text-xs font-normal text-slate-500">
+      Propuesta del RUT: {s.porque}.
+    </span>
   );
 }

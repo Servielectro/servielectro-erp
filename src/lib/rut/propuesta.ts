@@ -7,8 +7,54 @@ import { bonito, resolverDane, type Municipio, type Responsabilidad } from "./ca
 
 export interface SugerenciaBool {
   valor: boolean;
-  /** Por qué se sugiere: "lo dice la casilla 53 (código 48 — Impuesto sobre las ventas - IVA)". */
+  /** Por qué se sugiere: "por el código 48 (Impuesto sobre las ventas - IVA) del RUT". */
   porque: string;
+  /** true si no lo dijo ningún código: es el caso negativo que se asume (regla de Jhojan, nov 2026). */
+  porDefecto?: boolean;
+}
+
+export type CampoFiscal = "sugiere_responsable_iva" | "sugiere_declarante_renta";
+
+const QUE: Record<CampoFiscal, { tema: string; no: string }> = {
+  sugiere_responsable_iva: { tema: "IVA", no: "no responsable" },
+  sugiere_declarante_renta: { tema: "renta", no: "no declarante" },
+};
+
+/**
+ * LA regla de IVA y renta a partir de los códigos de la casilla 53 (la única copia: la usan la
+ * lectura del RUT, la ficha del cliente y el RUT de la cotización). Lo que dice cada código vive en
+ * el catálogo `responsabilidades_fiscales` (columnas sugiere_*), no aquí:
+ *   1. Un código que dice «no» (49, 53) manda sobre todo: un SIMPLE con 49 no es responsable.
+ *   2. Si no, un código que dice «sí» (IVA: 47, 48; renta: 04, 05) → sí.
+ *   3. Si no hay ninguno y `porDefecto` → «no», diciendo que es por defecto.
+ * Es PROPUESTA: la pantalla la muestra con su `porque` y la persona puede cambiarla antes de guardar.
+ * null solo si el catálogo no cargó (sin él no se sabe qué códigos cuentan) o sin `porDefecto`.
+ */
+export function sugerenciaFiscal(
+  codigosRut: string[],
+  catalogo: Responsabilidad[],
+  campo: CampoFiscal,
+  { porDefecto }: { porDefecto: boolean },
+): SugerenciaBool | null {
+  const cuentan = catalogo.filter((x) => x.sistema === "rut" && x[campo] !== null);
+  if (!cuentan.length) return null;
+  const codigos = new Set(codigosRut.map((c) => c.trim()).map((c) => (/^\d$/.test(c) ? `0${c}` : c)));
+  const lista = (xs: Responsabilidad[]) => xs.map((m) => `${m.codigo} (${m.nombre})`).join(", ");
+  const presentes = cuentan.filter((x) => codigos.has(x.codigo));
+  const no = presentes.filter((x) => x[campo] === false);
+  const si = presentes.filter((x) => x[campo] === true);
+  if (no.length) {
+    return {
+      valor: false,
+      porque: `por el código ${lista(no)} del RUT${si.length ? `, que manda sobre ${si.map((m) => m.codigo).join(", ")}` : ""}`,
+    };
+  }
+  if (si.length) return { valor: true, porque: `por el código ${lista(si)} del RUT` };
+  if (!porDefecto) return null;
+  // Orden del texto: primero los que dicen «sí», de mayor a menor (48, 47, 49, 53 / 05, 04).
+  const nombrados = [...cuentan].sort((a, b) => Number(b[campo]) - Number(a[campo]) || (a[campo] ? b.codigo.localeCompare(a.codigo) : a.codigo.localeCompare(b.codigo))).map((x) => x.codigo);
+  const enumerados = nombrados.length > 1 ? `${nombrados.slice(0, -1).join(", ")} ni ${nombrados.at(-1)}` : nombrados[0];
+  return { valor: false, porDefecto: true, porque: `el RUT no trae código de ${QUE[campo].tema} (${enumerados}): se asume ${QUE[campo].no}` };
 }
 
 export interface PropuestaRut {
@@ -63,19 +109,13 @@ export function armarPropuesta(r: ResultadoExtraccionRut, municipios: Municipio[
   // Todos los códigos, con dos dígitos ("7" → "07"); lo que no esté en el catálogo también se guarda.
   const codigos = [...new Set(e.responsabilidades.codigos.map((c) => c.trim()).filter(Boolean).map((c) => (/^\d$/.test(c) ? `0${c}` : c)))];
 
-  const sugerir = (campo: "sugiere_responsable_iva" | "sugiere_declarante_renta"): SugerenciaBool | null => {
-    const marcas = codigos
-      .map((c) => catalogo.find((x) => x.sistema === "rut" && x.codigo === c))
-      .filter((x): x is Responsabilidad => !!x && x[campo] !== null);
-    if (!marcas.length) return null;
-    // Si dos códigos dicen cosas distintas, no se sugiere nada: que lo decida la persona.
-    if (new Set(marcas.map((m) => m[campo])).size > 1) return null;
-    return { valor: marcas[0][campo] as boolean, porque: `por el código ${marcas.map((m) => `${m.codigo} (${m.nombre})`).join(", ")} del RUT` };
+  // Si la casilla 53 no se pudo leer, el «por defecto» sale igual (regla de Jhojan), pero se avisa.
+  const casillaDudosa = e.responsabilidades.confianza === "no_legible" || e.responsabilidades.confianza === "baja";
+  if (casillaDudosa) revisar.push(`responsabilidades de la casilla 53 (${e.responsabilidades.confianza === "baja" ? "poca confianza" : "no legible"})`);
+  const sugerir = (campo: CampoFiscal) => {
+    const s = sugerenciaFiscal(codigos, catalogo, campo, { porDefecto: true });
+    return s && casillaDudosa && s.porDefecto ? { ...s, porque: `${s.porque} (ojo: la casilla 53 no se leyó bien, revísala en el RUT)` } : s;
   };
-  let responsable_iva = sugerir("sugiere_responsable_iva");
-  if (!responsable_iva && e.responsabilidades.responsable_iva !== null) {
-    responsable_iva = { valor: e.responsabilidades.responsable_iva, porque: "según la lectura de la casilla 53 del RUT" };
-  }
 
   return {
     nombre: v("razon_social", e.razon_social),
@@ -92,7 +132,7 @@ export function armarPropuesta(r: ResultadoExtraccionRut, municipios: Municipio[
     telefono: v("telefono", e.telefono),
     contacto: v("representante_legal", e.representante_legal),
     responsabilidades_rut: codigos,
-    responsable_iva,
+    responsable_iva: sugerir("sugiere_responsable_iva"),
     declarante_renta: sugerir("sugiere_declarante_renta"),
     revisar,
     nit_coincide: r.nitValidado.coincide,

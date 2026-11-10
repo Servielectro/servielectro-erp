@@ -3,16 +3,7 @@
 import { useEffect, useState } from "react";
 import { cargarResponsabilidades, describirResponsabilidad, type Responsabilidad } from "@/lib/rut/catalogos";
 
-/** Sugerencia de IVA o renta según los códigos del RUT y el catálogo (migración 80). */
-export function sugerenciaPorCodigos(
-  codigos: string[],
-  catalogo: Responsabilidad[],
-  campo: "sugiere_responsable_iva" | "sugiere_declarante_renta",
-): { valor: boolean; porque: string } | null {
-  const marcas = codigos.map((c) => catalogo.find((x) => x.sistema === "rut" && x.codigo === c)).filter((x): x is Responsabilidad => !!x && x[campo] !== null);
-  if (!marcas.length || new Set(marcas.map((m) => m[campo])).size > 1) return null;
-  return { valor: marcas[0][campo] as boolean, porque: `por el código ${marcas.map((m) => `${m.codigo} (${m.nombre})`).join(", ")} del RUT` };
-}
+// La sugerencia de IVA y renta por los códigos del RUT vive en @/lib/rut/propuesta (sugerenciaFiscal).
 
 export function useCatalogoResponsabilidades() {
   const [catalogo, setCatalogo] = useState<Responsabilidad[]>([]);

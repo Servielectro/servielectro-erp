@@ -101,11 +101,12 @@ export async function crearCliente(input: {
             municipio: input.fiscales.municipio,
             departamento: input.fiscales.departamento,
             municipio_dane: input.fiscales.municipioDane,
-            declarante_renta: input.fiscales.declaranteRenta,
           }
         : {}),
-      // Lo que quedó en el formulario (leído del RUT o marcado a mano).
-      responsable_iva: input.responsableIva ?? null,
+      // Lo que quedó en el formulario (leído del RUT o marcado a mano). Si quien llama no dice
+      // nada, «no» y «no» (regla de Jhojan, nov 2026); un null explícito («No se sabe») se respeta.
+      responsable_iva: input.responsableIva === undefined ? false : input.responsableIva,
+      declarante_renta: input.fiscales?.declaranteRenta === undefined ? false : input.fiscales.declaranteRenta,
   };
   // Códigos de la casilla 53: TODOS los leídos, estén o no en el catálogo (migración 80).
   const columnasRut = input.fiscales?.responsabilidadesRut.length ? { responsabilidades_rut: input.fiscales.responsabilidadesRut } : {};

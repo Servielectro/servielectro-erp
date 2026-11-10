@@ -6,9 +6,9 @@ import { createClient } from "@/lib/supabase/client";
 import { dvNit, faltanParaFacturar, nitBase, TIPOS_DOCUMENTO_DIAN, type ClienteFicha, type TipoPersona } from "@/lib/clientes-dian";
 import { LectorRut } from "@/components/rut/LectorRut";
 import { SelectorMunicipio } from "@/components/rut/SelectorMunicipio";
-import { ResponsabilidadesCliente, sugerenciaPorCodigos, useCatalogoResponsabilidades } from "@/components/rut/Responsabilidades";
+import { ResponsabilidadesCliente, useCatalogoResponsabilidades } from "@/components/rut/Responsabilidades";
 import { cargarMunicipios } from "@/lib/rut/catalogos";
-import { armarPropuesta, type PropuestaRut } from "@/lib/rut/propuesta";
+import { armarPropuesta, sugerenciaFiscal, type PropuestaRut } from "@/lib/rut/propuesta";
 import type { RutLeido } from "@/lib/rut/useLecturaRut";
 
 const CAMPO = "mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-base disabled:bg-slate-50 disabled:text-slate-700";
@@ -52,8 +52,9 @@ function borradorDe(c: ClienteFicha | null): Borrador {
     municipio: c?.municipio ?? "",
     departamento: c?.departamento ?? "",
     municipio_dane: c?.municipio_dane ?? "",
-    responsable_iva: sn(c?.responsable_iva),
-    declarante_renta: sn(c?.declarante_renta),
+    // Cliente nuevo: arranca en «no» y «no» (regla de Jhojan); se cambia antes de guardar si no es así.
+    responsable_iva: c ? sn(c.responsable_iva) : "no",
+    declarante_renta: c ? sn(c.declarante_renta) : "no",
     responsabilidades_rut: c?.responsabilidades_rut ?? [],
     responsabilidades_fe: c?.responsabilidades_fe ?? [],
     notas: c?.notas ?? "",
@@ -104,8 +105,11 @@ export function FichaCliente({ cliente, edita }: { cliente: ClienteFicha | null;
     municipio_dane: b.municipio_dane || null,
     responsabilidades_fe: b.responsabilidades_fe,
   });
-  const sugIva = sugerenciaPorCodigos(b.responsabilidades_rut, catalogo, "sugiere_responsable_iva") ?? rut?.propuesta.responsable_iva ?? null;
-  const sugRenta = sugerenciaPorCodigos(b.responsabilidades_rut, catalogo, "sugiere_declarante_renta");
+  // Con códigos del RUT en la ficha, la regla completa (incluido el «se asume no»). Sin ninguno, no hay
+  // RUT del que hablar: solo lo que proponga un RUT recién leído, y si no, nada.
+  const conRut = { porDefecto: b.responsabilidades_rut.length > 0 };
+  const sugIva = sugerenciaFiscal(b.responsabilidades_rut, catalogo, "sugiere_responsable_iva", conRut) ?? rut?.propuesta.responsable_iva ?? null;
+  const sugRenta = sugerenciaFiscal(b.responsabilidades_rut, catalogo, "sugiere_declarante_renta", conRut) ?? rut?.propuesta.declarante_renta ?? null;
 
   async function aplicarRut(leido: RutLeido) {
     setAvisoRut(null);
@@ -363,6 +367,7 @@ export function FichaCliente({ cliente, edita }: { cliente: ClienteFicha | null;
               <option value="no">No responsable de IVA</option>
             </select>
             <Sugerencia s={sugIva} actual={b.responsable_iva} si="Responsable de IVA" no="No responsable de IVA" dis={dis} onUsar={(v) => poner("responsable_iva", v)} />
+            {!cliente && !sugIva && <span className={AYUDA}>Cliente nuevo sin RUT: se asume no responsable. Cámbialo si sabes que sí lo es.</span>}
           </label>
           <label className={ETIQUETA}>
             Declarante de renta
@@ -373,6 +378,7 @@ export function FichaCliente({ cliente, edita }: { cliente: ClienteFicha | null;
             </select>
             <span className={AYUDA}>Define la tarifa de retención en la fuente que aplica.</span>
             <Sugerencia s={sugRenta} actual={b.declarante_renta} si="Declarante" no="No declarante" dis={dis} onUsar={(v) => poner("declarante_renta", v)} />
+            {!cliente && !sugRenta && <span className={AYUDA}>Cliente nuevo sin RUT: se asume no declarante. Cámbialo si sabes que sí lo es.</span>}
           </label>
         </div>
         <div className="mt-3">
@@ -430,7 +436,7 @@ function Sugerencia({
   dis,
   onUsar,
 }: {
-  s: { valor: boolean; porque: string } | null;
+  s: { valor: boolean; porque: string; porDefecto?: boolean } | null;
   actual: "" | "si" | "no";
   si: string;
   no: string;
@@ -439,7 +445,7 @@ function Sugerencia({
 }) {
   if (!s) return null;
   const valor = s.valor ? "si" : "no";
-  if (actual === valor) return <span className={AYUDA}>Coincide con el RUT ({s.porque}).</span>;
+  if (actual === valor) return <span className={AYUDA}>{s.porDefecto ? "Es lo que se asume" : "Coincide con el RUT"} ({s.porque}).</span>;
   return (
     <span className="mt-1 block rounded-md bg-sky-50 px-2 py-1 text-xs font-normal text-sky-950">
       Sugerencia: <b>{s.valor ? si : no}</b>, {s.porque}.{actual ? " Hoy dice otra cosa: revísalo." : ""}
