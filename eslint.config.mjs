@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Edge Functions de Supabase: son Deno, no van en el build de Next.
     "supabase/functions/**",
+    // pdf.js minificado de terceros (worker del visor): no es código nuestro.
+    "public/pdfjs/**",
   ]),
 ]);
 
