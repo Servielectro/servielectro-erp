@@ -234,11 +234,19 @@ export function CampoSst({
           // plantilla vieja), los rechazados y las firmas que la base rechazó, y se trae la del sistema.
           for (const c of (await deVisita<{ id: string; tipo: string }>("cola", abierto)).filter((c) => c.tipo === "sst_formato")) await borrar("cola", c.id);
           for (const c of cola.rechazados.filter((c) => c.visitaId === abierto)) await borrar("cola", c.id);
-          for (const x of await dePadre<SstFirmaLocal>("sst_firmas", abierto)) if (x.rechazada) await borrar("sst_firmas", x.id);
+          const descartadas: string[] = [];
+          for (const x of await dePadre<SstFirmaLocal>("sst_firmas", abierto)) {
+            if (x.rechazada) {
+              await borrar("sst_firmas", x.id);
+              descartadas.push(x.nombre);
+            }
+          }
+          // La verdad de qué firmas hay la tiene el sistema: las que este equipo cree subidas y allá ya no están, se van.
+          descartadas.push(...(await reconciliarFirmas(abierto)));
           const r = await traerFormato(abierto, proyectos);
           await cola.refrescar();
           await recargarLocales();
-          return r.aviso;
+          return { problema: r.aviso, descartadas };
         }}
         onVolver={async () => {
           setAbierto(null);
@@ -378,7 +386,7 @@ function EditorFormato({
   /** Sube ya lo que esté en la cola (con señal). */
   subirAhora: () => Promise<void>;
   /** Reemplaza la copia del celular por la del sistema. Devuelve un aviso si no se pudo. */
-  traerDelServidor: () => Promise<string | null>;
+  traerDelServidor: () => Promise<{ problema: string | null; descartadas: string[] }>;
   onVolver: () => void;
   onCambio: () => void;
 }) {
@@ -397,6 +405,7 @@ function EditorFormato({
   const [versionNueva, setVersionNueva] = useState<number | null>(null);
   const [verificando, setVerificando] = useState(false);
   const [trayendo, setTrayendo] = useState(false);
+  const [avisoFirmas, setAvisoFirmas] = useState<string | null>(null);
   const [previa, setPrevia] = useState(false);
   const espera = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -418,21 +427,38 @@ function EditorFormato({
     return () => clearTimeout(t);
   }, [recargar]);
 
+  // Después de soltar las firmas, el contenido se trae del sistema y el formulario vuelve a ser
+  // editable. Lo descartado se dice con nombre: nadie debe perder una firma que creía hecha sin enterarse.
+  async function traerTrasDescartar(yaDescartadas: string[]) {
+    const r = await traerDelServidor();
+    await recargar();
+    onCambio();
+    if (r.problema) setBloqueo(r.problema);
+    const todas = [...yaDescartadas, ...r.descartadas];
+    if (todas.length) setAvisoFirmas(textoFirmasDescartadas(todas));
+  }
+
   // Con señal, al abrir: ¿la copia del celular tiene la misma plantilla que el sistema? Si la oficina
   // pasó el documento a otra versión, todo lo que suba este celular rebota ("la plantilla no se cambia").
+  // Y ¿sigue teniendo firmas que en el sistema ya se invalidaron (se retiró desde otro equipo)?
   useEffect(() => {
     if (!navigator.onLine) return;
     let vivo = true;
     void (async () => {
       const local = await leer<SstFormatoLocal>("sst_formatos", id);
       if (!local) return;
-      const { data } = await createClient().from("sst_formatos").select("plantilla_id, sst_plantillas(version)").eq("id", id).maybeSingle();
-      const srv = data as { plantilla_id: string; sst_plantillas: { version: number } | null } | null;
+      const { data } = await createClient().from("sst_formatos").select("plantilla_id, estado, sst_plantillas(version)").eq("id", id).maybeSingle();
+      const srv = data as { plantilla_id: string; estado: string; sst_plantillas: { version: number } | null } | null;
       if (vivo && srv && srv.plantilla_id !== local.plantilla.id) setVersionNueva(srv.sst_plantillas?.version ?? 0);
+      if (srv?.estado === "borrador") {
+        const descartadas = await reconciliarFirmas(id);
+        if (descartadas.length) await traerTrasDescartar(descartadas);
+      }
     })();
     return () => {
       vivo = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   // Migraciones 137/139: estado frente al cliente y si el acta se cierra sola. Lo sabe el sistema, no el celular.
@@ -457,8 +483,9 @@ function EditorFormato({
 
   async function traerVersionDelSistema() {
     setTrayendo(true);
-    const problema = await traerDelServidor();
+    const { problema, descartadas } = await traerDelServidor();
     setTrayendo(false);
+    if (descartadas.length) setAvisoFirmas(textoFirmasDescartadas(descartadas));
     if (problema) return setBloqueo(problema);
     setVersionNueva(null);
     setBloqueo(null);
@@ -741,6 +768,7 @@ function EditorFormato({
         </div>
       )}
       {verificando && <p className="rounded-lg bg-slate-100 px-3 py-2 text-base">Revisando el documento en el sistema antes de firmar…</p>}
+      {avisoFirmas && <p role="alert" className="rounded-xl border-2 border-red-500 bg-red-50 px-4 py-3 text-base font-semibold text-red-950">{avisoFirmas}</p>}
       {avisoPendiente && <p className="rounded-xl border-2 border-amber-500 bg-amber-50 px-4 py-3 text-base font-semibold text-amber-950">{avisoPendiente}</p>}
 
       <section className="space-y-3 rounded-lg border border-slate-200 bg-white p-3">
@@ -885,7 +913,24 @@ function EditorFormato({
           );
         })}
         {conContratante && envio.datos && (
-          <EnvioCliente formatoId={id} datos={envio.datos} recargar={envio.recargar} supabase={envio.supabase} subirAhora={subirAhora} />
+          <EnvioCliente
+            formatoId={id}
+            datos={envio.datos}
+            recargar={envio.recargar}
+            supabase={envio.supabase}
+            subirAhora={subirAhora}
+            firmas={firmas.length}
+            alRetirar={async () => {
+              // Quien retira ya confirmó que se invalidan: aquí se van todas, también una aún sin subir,
+              // que de otro modo subiría después y volvería a sellar el acta.
+              const locales = await dePadre<SstFirmaLocal>("sst_firmas", id);
+              for (const x of locales) {
+                await borrar("sst_firmas", x.id);
+                await borrar("cola", x.id);
+              }
+              await traerTrasDescartar(locales.map((x) => x.nombre));
+            }}
+          />
         )}
         {envio.datos?.cierreAutomatico ? (
           envio.datos.estado === "borrador" ? (
@@ -1116,6 +1161,31 @@ function ListaTecnicos({
  * firmas todavía, para firmarlo aquí. Ya existe en la base con este contenido: se guarda local sin
  * volver a subirlo.
  */
+/**
+ * Lo local es caché: las firmas que este dispositivo ya subió y el sistema ya no tiene (se invalidaron
+ * al retirar o corregir el acta) se borran, porque siguen sellando el formulario sin existir.
+ * Una firma sin subir (`subida` falso) NO se toca: nunca llegó al sistema y es trabajo real. Si la
+ * consulta falla no se borra nada. Devuelve los nombres de lo descartado, para decirlo en pantalla.
+ */
+async function reconciliarFirmas(id: string): Promise<string[]> {
+  const locales = (await dePadre<SstFirmaLocal>("sst_firmas", id)).filter((x) => x.subida);
+  if (!locales.length) return [];
+  const { data, error } = await createClient().from("sst_formato_firmas").select("id").eq("formato_id", id);
+  if (error || !data) return [];
+  const vivas = new Set((data as { id: string }[]).map((x) => x.id));
+  const quitar = locales.filter((x) => !vivas.has(x.id));
+  for (const x of quitar) {
+    await borrar("sst_firmas", x.id);
+    await borrar("cola", x.id);
+  }
+  return quitar.map((x) => x.nombre);
+}
+
+function textoFirmasDescartadas(nombres: string[]): string {
+  const lista = [...new Set(nombres.map((n) => n.trim() || "sin nombre"))].join(", ");
+  return `Se descartó de este dispositivo la firma de: ${lista}. Ya no está vigente en el sistema (se invalidó al retirar o corregir el acta). El documento se puede corregir y hay que volver a firmar.`;
+}
+
 async function traerFormato(id: string, proyectos: { id: string; nombre: string }[]): Promise<{ ok: boolean; aviso: string | null }> {
   try {
     const { createClient } = await import("@/lib/supabase/client");

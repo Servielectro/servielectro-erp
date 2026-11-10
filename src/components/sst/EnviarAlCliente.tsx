@@ -28,6 +28,7 @@ export function EnviarAlCliente({
   publicada,
   puedeEnviar,
   sinBotonEnviar,
+  firmas,
 }: {
   formatoId: string;
   estado: string;
@@ -37,6 +38,8 @@ export function EnviarAlCliente({
   puedeEnviar: boolean;
   /** Acta con cierre automático: enviar va junto con la firma del contratista (FirmasActa). */
   sinBotonEnviar?: boolean;
+  /** Firmas que ya tiene el acta: retirarla las invalida. */
+  firmas: number;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -66,7 +69,7 @@ export function EnviarAlCliente({
       const { error } = await supabase.rpc("fn_sst_retirar_del_cliente", { p_formato: formatoId });
       if (error) return setError(error.message);
       setConfirmandoRetiro(false);
-      setAviso("Retirada. El cliente ya no la ve; volvió a borrador interno.");
+      setAviso("Retirada. El cliente ya no la ve y las firmas quedaron invalidadas. Ya se puede corregir; hay que volver a firmar.");
       router.refresh();
     });
   }
@@ -84,10 +87,14 @@ export function EnviarAlCliente({
         </button>
       )}
       {puedeEnviar &&
-        e.clave === "enviada" &&
+        (e.clave === "enviada" || (e.clave === "borrador" && firmas > 0)) &&
         (confirmandoRetiro ? (
-          <div className="space-y-2 rounded-md bg-slate-50 p-2">
-            <p className="text-sm">El cliente dejará de verla y vuelve a borrador interno. ¿Retirarla?</p>
+          <div className="space-y-2 rounded-md border-2 border-red-300 bg-red-50 p-2">
+            <p className="text-sm font-semibold text-red-950">
+              {e.clave === "enviada" ? "El cliente dejará de verla y vuelve a borrador interno. " : ""}
+              {firmas > 0 ? `Se invalidan ${firmas === 1 ? "la firma que ya tiene" : `las ${firmas} firmas que ya tiene`}: una firma acredita un contenido, y habrá que volver a firmar sobre el texto corregido. ` : ""}
+              ¿Retirarla?
+            </p>
             <div className="grid grid-cols-2 gap-2">
               <button type="button" onClick={() => setConfirmandoRetiro(false)} className="min-h-11 rounded-md border border-slate-300 text-sm font-semibold">
                 No
@@ -99,7 +106,7 @@ export function EnviarAlCliente({
           </div>
         ) : (
           <button type="button" onClick={() => setConfirmandoRetiro(true)} className="min-h-11 text-sm font-semibold text-red-700 underline">
-            Retirar
+            {e.clave === "enviada" ? "Retirar" : "Retirar las firmas para corregir"}
           </button>
         ))}
       {e.clave === "borrador" && !sinBotonEnviar && <p className="text-xs text-slate-500">Mientras no se envíe, el cliente no ve esta acta. Al enviarla, la lee y firma desde su portal; cuando quede sellada se publica sola.</p>}

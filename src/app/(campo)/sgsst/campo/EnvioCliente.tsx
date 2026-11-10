@@ -55,12 +55,18 @@ export function EnvioCliente({
   recargar,
   supabase,
   subirAhora,
+  firmas,
+  alRetirar,
 }: {
   formatoId: string;
   datos: DatosEnvio;
   recargar: () => Promise<void>;
   supabase: ReturnType<typeof createClient>;
   subirAhora: () => Promise<void>;
+  /** Firmas que tiene el acta en este dispositivo: retirar las invalida. */
+  firmas: number;
+  /** Suelta la copia local de las firmas, que es la que deja el formulario bloqueado. */
+  alRetirar: () => Promise<void>;
 }) {
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,7 +98,8 @@ export function EnvioCliente({
       const { error } = await supabase.rpc("fn_sst_retirar_del_cliente", { p_formato: formatoId });
       if (error) return setError(error.message);
       setConfirmando(false);
-      setAviso("Retirada: el cliente ya no la ve. Volvió a borrador interno.");
+      await alRetirar();
+      setAviso("Retirada: el cliente ya no la ve y las firmas quedaron invalidadas. Ya se puede corregir; hay que volver a firmar.");
       await recargar();
     } finally {
       setOcupado(false);
@@ -109,7 +116,7 @@ export function EnvioCliente({
       {aviso && <p className="rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-900">{aviso}</p>}
       {error && (
         <div role="alert" className="rounded-xl border-4 border-red-600 bg-red-50 px-4 py-3 text-red-900">
-          <p className="text-base font-bold">No se envió</p>
+          <p className="text-base font-bold">No se pudo</p>
           <p className="text-base">{error}</p>
         </div>
       )}
@@ -118,10 +125,14 @@ export function EnvioCliente({
           {ocupado ? "Enviando…" : "📨 Enviar al cliente para firma"}
         </button>
       )}
-      {e.clave === "enviada" &&
+      {(e.clave === "enviada" || (e.clave === "borrador" && firmas > 0)) &&
         (confirmando ? (
-          <div className="space-y-2 rounded-md bg-slate-50 p-2">
-            <p className="text-sm">El cliente dejará de verla y vuelve a borrador interno. ¿Retirarla?</p>
+          <div className="space-y-2 rounded-md border-2 border-red-300 bg-red-50 p-2">
+            <p className="text-sm font-semibold text-red-950">
+              {e.clave === "enviada" ? "El cliente dejará de verla y vuelve a borrador interno. " : ""}
+              {firmas > 0 ? `Se invalidan ${firmas === 1 ? "la firma que ya tiene" : `las ${firmas} firmas que ya tiene`}: una firma acredita un contenido, y habrá que volver a firmar sobre el texto corregido. ` : ""}
+              ¿Retirarla?
+            </p>
             <div className="grid grid-cols-2 gap-2">
               <button type="button" onClick={() => setConfirmando(false)} className="min-h-11 rounded-md border border-slate-300 text-sm font-semibold">
                 No
@@ -133,7 +144,7 @@ export function EnvioCliente({
           </div>
         ) : (
           <button type="button" onClick={() => setConfirmando(true)} className="min-h-11 text-sm font-semibold text-red-700 underline">
-            Retirar
+            {e.clave === "enviada" ? "Retirar" : "Retirar las firmas para corregir"}
           </button>
         ))}
       {e.clave === "borrador" && <p className="text-xs text-slate-600">Si el cliente está contigo, firma aquí mismo con el botón «Firmar aquí con el cliente» de arriba.</p>}

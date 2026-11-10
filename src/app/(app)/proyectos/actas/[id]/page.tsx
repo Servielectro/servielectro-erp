@@ -73,10 +73,13 @@ export default async function ActaPage({ params }: { params: Promise<{ id: strin
           publicada={!!publicadaRes?.data?.length}
           puedeEnviar={trabaja}
           sinBotonEnviar={cierreAutomatico}
+          firmas={f.firmas.length}
         />
       )}
       {conFirmasAqui && (
         <FirmasActa
+          // Guarda qué firmas ve en su propio estado: al retirar, la key lo obliga a empezar de cero.
+          key={`${firmo("responsable_sst")}-${firmo("sst_cliente")}`}
           formatoId={id}
           etiquetas={{
             contratista: firmaPedida("responsable_sst")?.etiqueta ?? "Por el contratista",
