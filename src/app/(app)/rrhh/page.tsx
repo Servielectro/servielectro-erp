@@ -11,6 +11,8 @@ const SECCIONES = [
   { href: "/rrhh/abonos", icono: "💵", nombre: "Abonos de nómina", ayuda: "Adelantos: aprobación, transferencia y quincena del descuento" },
   { href: "/rrhh/documentos", icono: "📄", nombre: "Documentos del personal", ayuda: "Desprendibles, liquidaciones y contratos por persona" },
   { href: "/rrhh/plantillas", icono: "📝", nombre: "Plantillas Word (contrato)", ayuda: "Archivos .docx del modelo de contrato, con historial de versiones" },
+  // Último, como en SG-SST.
+  { href: "/rrhh/sugerencias", icono: "📝", nombre: "Sugerencias para la aplicación", ayuda: "Lo que mejorarías de RRHH en la aplicación: escribe y guarda." },
 ];
 
 export default function RrhhPage() {
