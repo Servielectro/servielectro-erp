@@ -50,3 +50,4 @@ next-env.d.ts
 
 # Datos sensibles de clientes (claves de fábrica de equipos): nunca al repo
 AGENTE PARA INFORMES TPECNICOS AUTO.txt
+supabase/.temp/
