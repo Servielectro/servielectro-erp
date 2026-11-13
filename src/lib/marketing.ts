@@ -64,6 +64,48 @@ export function estadoPublicable(identificable: boolean, autorizacion: Autorizac
   return { publicable: false, texto: "Sin autorización: no se puede publicar", clase: "bg-red-100 text-red-900 border-red-400" };
 }
 
+/** Un bloque del guion. `cartel` es donde se corta al cartel rojo mientras se graba. */
+export interface BloqueGuion {
+  bloque: string;
+  texto: string;
+  cartel: string;
+}
+
+/** Lee el guion de la base. Acepta textos sueltos y objetos con solo `texto` (ideas viejas). */
+export function leerGuion(g: unknown): BloqueGuion[] {
+  if (!Array.isArray(g)) return [];
+  return g.map((x) => {
+    if (typeof x === "string") return { bloque: "", texto: x, cartel: "" };
+    const o = (typeof x === "object" && x ? x : {}) as Record<string, unknown>;
+    const s = (v: unknown) => (v === null || v === undefined ? "" : String(v));
+    return { bloque: s(o.bloque), texto: s(o.texto), cartel: s(o.cartel) };
+  });
+}
+
+/** Lo que se guarda: sin casillas vacías y sin perder `bloque` ni `cartel`. */
+export function guionParaGuardar(bloques: BloqueGuion[]) {
+  return bloques
+    .map((b) => ({ bloque: b.bloque.trim(), texto: b.texto.trim(), cartel: b.cartel.trim() }))
+    .filter((b) => b.bloque || b.texto || b.cartel)
+    .map((b) => ({ ...(b.bloque ? { bloque: b.bloque } : {}), texto: b.texto, ...(b.cartel ? { cartel: b.cartel } : {}) }));
+}
+
+/** La serie vive en las notas: «Serie A · Te enseño a leer». */
+export function serieDe(notas: string | null): string | null {
+  const m = /Serie\s+[A-Z]\s*·\s*[^\n.;|]+/.exec(notas ?? "");
+  return m ? m[0].replace(/["«»“”]/g, "").trim() : null;
+}
+
+/** Las notas que empiezan con ⚠ son una condición para grabar: su primer párrafo va a la vista. */
+export function advertenciaDe(notas: string | null): string | null {
+  const t = (notas ?? "").trim();
+  if (!t.startsWith("⚠")) return null;
+  return t.split(/\n\s*\n/)[0].replace(/^⚠️?\s*/, "").trim();
+}
+
+/** Fecha en Bogotá de un timestamp, AAAA-MM-DD. */
+export const diaBogota = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
+
 /** Fecha de hoy en Bogotá, AAAA-MM-DD. */
 export function hoyBogota(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Bogota" });

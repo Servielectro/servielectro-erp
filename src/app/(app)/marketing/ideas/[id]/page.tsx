@@ -3,6 +3,10 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso } from "@/lib/permisos";
 import { IdeaDetalle, type IdeaCompleta, type MaterialBiblioteca, type Pieza, type Publicacion } from "./IdeaDetalle";
+import type { Medicion } from "../../Mediciones";
+
+// Redactar los prompts puede pasar por OpenAI, Gemini y un reintento.
+export const maxDuration = 300;
 
 /** La ficha de una idea (migración 125): guion, piezas, estado y dónde se publicó. */
 export default async function IdeaPage({ params }: { params: Promise<{ id: string }> }) {
@@ -17,10 +21,10 @@ export default async function IdeaPage({ params }: { params: Promise<{ id: strin
       )
       .eq("id", id)
       .maybeSingle(),
-    supabase.from("marketing_piezas").select("id, orden, tipo, texto, path, biblioteca_id").eq("idea_id", id).order("orden"),
+    supabase.from("marketing_piezas").select("id, orden, tipo, texto, path, biblioteca_id, prompt, modelo, generada_por").eq("idea_id", id).order("orden"),
     supabase
       .from("marketing_biblioteca")
-      .select("id, tipo, titulo, path, identificable, autorizacion, clientes(nombre)")
+      .select("id, tipo, titulo, path, identificable, autorizacion, archivada, clientes(nombre)")
       .eq("archivada", false)
       .order("subido_en", { ascending: false })
       .limit(300),
@@ -34,6 +38,16 @@ export default async function IdeaPage({ params }: { params: Promise<{ id: strin
   }
   const biblioteca = (bibRes.data ?? []) as unknown as (Omit<MaterialBiblioteca, "url" | "cliente"> & { clientes: { nombre: string } | null })[];
 
+  // Material que usa la idea y no vino arriba (archivado o más allá del límite). Sin esto, archivar
+  // una foto sin autorización hacía desaparecer el bloqueo de la pantalla.
+  const piezasIdea = (piezasRes.data ?? []) as Pieza[];
+  const cargados = new Set(biblioteca.map((b) => b.id));
+  const faltan = [...new Set(piezasIdea.map((p) => p.biblioteca_id).filter((x): x is string => !!x && !cargados.has(x)))];
+  if (faltan.length) {
+    const { data } = await supabase.from("marketing_biblioteca").select("id, tipo, titulo, path, identificable, autorizacion, archivada, clientes(nombre)").in("id", faltan);
+    biblioteca.push(...((data ?? []) as unknown as typeof biblioteca));
+  }
+
   // Miniaturas: un solo pedido de enlaces firmados (el bucket es privado).
   const paths = biblioteca.filter((b) => b.path && b.tipo !== "video").map((b) => b.path as string);
   const urls = new Map<string, string>();
@@ -41,6 +55,12 @@ export default async function IdeaPage({ params }: { params: Promise<{ id: strin
     const { data } = await supabase.storage.from("marketing").createSignedUrls(paths, 3600);
     for (const e of data ?? []) if (e.path && e.signedUrl) urls.set(e.path, e.signedUrl);
   }
+
+  const pubs = (pubRes.data ?? []) as Omit<Publicacion, "mediciones">[];
+  const medRes = pubs.length
+    ? await supabase.from("marketing_metricas").select("publicacion_id, medida_en, alcance, impresiones, interacciones, clics, guardados, comentarios").in("publicacion_id", pubs.map((p) => p.id))
+    : { data: [] };
+  const medicionesDe = (id: string) => ((medRes.data ?? []) as (Medicion & { publicacion_id: string })[]).filter((m) => m.publicacion_id === id);
 
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 space-y-3 p-4 sm:p-6">
@@ -50,11 +70,11 @@ export default async function IdeaPage({ params }: { params: Promise<{ id: strin
       <IdeaDetalle
         escribe={escribe}
         idea={ideaRes.data as unknown as IdeaCompleta}
-        piezas={(piezasRes.data ?? []) as Pieza[]}
+        piezas={piezasIdea}
         biblioteca={biblioteca.map(({ clientes, ...b }) => ({ ...b, cliente: clientes?.nombre ?? null, url: b.path ? (urls.get(b.path) ?? null) : null }))}
         campanas={(campRes.data ?? []) as { id: string; nombre: string }[]}
         cuentas={(cuentasRes.data ?? []) as { id: string; canal: string; nombre: string }[]}
-        publicaciones={(pubRes.data ?? []) as Publicacion[]}
+        publicaciones={pubs.map((p) => ({ ...p, mediciones: medicionesDe(p.id) }))}
       />
     </div>
   );

@@ -11,13 +11,20 @@ import {
   ETIQUETA_CANAL,
   ETIQUETA_ESTADO,
   TIPOS_IDEA,
+  advertenciaDe,
   estadoPublicable,
   fechaCorta,
+  guionParaGuardar,
   hoyBogota,
+  leerGuion,
+  serieDe,
   type Autorizacion,
   type EstadoIdea,
 } from "@/lib/marketing";
 import { SelectorCanales } from "../NuevaIdea";
+import { GeneradorPrompts } from "./GeneradorPrompts";
+import { GuionPorBloques } from "./GuionPorBloques";
+import { Mediciones, type Medicion } from "../../Mediciones";
 
 export interface Pieza {
   id: string;
@@ -26,6 +33,9 @@ export interface Pieza {
   texto: string | null;
   path: string | null;
   biblioteca_id: string | null;
+  prompt: string | null;
+  modelo: string | null;
+  generada_por: string | null;
 }
 export interface Publicacion {
   id: string;
@@ -33,6 +43,7 @@ export interface Publicacion {
   publicado_en: string;
   url: string | null;
   via: string;
+  mediciones: Medicion[];
 }
 export interface IdeaCompleta {
   id: string;
@@ -61,17 +72,12 @@ export interface MaterialBiblioteca {
   path: string | null;
   identificable: boolean;
   autorizacion: Autorizacion;
+  archivada: boolean;
   cliente: string | null;
   url: string | null;
 }
 
 const APROBADAS: EstadoIdea[] = ["aprobada", "programada", "publicada"];
-
-/** El guion se guarda como lista de láminas o escenas: [{ texto }]. Acepta también textos sueltos. */
-function leerGuion(g: unknown): string[] {
-  if (!Array.isArray(g)) return [];
-  return g.map((x) => (typeof x === "string" ? x : typeof x === "object" && x && "texto" in x ? String((x as { texto: unknown }).texto ?? "") : ""));
-}
 
 const campo = "mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 text-base font-normal disabled:bg-slate-50";
 
@@ -114,9 +120,13 @@ export function IdeaDetalle({
   };
 
   const porId = new Map(biblioteca.map((b) => [b.id, b]));
-  const bloqueantes = piezas
-    .map((p) => (p.biblioteca_id ? porId.get(p.biblioteca_id) : undefined))
-    .filter((b): b is MaterialBiblioteca => !!b && !estadoPublicable(b.identificable, b.autorizacion).publicable);
+  // Lo que no se pudo leer también bloquea: sin saber qué es, no se da por autorizado.
+  const bloqueantes = piezas.flatMap((p) => {
+    if (!p.biblioteca_id) return [];
+    const b = porId.get(p.biblioteca_id);
+    if (!b) return ["material que no se pudo leer"];
+    return estadoPublicable(b.identificable, b.autorizacion).publicable ? [] : [b.titulo];
+  });
   const aprobada = APROBADAS.includes(idea.estado);
 
   const datosFormulario = () => ({
@@ -126,7 +136,7 @@ export function IdeaDetalle({
     campana_id: f.campana_id || null,
     fecha_programada: f.fecha_programada || null,
     gancho: f.gancho.trim() || null,
-    guion: f.guion.map((t) => t.trim()).filter(Boolean).map((texto) => ({ texto })),
+    guion: guionParaGuardar(f.guion),
     llamado_accion: f.llamado_accion.trim() || null,
     notas: f.notas.trim() || null,
   });
@@ -150,7 +160,7 @@ export function IdeaDetalle({
 
   const avanzar = () => {
     if (!siguiente) return;
-    if (siguiente.key === "aprobada" && bloqueantes.length) return setError("No se puede aprobar: quita o autoriza primero el material marcado en rojo.");
+    if (APROBADAS.includes(siguiente.key) && bloqueantes.length) return setError("No se puede avanzar: quita o autoriza primero el material marcado en rojo.");
     if (siguiente.key === "programada" && !f.fecha_programada) return setError("Para programarla, ponle fecha de publicación (más abajo, en «Cuándo sale»).");
     if (siguiente.key === "publicada") return setError("Se marca publicada al registrar dónde salió (abajo, «Dónde se publicó»).");
     guardar({ estado: siguiente.key }, `Pasó a ${siguiente.label.toLowerCase()}.`);
@@ -163,12 +173,15 @@ export function IdeaDetalle({
   const [motivo, setMotivo] = useState("");
 
   const ed = escribe && idea.estado !== "publicada";
+  const serie = serieDe(idea.notas);
+  const advertencia = advertenciaDe(idea.notas);
 
   return (
     <div className="space-y-4">
       <header className="space-y-2">
         <span className={`inline-block rounded-full border px-2 py-0.5 text-xs font-semibold ${COLOR_ESTADO[idea.estado]}`}>{ETIQUETA_ESTADO[idea.estado]}</span>
         <h1 className="text-lg font-bold text-slate-900">{idea.titulo}</h1>
+        {serie && <p className="text-sm font-semibold text-slate-700">{serie}</p>}
         {(idea.proyectos || idea.visitas || idea.origen_formato_id) && (
           <p className="text-xs text-slate-600">
             Sale de:{" "}
@@ -196,9 +209,16 @@ export function IdeaDetalle({
         {idea.estado === "descartada" && <p className="rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-700">Descartada: {idea.motivo_descarte}</p>}
       </header>
 
+      {advertencia && (
+        <div role="alert" className="rounded-lg border-2 border-amber-500 bg-amber-50 p-3 text-amber-950">
+          <p className="text-sm font-bold">⚠ Antes de grabar</p>
+          <p className="mt-1 whitespace-pre-wrap text-base">{advertencia}</p>
+        </div>
+      )}
+
       {bloqueantes.length > 0 && (
         <p className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
-          <b>No se puede aprobar.</b> Usa material en el que se reconoce al cliente y el cliente no ha autorizado: {bloqueantes.map((b) => b.titulo).join(", ")}. Pide la autorización (y regístrala en la{" "}
+          <b>No se puede aprobar.</b> Usa material en el que se reconoce al cliente y el cliente no ha autorizado: {bloqueantes.join(", ")}. Pide la autorización (y regístrala en la{" "}
           <Link href="/marketing/biblioteca" className="underline">
             biblioteca
           </Link>
@@ -217,7 +237,7 @@ export function IdeaDetalle({
             {siguiente && siguiente.key !== "publicada" && (
               <button
                 type="button"
-                disabled={pendiente || (siguiente.key === "aprobada" && bloqueantes.length > 0)}
+                disabled={pendiente || (APROBADAS.includes(siguiente.key) && bloqueantes.length > 0)}
                 onClick={avanzar}
                 className="min-h-11 flex-1 rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white disabled:opacity-40"
               >
@@ -253,6 +273,8 @@ export function IdeaDetalle({
       )}
       {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
       {aviso && <p className="text-sm text-green-800">{aviso}</p>}
+
+      <GuionPorBloques bloques={f.guion} editable={ed} sucia={sucia} pendiente={pendiente} onCambio={(b) => cambiar("guion", b)} onGuardar={() => guardar()} />
 
       <section className="space-y-3 rounded-lg border border-slate-300 bg-white p-3">
         <label className="block text-sm font-semibold text-slate-800">
@@ -305,33 +327,6 @@ export function IdeaDetalle({
           Gancho (la primera línea, la que hace parar el dedo)
           <input disabled={!ed} value={f.gancho} onChange={(e) => cambiar("gancho", e.target.value)} className={`${campo} min-h-11`} />
         </label>
-        <div>
-          <p className="text-sm font-semibold text-slate-800">Guion: una lámina o escena por casilla</p>
-          <ol className="mt-1 space-y-1.5">
-            {f.guion.map((t, i) => (
-              <li key={i} className="flex items-start gap-2">
-                <span className="mt-2.5 w-5 shrink-0 text-right text-xs text-slate-500">{i + 1}.</span>
-                <textarea
-                  disabled={!ed}
-                  rows={2}
-                  value={t}
-                  onChange={(e) => cambiar("guion", f.guion.map((x, j) => (j === i ? e.target.value : x)))}
-                  className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-base disabled:bg-slate-50"
-                />
-                {ed && (
-                  <button type="button" aria-label={`Quitar lámina ${i + 1}`} onClick={() => cambiar("guion", f.guion.filter((_, j) => j !== i))} className="min-h-11 min-w-11 shrink-0 rounded-lg border border-slate-300 text-slate-500">
-                    ✕
-                  </button>
-                )}
-              </li>
-            ))}
-          </ol>
-          {ed && (
-            <button type="button" onClick={() => cambiar("guion", [...f.guion, ""])} className="mt-1 min-h-11 rounded-lg border border-dashed border-slate-400 px-3 text-sm text-slate-700">
-              + Lámina o escena
-            </button>
-          )}
-        </div>
         <label className="block text-sm font-semibold text-slate-800">
           Llamado a la acción
           <input disabled={!ed} value={f.llamado_accion} onChange={(e) => cambiar("llamado_accion", e.target.value)} placeholder="Ej.: Escríbenos para una visita de diagnóstico" className={`${campo} min-h-11`} />
@@ -347,16 +342,28 @@ export function IdeaDetalle({
         )}
       </section>
 
-      <Piezas escribe={ed} ideaId={idea.id} aprobada={aprobada} piezas={piezas} biblioteca={biblioteca} />
+      {(idea.estado !== "descartada" || piezas.some((p) => p.prompt)) && (
+        <GeneradorPrompts
+          escribe={ed && !aprobada && idea.estado !== "descartada"}
+          ideaId={idea.id}
+          textoIdea={[f.gancho, ...f.guion.map((b) => b.texto)].join(" ")}
+          sucia={sucia}
+          bloqueantes={bloqueantes}
+          piezas={piezas.filter((p) => p.prompt)}
+          biblioteca={biblioteca}
+        />
+      )}
+
+      <Piezas escribe={ed} ideaId={idea.id} piezas={piezas} biblioteca={biblioteca} />
 
       {(idea.estado === "programada" || idea.estado === "publicada") && (
-        <Publicaciones escribe={escribe} idea={idea} cuentas={cuentas} publicaciones={publicaciones} />
+        <Publicaciones escribe={escribe} bloqueada={bloqueantes.length > 0} idea={idea} cuentas={cuentas} publicaciones={publicaciones} />
       )}
     </div>
   );
 }
 
-function Piezas({ escribe, ideaId, aprobada, piezas, biblioteca }: { escribe: boolean; ideaId: string; aprobada: boolean; piezas: Pieza[]; biblioteca: MaterialBiblioteca[] }) {
+function Piezas({ escribe, ideaId, piezas, biblioteca }: { escribe: boolean; ideaId: string; piezas: Pieza[]; biblioteca: MaterialBiblioteca[] }) {
   const router = useRouter();
   const [eligiendo, setEligiendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -367,15 +374,9 @@ function Piezas({ escribe, ideaId, aprobada, piezas, biblioteca }: { escribe: bo
   const agregar = (b: MaterialBiblioteca) =>
     empezar(async () => {
       setError(null);
+      // Bloqueo, no aviso: una pieza no se arma sobre material sin autorización.
+      if (!estadoPublicable(b.identificable, b.autorizacion).publicable) return setError(`«${b.titulo}»: se reconoce al cliente y no hay autorización registrada. No se puede usar hasta registrarla en la biblioteca.`);
       const supabase = createClient();
-      const bloquea = !estadoPublicable(b.identificable, b.autorizacion).publicable;
-      // La base revisa el material al aprobar; si la idea ya estaba aprobada, se devuelve a "arte"
-      // para que vuelva a pasar por esa revisión.
-      if (bloquea && aprobada) {
-        if (!window.confirm(`«${b.titulo}» no tiene autorización del cliente. La idea ya estaba aprobada: vuelve a «arte» y no se puede aprobar hasta que el cliente autorice. ¿Seguir?`)) return;
-        const r = await supabase.from("marketing_ideas").update({ estado: "arte", aprobada_por: null, aprobada_en: null }).eq("id", ideaId).select("id");
-        if (r.error || !r.data?.length) return setError(`No se pudo devolver la idea a arte: ${r.error?.message ?? "sin permiso"}`);
-      }
       const { error: e } = await supabase
         .from("marketing_piezas")
         .insert({ idea_id: ideaId, orden: siguienteOrden, tipo: b.tipo === "video" ? "video" : "imagen", biblioteca_id: b.id, path: b.path, generada_por: "manual" });
@@ -392,12 +393,14 @@ function Piezas({ escribe, ideaId, aprobada, piezas, biblioteca }: { escribe: bo
     });
 
   const usadas = new Set(piezas.map((p) => p.biblioteca_id));
+  // Las piezas con prompt se muestran en «Imágenes con IA».
+  const deBiblioteca = piezas.filter((p) => !p.prompt);
   return (
     <section className="space-y-2 rounded-lg border border-slate-300 bg-white p-3">
       <h2 className="text-sm font-bold text-slate-900">Arte: fotos y videos</h2>
-      {piezas.length === 0 && <p className="text-sm text-slate-500">Todavía no tiene material.</p>}
+      {deBiblioteca.length === 0 && <p className="text-sm text-slate-500">Todavía no tiene material.</p>}
       <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {piezas.map((p) => {
+        {deBiblioteca.map((p) => {
           const b = p.biblioteca_id ? porId.get(p.biblioteca_id) : undefined;
           const e = b ? estadoPublicable(b.identificable, b.autorizacion) : null;
           return (
@@ -426,7 +429,7 @@ function Piezas({ escribe, ideaId, aprobada, piezas, biblioteca }: { escribe: bo
       {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
       {eligiendo && (
         <div className="space-y-2 rounded-lg bg-slate-50 p-2">
-          {biblioteca.length === 0 && (
+          {biblioteca.length === 0 ? (
             <p className="text-sm text-slate-600">
               La biblioteca está vacía.{" "}
               <Link href="/marketing/biblioteca" className="underline">
@@ -434,15 +437,23 @@ function Piezas({ escribe, ideaId, aprobada, piezas, biblioteca }: { escribe: bo
               </Link>
               .
             </p>
+          ) : (
+            <p className="text-sm text-slate-600">
+              Las fotos sin autorización del cliente no se pueden usar: regístrala en la{" "}
+              <Link href="/marketing/biblioteca" className="underline">
+                biblioteca
+              </Link>
+              .
+            </p>
           )}
           <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {biblioteca
-              .filter((b) => !usadas.has(b.id))
+              .filter((b) => !usadas.has(b.id) && !b.archivada)
               .map((b) => {
                 const e = estadoPublicable(b.identificable, b.autorizacion);
                 return (
                   <li key={b.id}>
-                    <button type="button" disabled={pendiente} onClick={() => agregar(b)} className="block w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-left">
+                    <button type="button" disabled={pendiente || !e.publicable} onClick={() => agregar(b)} className="block w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-left disabled:cursor-not-allowed disabled:opacity-60">
                       {b.url ? <img src={b.url} alt="" className="aspect-square w-full object-cover" /> : <div className="flex aspect-square items-center justify-center bg-slate-100 text-xs text-slate-500">{b.tipo}</div>}
                       <span className="block truncate px-1.5 pt-1 text-xs font-semibold text-slate-800">{b.titulo}</span>
                       <span className={`m-1.5 block rounded border px-1 py-0.5 text-[11px] font-semibold ${e.clase}`}>{e.texto}</span>
@@ -457,12 +468,16 @@ function Piezas({ escribe, ideaId, aprobada, piezas, biblioteca }: { escribe: bo
   );
 }
 
-function Publicaciones({ escribe, idea, cuentas, publicaciones }: { escribe: boolean; idea: IdeaCompleta; cuentas: { id: string; canal: string; nombre: string }[]; publicaciones: Publicacion[] }) {
+function Publicaciones({ escribe, bloqueada, idea, cuentas, publicaciones }: { escribe: boolean; bloqueada: boolean; idea: IdeaCompleta; cuentas: { id: string; canal: string; nombre: string }[]; publicaciones: Publicacion[] }) {
   const router = useRouter();
   const yaEn = new Set(publicaciones.map((p) => p.cuenta_id));
   const libres = cuentas.filter((c) => !yaEn.has(c.id));
-  const [cuenta, setCuenta] = useState(libres[0]?.id ?? "");
+  const [elegida, setCuenta] = useState("");
+  // Por defecto, una cuenta de los canales de la idea; la elegida deja de valer al registrarla.
+  const cuenta = libres.some((c) => c.id === elegida) ? elegida : (libres.find((c) => idea.canales.includes(c.canal)) ?? libres[0])?.id ?? "";
+  const canalesSinCuenta = idea.canales.filter((c) => !cuentas.some((x) => x.canal === c));
   const [url, setUrl] = useState("");
+  const [fecha, setFecha] = useState(hoyBogota());
   const [error, setError] = useState<string | null>(null);
   const [pendiente, empezar] = useTransition();
   const nombre = (id: string) => {
@@ -472,8 +487,10 @@ function Publicaciones({ escribe, idea, cuentas, publicaciones }: { escribe: boo
   const registrar = () =>
     empezar(async () => {
       setError(null);
+      if (url.trim() && !/^https?:\/\/\S+$/i.test(url.trim())) return setError("Pega el enlace completo de la publicación (empieza por https://).");
       const supabase = createClient();
-      const { error: e } = await supabase.from("marketing_publicaciones").insert({ idea_id: idea.id, cuenta_id: cuenta, url: url.trim() || null, via: "manual" });
+      // Al mediodía de Bogotá: es el día lo que importa para contar los 7 y los 30.
+      const { error: e } = await supabase.from("marketing_publicaciones").insert({ idea_id: idea.id, cuenta_id: cuenta, url: url.trim() || null, via: "manual", publicado_en: `${fecha}T12:00:00-05:00` });
       if (e) return setError(e.message);
       if (idea.estado !== "publicada") {
         const r = await supabase.from("marketing_ideas").update({ estado: "publicada" }).eq("id", idea.id).select("id");
@@ -488,22 +505,32 @@ function Publicaciones({ escribe, idea, cuentas, publicaciones }: { escribe: boo
       {publicaciones.length === 0 ? (
         <p className="text-sm text-slate-500">Programada para {fechaCorta(idea.fecha_programada)}. Cuando salga, regístrala aquí con su enlace.</p>
       ) : (
-        <ul className="space-y-1 text-sm">
+        <ul className="space-y-3 text-sm">
           {publicaciones.map((p) => (
-            <li key={p.id}>
-              {nombre(p.cuenta_id)} · {fechaCorta(p.publicado_en)}{" "}
-              {p.url && (
-                <a href={p.url} target="_blank" rel="noreferrer" className="underline">
-                  ver publicación
-                </a>
-              )}
+            <li key={p.id} className="space-y-2 rounded-lg border border-slate-200 p-2">
+              <p>
+                {nombre(p.cuenta_id)} · {fechaCorta(p.publicado_en)}{" "}
+                {p.url && (
+                  <a href={p.url} target="_blank" rel="noreferrer" className="underline">
+                    ver publicación
+                  </a>
+                )}
+              </p>
+              <Mediciones publicacionId={p.id} publicadoEn={p.publicado_en} mediciones={p.mediciones} escribe={escribe} />
             </li>
           ))}
         </ul>
       )}
-      {escribe && libres.length > 0 && (
+      {canalesSinCuenta.length > 0 && (
+        <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {canalesSinCuenta.map((c) => ETIQUETA_CANAL[c] ?? c).join(", ")} no tiene cuenta creada en Marketing: lo publicado ahí todavía no se puede registrar.
+        </p>
+      )}
+      {bloqueada && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">No se puede registrar: quita o autoriza primero el material marcado en rojo.</p>}
+      {escribe && !bloqueada && libres.length > 0 && (
         <div className="space-y-2 rounded-lg bg-slate-50 p-2">
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <input type="date" aria-label="Fecha de publicación" value={fecha} max={hoyBogota()} onChange={(e) => setFecha(e.target.value)} className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-base" />
             <select value={cuenta} onChange={(e) => setCuenta(e.target.value)} className="min-h-11 rounded-lg border border-slate-300 bg-white px-2 text-base">
               {libres.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -513,7 +540,7 @@ function Publicaciones({ escribe, idea, cuentas, publicaciones }: { escribe: boo
             </select>
             <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Enlace de la publicación" className="min-h-11 rounded-lg border border-slate-300 px-3 text-base" />
           </div>
-          <button type="button" disabled={pendiente || !cuenta} onClick={registrar} className="min-h-11 w-full rounded-lg bg-slate-900 text-sm font-semibold text-white disabled:opacity-40">
+          <button type="button" disabled={pendiente || !cuenta || !fecha} onClick={registrar} className="min-h-11 w-full rounded-lg bg-slate-900 text-sm font-semibold text-white disabled:opacity-40">
             Registrar que salió
           </button>
         </div>

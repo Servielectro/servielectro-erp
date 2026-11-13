@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { CADENCIA_SEMANAL, COLOR_ESTADO, ETIQUETA_CANAL, ETIQUETA_ESTADO, ETIQUETA_TIPO, fechaCorta, hoyBogota, type EstadoIdea } from "@/lib/marketing";
+import { CADENCIA_SEMANAL, COLOR_ESTADO, ETIQUETA_CANAL, ETIQUETA_ESTADO, ETIQUETA_TIPO, advertenciaDe, fechaCorta, hoyBogota, serieDe, type EstadoIdea } from "@/lib/marketing";
 
 interface IdeaCal {
   id: string;
@@ -9,19 +9,27 @@ interface IdeaCal {
   canales: string[];
   estado: EstadoIdea;
   fecha_programada: string;
+  notas: string | null;
 }
 
 const DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 /**
- * El calendario de contenido (migración 125): lo que tiene fecha, en vista de mes o de lista. Cada
- * semana muestra cuántas lleva contra la cadencia aprobada (3 por semana). Las ideas sin fecha
- * viven en el tablero de Ideas.
+ * El calendario de contenido (migración 125): abre en la semana, para ver qué toca grabar, y
+ * también tiene mes y lista. Cada semana muestra cuántas lleva contra la cadencia aprobada
+ * (3 por semana). Las ideas sin fecha viven en el tablero de Ideas.
  */
-export default async function CalendarioPage({ searchParams }: { searchParams: Promise<{ mes?: string; vista?: string }> }) {
-  const { mes: mesParam, vista } = await searchParams;
+export default async function CalendarioPage({ searchParams }: { searchParams: Promise<{ mes?: string; vista?: string; semana?: string }> }) {
+  const { mes: mesParam, vista, semana: semanaParam } = await searchParams;
   const hoy = hoyBogota();
+  const esSemana = vista !== "mes" && vista !== "lista";
+  const base = /^\d{4}-\d{2}-\d{2}$/.test(semanaParam ?? "") ? (semanaParam as string) : hoy;
+  const [ba, bm, bd] = base.split("-").map(Number);
+  const lunes = new Date(ba, bm - 1, bd);
+  lunes.setDate(lunes.getDate() - ((lunes.getDay() + 6) % 7));
+  const diasSemana = Array.from({ length: 7 }, (_, i) => new Date(lunes.getFullYear(), lunes.getMonth(), lunes.getDate() + i));
+  const otraSemana = (delta: number) => iso(new Date(lunes.getFullYear(), lunes.getMonth(), lunes.getDate() + delta * 7));
   const mes = /^\d{4}-\d{2}$/.test(mesParam ?? "") ? (mesParam as string) : hoy.slice(0, 7);
   const [anio, m] = mes.split("-").map(Number);
   const primero = new Date(anio, m - 1, 1);
@@ -36,10 +44,10 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
   const [ideasRes, sinFechaRes] = await Promise.all([
     supabase
       .from("marketing_ideas")
-      .select("id, titulo, tipo, canales, estado, fecha_programada")
+      .select("id, titulo, tipo, canales, estado, fecha_programada, notas")
       .neq("estado", "descartada")
-      .gte("fecha_programada", iso(inicio))
-      .lte("fecha_programada", iso(fin))
+      .gte("fecha_programada", iso(esSemana ? diasSemana[0] : inicio))
+      .lte("fecha_programada", iso(esSemana ? diasSemana[6] : fin))
       .order("fecha_programada"),
     supabase.from("marketing_ideas").select("id", { count: "exact", head: true }).is("fecha_programada", null).not("estado", "in", "(descartada,publicada)"),
   ]);
@@ -59,8 +67,10 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   };
   const esLista = vista === "lista";
-  const enlace = (mm: string, v = vista) => `/marketing/calendario?mes=${mm}${v === "lista" ? "&vista=lista" : ""}`;
+  const enlace = (mm: string, v = vista) => `/marketing/calendario?mes=${mm}&vista=${v === "lista" ? "lista" : "mes"}`;
   const nombreMes = primero.toLocaleDateString("es-CO", { month: "long", year: "numeric" });
+  const tituloSemana = `${diasSemana[0].toLocaleDateString("es-CO", { day: "numeric", month: "short" })} al ${diasSemana[6].toLocaleDateString("es-CO", { day: "numeric", month: "short" })}`;
+  const enSemana = cuentanEnSemana(diasSemana);
 
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 space-y-3 p-4 sm:p-6 lg:max-w-6xl">
@@ -70,7 +80,10 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-lg font-bold text-slate-900">Calendario de contenido</h1>
         <div className="flex gap-1 rounded-lg border border-slate-300 bg-white p-0.5 text-sm">
-          <Link href={enlace(mes, "mes")} className={`flex min-h-10 items-center rounded-md px-3 ${!esLista ? "bg-slate-900 text-white" : "text-slate-700"}`}>
+          <Link href="/marketing/calendario" className={`flex min-h-10 items-center rounded-md px-3 ${esSemana ? "bg-slate-900 text-white" : "text-slate-700"}`}>
+            Semana
+          </Link>
+          <Link href={enlace(mes, "mes")} className={`flex min-h-10 items-center rounded-md px-3 ${!esLista && !esSemana ? "bg-slate-900 text-white" : "text-slate-700"}`}>
             Mes
           </Link>
           <Link href={enlace(mes, "lista")} className={`flex min-h-10 items-center rounded-md px-3 ${esLista ? "bg-slate-900 text-white" : "text-slate-700"}`}>
@@ -79,11 +92,11 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
         </div>
       </div>
       <div className="flex items-center justify-between gap-2">
-        <Link href={enlace(otroMes(-1))} className="flex min-h-11 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm">
+        <Link href={esSemana ? `/marketing/calendario?semana=${otraSemana(-1)}` : enlace(otroMes(-1))} className="flex min-h-11 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm">
           ← Anterior
         </Link>
-        <p className="text-sm font-semibold capitalize text-slate-900">{nombreMes}</p>
-        <Link href={enlace(otroMes(1))} className="flex min-h-11 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm">
+        <p className="text-sm font-semibold capitalize text-slate-900">{esSemana ? `${tituloSemana} · ${enSemana} de ${CADENCIA_SEMANAL}` : nombreMes}</p>
+        <Link href={esSemana ? `/marketing/calendario?semana=${otraSemana(1)}` : enlace(otroMes(1))} className="flex min-h-11 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm">
           Siguiente →
         </Link>
       </div>
@@ -98,7 +111,43 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
       )}
       {ideasRes.error && <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">No se pudo leer el calendario: {ideasRes.error.message}</p>}
 
-      {esLista ? (
+      {esSemana ? (
+        <ol className="space-y-2">
+          {diasSemana.map((d) => {
+            const dia = iso(d);
+            const delDia = porDia.get(dia) ?? [];
+            return (
+              <li key={dia} className={`rounded-lg border bg-white p-2 ${dia === hoy ? "border-brand-red" : "border-slate-300"}`}>
+                <p className={`text-sm font-bold capitalize ${dia === hoy ? "text-brand-red" : delDia.length ? "text-slate-900" : "text-slate-400"}`}>
+                  {d.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "short" })}
+                  {dia === hoy ? " · hoy" : ""}
+                </p>
+                {delDia.length > 0 && (
+                  <ul className="mt-1 space-y-1.5">
+                    {delDia.map((i) => {
+                      const serie = serieDe(i.notas);
+                      const advertencia = advertenciaDe(i.notas);
+                      return (
+                        <li key={i.id}>
+                          <Link href={`/marketing/ideas/${i.id}`} className="block min-h-11 space-y-1 rounded-lg border border-slate-200 p-2 active:bg-slate-50">
+                            <span className="block text-base font-semibold text-slate-900">{i.titulo}</span>
+                            <span className="flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
+                              <span className={`rounded-full border px-2 py-0.5 font-semibold ${COLOR_ESTADO[i.estado]}`}>{ETIQUETA_ESTADO[i.estado]}</span>
+                              {serie && <span className="font-semibold text-slate-700">{serie}</span>}
+                              <span>{i.canales.map((c) => ETIQUETA_CANAL[c] ?? c).join(", ")}</span>
+                            </span>
+                            {advertencia && <span className="block rounded-md border border-amber-500 bg-amber-50 px-2 py-1 text-sm font-semibold text-amber-950">⚠ Tiene una condición antes de grabar: ábrela</span>}
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      ) : esLista ? (
         <ul className="divide-y divide-slate-100 rounded-lg border border-slate-300 bg-white">
           {ideas.filter((i) => i.fecha_programada.startsWith(mes)).length === 0 && <li className="p-4 text-center text-sm text-slate-500">Nada con fecha en este mes.</li>}
           {ideas

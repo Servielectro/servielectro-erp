@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso } from "@/lib/permisos";
-import { CADENCIA_SEMANAL, ETIQUETA_CANAL, ETIQUETA_TIPO, hoyBogota } from "@/lib/marketing";
+import { CADENCIA_SEMANAL, ETIQUETA_CANAL, ETIQUETA_TIPO, hoyBogota, serieDe } from "@/lib/marketing";
 import { TablaPublicaciones, type FilaPublicacion, type Medicion } from "./TablaPublicaciones";
+import { Retorno, type FilaRetorno } from "./Retorno";
 
 interface PubCruda {
   id: string;
   publicado_en: string;
   url: string | null;
-  marketing_ideas: { id: string; titulo: string; tipo: string } | null;
+  marketing_ideas: { id: string; titulo: string; tipo: string; notas: string | null } | null;
   marketing_cuentas: { canal: string; nombre: string } | null;
 }
 
@@ -23,9 +24,10 @@ const miles = (v: number) => v.toLocaleString("es-CO");
 interface Grupo {
   publicaciones: number;
   medidas: number;
+  guardados: number;
+  comentarios: number;
   alcance: number;
   interacciones: number;
-  clics: number;
 }
 
 /**
@@ -34,13 +36,15 @@ interface Grupo {
  */
 export default async function ReportesPage() {
   const supabase = await createClient();
-  const [escribe, pubRes, metRes] = await Promise.all([
+  const [escribe, veComercial, pubRes, metRes, retornoRes] = await Promise.all([
     tienePermiso("marketing", "trabajar"),
-    supabase.from("marketing_publicaciones").select("id, publicado_en, url, marketing_ideas(id, titulo, tipo), marketing_cuentas(canal, nombre)").order("publicado_en", { ascending: false }).limit(500),
+    tienePermiso("comercial", "consultar"),
+    supabase.from("marketing_publicaciones").select("id, publicado_en, url, marketing_ideas(id, titulo, tipo, notas), marketing_cuentas(canal, nombre)").order("publicado_en", { ascending: false }).limit(500),
     supabase.from("marketing_metricas").select("publicacion_id, medida_en, alcance, impresiones, interacciones, clics, guardados, comentarios").order("medida_en", { ascending: false }),
+    supabase.from("v_marketing_retorno").select("*"),
   ]);
-  const ultima = new Map<string, Medicion>();
-  for (const m of (metRes.data ?? []) as (Medicion & { publicacion_id: string })[]) if (!ultima.has(m.publicacion_id)) ultima.set(m.publicacion_id, m);
+  const porPublicacion = new Map<string, Medicion[]>();
+  for (const m of (metRes.data ?? []) as (Medicion & { publicacion_id: string })[]) porPublicacion.set(m.publicacion_id, [...(porPublicacion.get(m.publicacion_id) ?? []), m]);
   const pubs: FilaPublicacion[] = ((pubRes.data ?? []) as unknown as PubCruda[]).map((p) => ({
     id: p.id,
     publicado_en: p.publicado_en,
@@ -50,7 +54,9 @@ export default async function ReportesPage() {
     tipo: p.marketing_ideas?.tipo ?? "",
     canal: p.marketing_cuentas?.canal ?? "",
     cuenta: p.marketing_cuentas?.nombre ?? "",
-    ultima: ultima.get(p.id) ?? null,
+    serie: serieDe(p.marketing_ideas?.notas ?? null),
+    mediciones: porPublicacion.get(p.id) ?? [],
+    ultima: porPublicacion.get(p.id)?.[0] ?? null,
   }));
 
   // Totales con la última medición de cada publicación.
@@ -58,17 +64,19 @@ export default async function ReportesPage() {
     const g = new Map<string, Grupo>();
     for (const p of pubs) {
       const k = clave(p);
-      const x = g.get(k) ?? { publicaciones: 0, medidas: 0, alcance: 0, interacciones: 0, clics: 0 };
+      const x = g.get(k) ?? { publicaciones: 0, medidas: 0, guardados: 0, comentarios: 0, alcance: 0, interacciones: 0 };
       x.publicaciones++;
       if (p.ultima) {
         x.medidas++;
+        x.guardados += n(p.ultima.guardados);
+        x.comentarios += n(p.ultima.comentarios);
         x.alcance += n(p.ultima.alcance);
         x.interacciones += n(p.ultima.interacciones);
-        x.clics += n(p.ultima.clics);
       }
       g.set(k, x);
     }
-    return [...g.entries()].sort((a, b) => b[1].alcance - a[1].alcance);
+    // Manda lo que el plan persigue, no el alcance.
+    return [...g.entries()].sort((a, b) => b[1].guardados + b[1].comentarios - (a[1].guardados + a[1].comentarios));
   };
 
   // Cadencia de las últimas 8 semanas.
@@ -109,7 +117,9 @@ export default async function ReportesPage() {
           ))}
         </div>
       </section>
-      <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
+      <Retorno veComercial={veComercial} filas={(retornoRes.data ?? []) as FilaRetorno[]} error={retornoRes.error?.message ?? null} />
+      <div className="space-y-3 lg:grid lg:grid-cols-3 lg:gap-3 lg:space-y-0">
+        <Tabla titulo="Por serie" filas={agrupar((p) => p.serie ?? "Sin serie")} etiqueta={(k) => k} />
         <Tabla titulo="Por canal" filas={agrupar((p) => p.canal)} etiqueta={(k) => ETIQUETA_CANAL[k] ?? k} />
         <Tabla titulo="Por tipo de contenido" filas={agrupar((p) => p.tipo)} etiqueta={(k) => ETIQUETA_TIPO[k] ?? k} />
       </div>
@@ -130,9 +140,9 @@ function Tabla({ titulo, filas, etiqueta }: { titulo: string; filas: [string, Gr
             <tr>
               <th className="py-1 font-semibold" />
               <th className="py-1 text-right font-semibold">Publ.</th>
+              <th className="py-1 text-right font-bold text-slate-900">Guard.</th>
+              <th className="py-1 text-right font-bold text-slate-900">Coment.</th>
               <th className="py-1 text-right font-semibold">Alcance</th>
-              <th className="py-1 text-right font-semibold">Interacc.</th>
-              <th className="py-1 text-right font-semibold">Tasa</th>
             </tr>
           </thead>
           <tbody>
@@ -143,9 +153,9 @@ function Tabla({ titulo, filas, etiqueta }: { titulo: string; filas: [string, Gr
                   {x.publicaciones}
                   {x.medidas < x.publicaciones && <span className="text-xs text-amber-700"> ({x.publicaciones - x.medidas} sin medir)</span>}
                 </td>
-                <td className="py-1.5 text-right">{miles(x.alcance)}</td>
-                <td className="py-1.5 text-right">{miles(x.interacciones)}</td>
-                <td className="py-1.5 text-right">{x.alcance ? `${((x.interacciones / x.alcance) * 100).toFixed(1)}%` : "—"}</td>
+                <td className="py-1.5 text-right font-bold">{miles(x.guardados)}</td>
+                <td className="py-1.5 text-right font-bold">{miles(x.comentarios)}</td>
+                <td className="py-1.5 text-right text-slate-600">{miles(x.alcance)}</td>
               </tr>
             ))}
           </tbody>
