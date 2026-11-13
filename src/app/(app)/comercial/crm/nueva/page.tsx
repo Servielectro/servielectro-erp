@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PIPELINE_LABEL, type TipoPipeline } from "@/lib/crm";
+import { getPublicacionesCrm } from "@/lib/supabase/crm";
 import { NuevaOportunidadForm } from "./NuevaOportunidadForm";
 import type { ClienteResumen } from "@/lib/supabase/clientes";
 
@@ -9,7 +10,7 @@ export default async function NuevaOportunidadPage(props: PageProps<"/comercial/
   const tipo: TipoPipeline = p === "renovacion" ? "renovacion" : "proyecto_nuevo";
 
   const supabase = await createClient();
-  const [{ data }, { data: cotizaciones }, { data: totales }, origenRes] = await Promise.all([
+  const [{ data }, { data: cotizaciones }, { data: totales }, origenRes, publicaciones] = await Promise.all([
     supabase
       .from("clientes")
       .select("id, nombre, nit, direccion, email, contacto, telefono")
@@ -22,6 +23,7 @@ export default async function NuevaOportunidadPage(props: PageProps<"/comercial/
     supabase.from("v_cotizacion_totales_iva").select("cotizacion_id, total_cotizacion"),
     // ¿Ya corrió la migración 74? (origen del lead)
     supabase.from("oportunidades").select("origen_lead").limit(1),
+    getPublicacionesCrm(supabase),
   ]);
   const totalPor = new Map(
     (totales ?? []).map((t) => [t.cotizacion_id as string, Number(t.total_cotizacion)]),
@@ -41,6 +43,7 @@ export default async function NuevaOportunidadPage(props: PageProps<"/comercial/
       </p>
       <NuevaOportunidadForm
         conOrigen={!origenRes.error}
+        publicaciones={publicaciones}
         tipo={tipo}
         clientes={(data ?? []) as ClienteResumen[]}
         cotizaciones={(cotizaciones ?? []).map((c) => ({

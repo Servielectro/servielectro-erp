@@ -22,6 +22,7 @@ async function puedeTrabajar() {
 }
 
 const SIN_PERMISO = "No tienes permiso para trabajar en Comercial";
+const SOLO_REDES = "Solo un negocio con origen «redes sociales» se puede atar a una publicación";
 
 function refrescar(id?: string) {
   revalidatePath("/comercial/crm");
@@ -47,8 +48,11 @@ export async function crearOportunidad(input: {
   viaAprobacion: ViaAprobacion | null;
   /** Solo se manda cuando existe la columna (migración 74). */
   origenLead?: string | null;
+  /** Solo se manda cuando existe la columna (migración 151). */
+  marketingPublicacionId?: string | null;
 }): Promise<Resultado<{ id: string }>> {
   if (!(await puedeTrabajar())) return { ok: false, error: SIN_PERMISO };
+  if (input.marketingPublicacionId && input.origenLead !== "redes_sociales") return { ok: false, error: SOLO_REDES };
   const nombre = input.nombre.trim();
   if (!nombre) return { ok: false, error: "Falta el nombre del negocio" };
   // El cliente se elige de la lista o se crea en la ventana «+ Nuevo cliente» (que no
@@ -72,6 +76,7 @@ export async function crearOportunidad(input: {
       valor_estimado: input.cotizacionId ? null : input.valorEstimado,
       via_aprobacion: input.viaAprobacion,
       ...(input.origenLead !== undefined ? { origen_lead: input.origenLead } : {}),
+      ...(input.marketingPublicacionId !== undefined ? { marketing_publicacion_id: input.marketingPublicacionId } : {}),
     })
     .select("id")
     .single();
@@ -173,10 +178,12 @@ export async function actualizarDatos(
     requiereExpensaExtraordinaria: boolean | null;
     fechaEstimadaDecision: string | null;
     origenLead?: string | null;
+    marketingPublicacionId?: string | null;
   },
 ): Promise<Resultado> {
   if (!(await puedeTrabajar())) return { ok: false, error: SIN_PERMISO };
   if (!datos.nombre.trim()) return { ok: false, error: "Falta el nombre del negocio" };
+  if (datos.marketingPublicacionId && datos.origenLead !== "redes_sociales") return { ok: false, error: SOLO_REDES };
   const supabase = await createClient();
   const { error } = await supabase
     .from("oportunidades")
@@ -188,6 +195,7 @@ export async function actualizarDatos(
       requiere_expensa_extraordinaria: datos.requiereExpensaExtraordinaria,
       fecha_estimada_decision: datos.fechaEstimadaDecision,
       ...(datos.origenLead !== undefined ? { origen_lead: datos.origenLead } : {}),
+      ...(datos.marketingPublicacionId !== undefined ? { marketing_publicacion_id: datos.marketingPublicacionId } : {}),
     })
     .eq("id", id);
   if (error) return { ok: false, error: mensaje(error) };

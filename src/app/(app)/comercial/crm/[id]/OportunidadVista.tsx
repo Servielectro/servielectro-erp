@@ -19,6 +19,7 @@ import {
 } from "@/lib/crm";
 import { formatCOP } from "@/lib/pricing";
 import { ORIGENES } from "@/lib/crm-filtros";
+import { SelectorPublicacion } from "@/components/crm/SelectorPublicacion";
 import {
   actualizarDatos,
   agregarContacto,
@@ -418,6 +419,9 @@ function Pronostico({ o, pendiente, correr }: { o: OportunidadDetalle; pendiente
   const [expensa, setExpensa] = useState(expensaTexto);
   const [fechaDecision, setFechaDecision] = useState(o.fechaEstimadaDecision ?? "");
   const [origen, setOrigen] = useState(o.origenLead ?? "");
+  const [publicacionElegida, setPublicacion] = useState(o.marketingPublicacionId ?? "");
+  // Fuera de redes sociales no aplica: al cambiar el origen, el vínculo se suelta.
+  const publicacion = origen === "redes_sociales" ? publicacionElegida : "";
   const [guardado, setGuardado] = useState(false);
 
   const cotizacionElegida = o.cotizacionesCliente.find((c) => c.id === cotizacionId);
@@ -428,7 +432,8 @@ function Pronostico({ o, pendiente, correr }: { o: OportunidadDetalle; pendiente
     via !== (o.viaAprobacion ?? "") ||
     expensa !== expensaTexto ||
     fechaDecision !== (o.fechaEstimadaDecision ?? "") ||
-    (o.origenLead !== undefined && origen !== (o.origenLead ?? ""));
+    (o.origenLead !== undefined && origen !== (o.origenLead ?? "")) ||
+    (o.marketingPublicacionId !== undefined && publicacion !== (o.marketingPublicacionId ?? ""));
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-3">
@@ -557,6 +562,12 @@ function Pronostico({ o, pendiente, correr }: { o: OportunidadDetalle; pendiente
             </select>
           </label>
         )}
+        {origen === "redes_sociales" && o.marketingPublicacionId !== undefined && o.publicacionesRecientes && (
+          <label className="block text-xs text-slate-600 sm:col-span-2">
+            ¿De qué publicación? (opcional)
+            <SelectorPublicacion publicaciones={o.publicacionesRecientes} valor={publicacion} onCambio={setPublicacion} className="mt-0.5 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm" />
+          </label>
+        )}
       </div>
       {(cambiado || guardado) && (
         <button
@@ -578,6 +589,7 @@ function Pronostico({ o, pendiente, correr }: { o: OportunidadDetalle; pendiente
                   requiereExpensaExtraordinaria: expensa === "" ? null : expensa === "si",
                   fechaEstimadaDecision: fechaDecision || null,
                   ...(o.origenLead !== undefined ? { origenLead: origen || null } : {}),
+                  ...(o.marketingPublicacionId !== undefined ? { marketingPublicacionId: publicacion || null } : {}),
                 }),
               () => setGuardado(true),
             );

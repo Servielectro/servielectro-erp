@@ -176,6 +176,9 @@ export interface OportunidadDetalle {
   fechaEstimadaDecision: string | null;
   /** Migración 74. undefined = la columna todavía no existe (no se muestra ni se guarda). */
   origenLead?: string | null;
+  /** Migración 151. undefined = todavía no existe (no se muestra ni se guarda). */
+  marketingPublicacionId?: string | null;
+  publicacionesRecientes?: PublicacionCrm[];
   motivoPerdida: MotivoPerdida | null;
   motivoPerdidaDetalle: string | null;
   competidorGanador: string | null;
@@ -229,7 +232,7 @@ export async function getOportunidadDetalle(
     nombre: string;
   };
 
-  const [historialRes, contactosRes, cotizacionesRes, totales, origenRes] = await Promise.all([
+  const [historialRes, contactosRes, cotizacionesRes, totales, origenRes, publicacionRes, publicacionesRecientes] = await Promise.all([
     supabase
       .from("oportunidad_etapas_historial")
       .select("id, etapa_id, estado, fecha_entrada, fecha_salida, valor")
@@ -248,8 +251,12 @@ export async function getOportunidadDetalle(
     totalesCotizaciones(supabase, o.cotizacion_id ? [o.cotizacion_id] : []),
     // Aparte, para que el detalle no se caiga mientras no corra la migración 74.
     supabase.from("oportunidades").select("origen_lead").eq("id", id).maybeSingle(),
+    // Igual, mientras no corra la migración 151.
+    supabase.from("oportunidades").select("marketing_publicacion_id").eq("id", id).maybeSingle(),
+    getPublicacionesCrm(supabase),
   ]);
   const origenLead = origenRes.error ? undefined : ((origenRes.data as { origen_lead: string | null } | null)?.origen_lead ?? null);
+  const marketingPublicacionId = publicacionRes.error ? undefined : ((publicacionRes.data as { marketing_publicacion_id: string | null } | null)?.marketing_publicacion_id ?? null);
   const cotizacionesCliente = (cotizacionesRes.data ?? []) as {
     id: string;
     codigo: string;
@@ -276,6 +283,8 @@ export async function getOportunidadDetalle(
     requiereExpensaExtraordinaria: o.requiere_expensa_extraordinaria,
     fechaEstimadaDecision: o.fecha_estimada_decision,
     origenLead,
+    marketingPublicacionId,
+    publicacionesRecientes,
     motivoPerdida: o.motivo_perdida,
     motivoPerdidaDetalle: o.motivo_perdida_detalle,
     competidorGanador: o.competidor_ganador,
@@ -385,6 +394,20 @@ export async function getListaCrm(
     };
   });
   return { filas, conOrigen };
+}
+
+export interface PublicacionCrm {
+  id: string;
+  titulo: string;
+  canal: string;
+  publicado_en: string;
+}
+
+/** Publicaciones para el selector del CRM (migración 151). undefined si todavía no corrió. */
+export async function getPublicacionesCrm(supabase: Db): Promise<PublicacionCrm[] | undefined> {
+  const { data, error } = await supabase.rpc("fn_crm_publicaciones_recientes");
+  if (error) return undefined;
+  return (data ?? []) as PublicacionCrm[];
 }
 
 /** Id y nombre de los responsables comerciales (migración 74). Vacío si todavía no corrió. */

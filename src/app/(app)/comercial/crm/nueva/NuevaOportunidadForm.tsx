@@ -9,6 +9,8 @@ import { crearOportunidad } from "../actions";
 import { ClienteCombobox } from "@/components/clientes/ClienteCombobox";
 import { NuevoClienteModal } from "@/components/clientes/NuevoClienteModal";
 import type { ClienteResumen } from "@/lib/supabase/clientes";
+import type { PublicacionCrm } from "@/lib/supabase/crm";
+import { SelectorPublicacion } from "@/components/crm/SelectorPublicacion";
 
 // Cuatro campos y nada más: si crear un negocio cuesta, no se registra. Si el cliente
 // ya tiene cotizaciones, el valor sale de la que se elija (valor real, no estimado);
@@ -18,9 +20,12 @@ export function NuevaOportunidadForm({
   clientes,
   cotizaciones,
   conOrigen,
+  publicaciones,
 }: {
   /** Existe la columna origen_lead (migración 74). */
   conOrigen: boolean;
+  /** Publicaciones de marketing (migración 151). undefined si todavía no corrió. */
+  publicaciones?: PublicacionCrm[];
   tipo: TipoPipeline;
   clientes: ClienteResumen[];
   cotizaciones: { id: string; codigo: string; descripcion: string; clienteId: string; total: number | null }[];
@@ -38,6 +43,7 @@ export function NuevaOportunidadForm({
   const [via, setVia] = useState<ViaAprobacion | "">("");
   const [cotizacionId, setCotizacionId] = useState("");
   const [origen, setOrigen] = useState("");
+  const [publicacion, setPublicacion] = useState("");
 
   const cotizacionesCliente = clienteElegido
     ? cotizaciones.filter((c) => c.clienteId === clienteElegido.id)
@@ -66,6 +72,8 @@ export function NuevaOportunidadForm({
             cotizacionId: cotizacionValida || null,
             viaAprobacion: via || null,
             ...(conOrigen ? { origenLead: origen || null } : {}),
+            // Si cambió de origen después de elegir, la publicación elegida deja de aplicar.
+            ...(conOrigen && publicaciones ? { marketingPublicacionId: origen === "redes_sociales" ? publicacion || null : null } : {}),
           });
           if (!res.ok) setError(res.error);
           else router.push(`/comercial/crm/${res.id}`);
@@ -175,6 +183,12 @@ export function NuevaOportunidadForm({
               </option>
             ))}
           </select>
+        </Campo>
+      )}
+
+      {conOrigen && origen === "redes_sociales" && publicaciones && (
+        <Campo label="¿De qué publicación? (opcional)">
+          <SelectorPublicacion publicaciones={publicaciones} valor={publicacion} onCambio={setPublicacion} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" />
         </Campo>
       )}
 
