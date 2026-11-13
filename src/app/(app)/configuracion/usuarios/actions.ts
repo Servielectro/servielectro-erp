@@ -65,6 +65,12 @@ export async function asignarRol(
     return { ok: false, error: "No puedes cambiar tu propio rol" };
   }
   if (await esRolCliente(ctx.supabase, rolId)) return { ok: false, error: AVISO_ROL_CLIENTE };
+  // Dado de baja (migración 153): darle rol le devolvería los datos con la cuenta bloqueada. Se
+  // reactiva primero. Si la 153 no está, la consulta falla y se sigue como antes.
+  const { data: estado } = await ctx.supabase.from("perfiles").select("activo").eq("id", usuarioId).maybeSingle();
+  if ((estado as { activo?: boolean } | null)?.activo === false) {
+    return { ok: false, error: "Esa persona está dada de baja: reactívala primero (vuelve con el rol que tenía)." };
+  }
   const { error } = await ctx.supabase
     .from("perfiles")
     .upsert({ id: usuarioId, rol_id: rolId }, { onConflict: "id" });
@@ -135,6 +141,247 @@ export async function crearUsuario(input: {
 
   refrescar();
   return { ok: true, id: data.user.id };
+}
+
+// ---------------------------------------------------------------- correo, baja y borrado
+// Las tres tocan Auth con la clave secreta. Orden fijo en todas: permiso de responsable de
+// Configuración (contexto) → candados → recién ahí createAdminClient(). La clave nunca sale del
+// servidor ("server-only" en admin.ts) y no hay ningún atajo por variable de entorno.
+
+const SIN_CLAVE = "Falta configurar la clave secreta de Supabase en Vercel (SUPABASE_SECRET_KEY)";
+const FALTA_153 = "Falta correr la migración 20261203000153_usuarios_baja_y_borrado en Supabase";
+// Bloqueo en Auth para la baja: GoTrue no tiene "para siempre"; 100 años lo es en la práctica.
+const BAN_BAJA = "876000h";
+
+const esUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+
+type Supa = Awaited<ReturnType<typeof createClient>>;
+
+/** ¿Es una cuenta del portal del cliente? (rol Cliente o enlace en cliente_usuarios, activo o no) */
+async function esCuentaDeCliente(supabase: Supa, usuarioId: string, rolId: string | null): Promise<boolean> {
+  if (await esRolCliente(supabase, rolId)) return true;
+  const { data } = await supabase.from("cliente_usuarios").select("perfil_id").eq("perfil_id", usuarioId).maybeSingle();
+  return Boolean(data);
+}
+const AVISO_CUENTA_CLIENTE =
+  "Esta es una cuenta del portal del cliente: se desactiva en Configuración → Usuarios del portal del cliente, no aquí.";
+
+/**
+ * Cambia el correo con el que entra la persona.
+ *
+ * DECISIÓN: el correo nuevo queda CONFIRMADO de una vez (email_confirm: true), igual que en
+ * crearUsuario. Si quedara pendiente de confirmación, Supabase manda un enlace al correo nuevo y
+ * hasta que no se abra la persona sigue entrando con el viejo (o, con la confirmación doble, con
+ * ninguno de los dos si se pierde el correo); este ERP no manda correos de Auth y quien hace el
+ * cambio es el administrador, que ya verificó el dato. Confirmarlo es lo que no deja a nadie afuera.
+ *
+ * La contraseña no cambia. La sesión abierta de esa persona NO se cierra: sigue trabajando, y la
+ * próxima vez que inicie sesión tiene que usar el correo nuevo.
+ */
+export async function cambiarCorreo(usuarioId: string, correo: string): Promise<Resultado> {
+  const ctx = await contexto();
+  if (!ctx.ok) return ctx;
+  if (!esUuid(usuarioId)) return { ok: false, error: "Datos no válidos" };
+  const email = correo.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: "El correo no es válido" };
+  if (!hayClaveSecreta()) return { ok: false, error: SIN_CLAVE };
+
+  // Antes de ir a Auth: ¿ya lo usa otra cuenta? fn_listar_usuarios trae TODAS las cuentas (con o
+  // sin perfil) a quien es responsable de Configuración. Así el mensaje dice quién, en vez del
+  // error crudo de Supabase. Auth lo vuelve a revisar abajo por si dos cambios se cruzan.
+  const { data: cuentas } = await ctx.supabase.rpc("fn_listar_usuarios");
+  const lista = (cuentas ?? []) as { id: string; email: string | null; nombre: string | null }[];
+  const actual = lista.find((u) => u.id === usuarioId);
+  if (!actual) return { ok: false, error: "No se encontró el usuario" };
+  if ((actual.email ?? "").toLowerCase() === email) return { ok: false, error: "Ese ya es su correo" };
+  const otro = lista.find((u) => u.id !== usuarioId && (u.email ?? "").toLowerCase() === email);
+  if (otro) {
+    return { ok: false, error: `Ese correo ya lo usa otra cuenta${otro.nombre ? ` (${otro.nombre})` : ""}. Cada persona entra con un correo distinto.` };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.auth.admin.updateUserById(usuarioId, { email, email_confirm: true });
+  if (error) {
+    const repetido = error.code === "email_exists" || /already|registered|exists/i.test(error.message);
+    return { ok: false, error: repetido ? "Ese correo ya lo usa otra cuenta. Cada persona entra con un correo distinto." : `No se pudo cambiar el correo (${error.message})` };
+  }
+  refrescar();
+  return { ok: true };
+}
+
+/**
+ * Baja: deja de poder entrar, sale de los selectores, su nombre sigue en lo que hizo.
+ * Orden: bloqueo en Auth (ban) → baja en la base (quita el rol, cierra sesiones, guarda motivo).
+ * Si la base rechaza (candado, ya estaba de baja…), se deshace el bloqueo: nunca queda una cuenta
+ * activa en la app pero bloqueada en Auth sin que nadie lo sepa.
+ */
+export async function darDeBaja(usuarioId: string, motivo: string): Promise<Resultado<{ aviso?: string }>> {
+  const ctx = await contexto();
+  if (!ctx.ok) return ctx;
+  if (!esUuid(usuarioId)) return { ok: false, error: "Datos no válidos" };
+  if (usuarioId === ctx.userId) return { ok: false, error: "No puedes darte de baja a ti mismo" };
+  const limpio = motivo.trim();
+  if (limpio.length < 4) return { ok: false, error: "Escribe el motivo de la baja" };
+
+  const { data: perfil, error: errPerfil } = await ctx.supabase
+    .from("perfiles")
+    .select("rol_id, activo")
+    .eq("id", usuarioId)
+    .maybeSingle();
+  if (errPerfil) return { ok: false, error: /activo/.test(errPerfil.message) ? FALTA_153 : errPerfil.message };
+  const p = perfil as { rol_id: string | null; activo: boolean } | null;
+  if (p && !p.activo) return { ok: false, error: "Esa persona ya estaba dada de baja" };
+  if (await esCuentaDeCliente(ctx.supabase, usuarioId, p?.rol_id ?? null)) return { ok: false, error: AVISO_CUENTA_CLIENTE };
+  const { data: otros, error: errOtros } = await ctx.supabase.rpc("fn_otros_responsables_config", { p_excepto: usuarioId });
+  if (errOtros) return { ok: false, error: /fn_otros_responsables_config/.test(errOtros.message) ? FALTA_153 : errOtros.message };
+  if ((otros as number) === 0) {
+    return { ok: false, error: "No se puede: el sistema quedaría sin ningún responsable de Configuración activo" };
+  }
+  if (!hayClaveSecreta()) return { ok: false, error: SIN_CLAVE };
+
+  const admin = createAdminClient();
+  const { error: errBan } = await admin.auth.admin.updateUserById(usuarioId, { ban_duration: BAN_BAJA });
+  if (errBan) return { ok: false, error: `No se pudo bloquear la cuenta en Auth (${errBan.message}). No se cambió nada.` };
+
+  const { data: sesiones, error } = await ctx.supabase.rpc("fn_dar_de_baja_usuario", { p_usuario: usuarioId, p_motivo: limpio });
+  if (error) {
+    const { error: errDeshacer } = await admin.auth.admin.updateUserById(usuarioId, { ban_duration: "none" });
+    const motivoError = /fn_dar_de_baja_usuario/.test(error.message) ? FALTA_153 : error.message;
+    return {
+      ok: false,
+      error: errDeshacer
+        ? `${motivoError}. Además la cuenta quedó bloqueada en Auth (${errDeshacer.message}): vuelve a intentar la baja o reactívala.`
+        : motivoError,
+    };
+  }
+  refrescar();
+  // null = la base no dejó borrar auth.sessions. Igual queda afuera: sin rol la RLS no le deja ver
+  // nada, y al vencer su token (≤ 1 h) no lo puede renovar porque está bloqueado.
+  return sesiones === null
+    ? { ok: true, aviso: "No se pudieron cerrar sus sesiones abiertas desde la base: ya no ve ningún dato, y en máximo una hora se le cierra sola." }
+    : { ok: true };
+}
+
+/** Reactivar: vuelve con el rol que tenía. Primero se le quita el bloqueo de Auth. */
+export async function reactivarUsuario(usuarioId: string): Promise<Resultado<{ sinRol: boolean }>> {
+  const ctx = await contexto();
+  if (!ctx.ok) return ctx;
+  if (!esUuid(usuarioId)) return { ok: false, error: "Datos no válidos" };
+  if (!hayClaveSecreta()) return { ok: false, error: SIN_CLAVE };
+
+  const admin = createAdminClient();
+  const { error: errBan } = await admin.auth.admin.updateUserById(usuarioId, { ban_duration: "none" });
+  if (errBan) return { ok: false, error: `No se pudo quitar el bloqueo en Auth (${errBan.message}). No se cambió nada.` };
+
+  const { data: rol, error } = await ctx.supabase.rpc("fn_reactivar_usuario", { p_usuario: usuarioId });
+  if (error) {
+    // Si la base dice que ya estaba activa, quitar el bloqueo era justo lo que faltaba: no se deshace.
+    if (/ya estaba activa/.test(error.message)) {
+      refrescar();
+      return { ok: true, sinRol: false };
+    }
+    await admin.auth.admin.updateUserById(usuarioId, { ban_duration: BAN_BAJA });
+    return { ok: false, error: /fn_reactivar_usuario/.test(error.message) ? FALTA_153 : error.message };
+  }
+  refrescar();
+  return { ok: true, sinRol: !rol };
+}
+
+// Nombres para decir "a grandes rasgos" qué hizo la persona. Lo que no está aquí sale por prefijo
+// (sst_ → SG-SST…) o con el nombre de la tabla tal cual.
+const AREA_POR_TABLA: Record<string, string> = {
+  eventos: "agenda",
+  documentos: "documentos",
+  tareas: "tareas",
+  visitas: "visitas técnicas",
+  licitaciones: "licitaciones",
+  oportunidades: "CRM",
+  cotizaciones: "cotizaciones",
+  proyecto_personal: "proyectos",
+  plantilla_versiones: "plantillas",
+  cliente_portal_documentos: "portal del cliente",
+  cliente_usuarios: "portal del cliente",
+  perfiles: "usuarios",
+};
+const AREA_POR_PREFIJO: [string, string][] = [
+  ["sst_", "SG-SST"],
+  ["sgsst_", "SG-SST"],
+  ["tarea", "tareas"],
+  ["visita", "visitas técnicas"],
+  ["licitacion", "licitaciones"],
+  ["oportunidad", "CRM"],
+  ["crm_", "CRM"],
+  ["cotizacion", "cotizaciones"],
+  ["proyecto", "proyectos"],
+  ["acta", "actas"],
+  ["reunion", "reuniones"],
+  ["rrhh_", "RRHH"],
+  ["contable_", "Contable"],
+  ["caja", "caja menor"],
+  ["marketing_", "marketing"],
+  ["cliente", "clientes y portal"],
+  ["evento", "agenda"],
+  ["plantilla", "plantillas"],
+];
+function areaDeTabla(tabla: string): string {
+  if (AREA_POR_TABLA[tabla]) return AREA_POR_TABLA[tabla];
+  const prefijo = AREA_POR_PREFIJO.find(([p]) => tabla.startsWith(p));
+  return prefijo ? prefijo[1] : tabla.replace(/_/g, " ");
+}
+
+/**
+ * Borrar de verdad: solo una cuenta sin historial (creada por error). Si tiene registros, no se
+ * intenta: se devuelve `historial` con las áreas, y la pantalla ofrece la baja.
+ */
+export async function eliminarUsuario(
+  usuarioId: string,
+): Promise<Resultado | { ok: false; error: string; historial: { area: string; filas: number }[] }> {
+  const ctx = await contexto();
+  if (!ctx.ok) return ctx;
+  if (!esUuid(usuarioId)) return { ok: false, error: "Datos no válidos" };
+  if (usuarioId === ctx.userId) return { ok: false, error: "No puedes eliminar tu propia cuenta" };
+
+  const { data: perfil } = await ctx.supabase.from("perfiles").select("rol_id").eq("id", usuarioId).maybeSingle();
+  const rolId = (perfil as { rol_id: string | null } | null)?.rol_id ?? null;
+  if (await esCuentaDeCliente(ctx.supabase, usuarioId, rolId)) return { ok: false, error: AVISO_CUENTA_CLIENTE };
+
+  const { data: otros, error: errOtros } = await ctx.supabase.rpc("fn_otros_responsables_config", { p_excepto: usuarioId });
+  if (errOtros) return { ok: false, error: /fn_otros_responsables_config/.test(errOtros.message) ? FALTA_153 : errOtros.message };
+  if ((otros as number) === 0) {
+    return { ok: false, error: "No se puede: el sistema quedaría sin ningún responsable de Configuración activo" };
+  }
+
+  const { data: rastro, error: errRastro } = await ctx.supabase.rpc("fn_usuario_historial", { p_usuario: usuarioId });
+  if (errRastro) return { ok: false, error: /fn_usuario_historial/.test(errRastro.message) ? FALTA_153 : errRastro.message };
+  const filas = (rastro ?? []) as { tabla: string; columna: string; filas: number }[];
+  if (filas.length > 0) {
+    const porArea = new Map<string, number>();
+    for (const f of filas) {
+      const area = areaDeTabla(f.tabla);
+      porArea.set(area, (porArea.get(area) ?? 0) + Number(f.filas));
+    }
+    return {
+      ok: false,
+      error: "Esta persona tiene registros en el sistema y no se puede borrar sin perder quién hizo qué.",
+      historial: [...porArea].map(([area, n]) => ({ area, filas: n })).sort((a, b) => b.filas - a.filas),
+    };
+  }
+
+  if (!hayClaveSecreta()) return { ok: false, error: SIN_CLAVE };
+  const admin = createAdminClient();
+  const { error } = await admin.auth.admin.deleteUser(usuarioId);
+  if (error) {
+    // Algo apareció entre la revisión y el borrado, o una referencia sin llave conocida.
+    const porLlave = /foreign key|violates|constraint|Database error/i.test(error.message);
+    return {
+      ok: false,
+      error: porLlave
+        ? "No se pudo borrar: la base todavía tiene registros de esta persona. Dale de baja en su lugar."
+        : `No se pudo borrar la cuenta (${error.message})`,
+    };
+  }
+  refrescar();
+  return { ok: true };
 }
 
 export async function cambiarNombre(usuarioId: string, nombre: string): Promise<Resultado> {

@@ -4,13 +4,17 @@ import { useState, useTransition } from "react";
 import type { NivelPermiso } from "@/lib/permisos";
 import {
   asignarRol,
+  cambiarCorreo,
   cambiarNombre,
   cambiarDatosPersonales,
   crearRol,
   crearUsuario,
+  darDeBaja,
   eliminarRol,
+  eliminarUsuario,
   guardarPermisosRol,
   guardarSeccionesRol,
+  reactivarUsuario,
   renombrarRol,
   type FilaPermiso,
   type RecorteSeccion,
@@ -19,6 +23,8 @@ import {
 export interface DatosUsuariosAdmin {
   miId: string;
   puedeCrearUsuarios: boolean; // hay SUPABASE_SECRET_KEY en el servidor
+  /** Migración 153 corrida: hay baja, reactivación y borrado. */
+  bajaDisponible: boolean;
   usuarios: {
     id: string;
     email: string;
@@ -27,6 +33,12 @@ export interface DatosUsuariosAdmin {
     telefono: string | null;
     rolId: string | null;
     ultimoIngreso: string | null;
+    /** false = dado de baja (migración 153). */
+    activo: boolean;
+    desactivadoEn: string | null;
+    motivoBaja: string | null;
+    /** El rol con el que vuelve si se reactiva. */
+    rolAntesBaja: string | null;
   }[];
   roles: { id: string; nombre: string }[];
   modulos: { id: string; nombre: string }[];
@@ -76,6 +88,8 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
   const [nuevoRol, setNuevoRol] = useState("");
   const [nombreEdit, setNombreEdit] = useState<string | null>(null);
   const [creandoUsuario, setCreandoUsuario] = useState(false);
+  /** Resultado de intentar borrar a alguien con historial: qué tiene, para ofrecer la baja. */
+  const [historial, setHistorial] = useState<{ usuarioId: string; areas: { area: string; filas: number }[] } | null>(null);
 
   const miRolId = datos.usuarios.find((u) => u.id === datos.miId)?.rolId ?? null;
   const rolActual = datos.roles.find((r) => r.id === rolSel) ?? null;
@@ -89,6 +103,79 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
       else if (ok) setMensaje(ok);
     });
   }
+
+  const nombreDe = (u: { nombre: string | null; email: string }) => u.nombre || u.email;
+  const rolNombre = (id: string | null) => datos.roles.find((r) => r.id === id)?.nombre ?? null;
+  type Usuario = DatosUsuariosAdmin["usuarios"][number];
+
+  function pedirCorreo(u: Usuario) {
+    const nuevo = window.prompt(`Correo nuevo de ${nombreDe(u)} (con este va a entrar)`, u.email);
+    if (nuevo === null || !nuevo.trim() || nuevo.trim().toLowerCase() === u.email.toLowerCase()) return;
+    const correo = nuevo.trim().toLowerCase();
+    const ok = window.confirm(
+      `Cambiar el correo de ${nombreDe(u)} a ${correo}.\n\n` +
+        "• El correo nuevo queda activo de una vez (no tiene que confirmarlo) y el viejo deja de servir para entrar.\n" +
+        "• La contraseña no cambia.\n" +
+        "• Si tiene la sesión abierta, NO se le cierra: sigue trabajando. La próxima vez que inicie sesión tiene que usar el correo nuevo. Avísale.",
+    );
+    if (!ok) return;
+    correr(() => cambiarCorreo(u.id, correo), `Correo de ${nombreDe(u)} cambiado. Avísale que la próxima vez entre con ${correo}.`);
+  }
+
+  function pedirBaja(u: Usuario) {
+    const motivo = window.prompt(
+      `Dar de baja a ${nombreDe(u)}.\n\n` +
+        "Se le cierran las sesiones abiertas, no puede volver a entrar y deja de aparecer para asignarle trabajo. " +
+        "Su nombre sigue en todo lo que firmó o creó, y se puede reactivar después con el mismo rol.\n\n" +
+        "Motivo (ej. «Se retiró de la empresa»):",
+    );
+    if (motivo === null) return;
+    setError(null);
+    setMensaje(null);
+    startTransition(async () => {
+      const res = await darDeBaja(u.id, motivo);
+      if (!res.ok) return setError(res.error);
+      setHistorial(null);
+      setMensaje(
+        res.aviso
+          ? `${nombreDe(u)} quedó dado de baja. ${res.aviso}`
+          : `${nombreDe(u)} quedó dado de baja y se le cerraron las sesiones abiertas.`,
+      );
+    });
+  }
+
+  function pedirReactivar(u: Usuario) {
+    const rol = rolNombre(u.rolAntesBaja);
+    const texto = rol ? `, con el rol «${rol}»` : ", sin rol (asígnale uno después)";
+    if (!window.confirm(`Reactivar a ${nombreDe(u)}: vuelve a poder entrar con su correo y contraseña${texto}.`)) return;
+    setError(null);
+    setMensaje(null);
+    startTransition(async () => {
+      const res = await reactivarUsuario(u.id);
+      if (!res.ok) return setError(res.error);
+      setMensaje(res.sinRol ? `${nombreDe(u)} reactivado, sin rol: asígnale uno para que vea algo.` : `${nombreDe(u)} reactivado.`);
+    });
+  }
+
+  function pedirEliminar(u: Usuario) {
+    const ok = window.confirm(
+      `¿Eliminar del todo la cuenta de ${nombreDe(u)}?\n\n` +
+        "Solo se puede si no ha hecho nada en el sistema (una cuenta creada por error). No se puede deshacer.",
+    );
+    if (!ok) return;
+    setError(null);
+    setMensaje(null);
+    setHistorial(null);
+    startTransition(async () => {
+      const res = await eliminarUsuario(u.id);
+      if (res.ok) return setMensaje(`Cuenta de ${nombreDe(u)} eliminada.`);
+      if ("historial" in res) return setHistorial({ usuarioId: u.id, areas: res.historial });
+      setError(res.error);
+    });
+  }
+
+  // Activos primero; los dados de baja al final, en gris.
+  const usuariosOrden = [...datos.usuarios].sort((a, b) => Number(!a.activo) - Number(!b.activo));
 
   function elegirRol(id: string) {
     if (sucia && !window.confirm("Hay cambios sin guardar en este rol. ¿Descartarlos?")) return;
@@ -215,10 +302,13 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
           {datos.usuarios.length === 0 && (
             <p className="p-4 text-sm text-slate-600">No hay usuarios para mostrar.</p>
           )}
-          {datos.usuarios.map((u) => {
+          {usuariosOrden.map((u) => {
             const soyYo = u.id === datos.miId;
+            const esCliente = rolNombre(u.rolId) === "Cliente";
+            // Baja y borrado: no a uno mismo, no a cuentas del portal del cliente (tienen su pantalla).
+            const gestionable = datos.bajaDisponible && datos.puedeCrearUsuarios && !soyYo && !esCliente;
             return (
-              <div key={u.id} className="flex flex-wrap items-center gap-2 p-3">
+              <div key={u.id} className={`flex flex-wrap items-center gap-2 p-3 ${u.activo ? "" : "bg-slate-50"}`}>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-slate-900">
                     {u.nombre || u.email}
@@ -237,7 +327,26 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
                       {u.nombre ? "cambiar nombre" : "ponerle nombre"}
                     </button>
                   </p>
-                  {u.nombre && <p className="truncate text-xs text-slate-600">{u.email}</p>}
+                  <p className="truncate text-xs text-slate-600">
+                    {u.nombre ? u.email : ""}
+                    {datos.puedeCrearUsuarios && (
+                      <button
+                        type="button"
+                        disabled={pendiente}
+                        onClick={() => pedirCorreo(u)}
+                        className={`inline-flex min-h-11 items-center text-xs font-normal text-slate-500 underline ${u.nombre ? "ml-2" : ""}`}
+                      >
+                        cambiar correo
+                      </button>
+                    )}
+                  </p>
+                  {!u.activo && (
+                    <p className="text-xs font-medium text-red-700">
+                      Dado de baja{u.desactivadoEn ? ` el ${new Date(u.desactivadoEn).toLocaleDateString("es-CO")}` : ""}
+                      {u.motivoBaja ? ` · ${u.motivoBaja}` : ""}
+                      {rolNombre(u.rolAntesBaja) ? ` · tenía el rol «${rolNombre(u.rolAntesBaja)}»` : ""}
+                    </p>
+                  )}
                   <p className="text-xs text-slate-600">
                     {u.cedula ? `C.C. ${u.cedula}` : "Sin cédula"}
                     {u.telefono ? ` · ${u.telefono}` : ""}
@@ -266,11 +375,60 @@ export function UsuariosAdmin({ datos }: { datos: DatosUsuariosAdmin }) {
                       Tu propio rol no se cambia desde aquí, para que no te quites el acceso por error.
                     </p>
                   )}
+                  {esCliente && datos.bajaDisponible && (
+                    <p className="text-xs text-slate-500">
+                      Cuenta del portal del cliente: se desactiva en Configuración → Usuarios del portal del cliente.
+                    </p>
+                  )}
+                  {gestionable && (
+                    <p className="flex flex-wrap gap-x-3 text-xs">
+                      {u.activo ? (
+                        <button type="button" disabled={pendiente} onClick={() => pedirBaja(u)} className="inline-flex min-h-11 items-center text-amber-800 underline">
+                          Dar de baja
+                        </button>
+                      ) : (
+                        <button type="button" disabled={pendiente} onClick={() => pedirReactivar(u)} className="inline-flex min-h-11 items-center font-medium text-green-700 underline">
+                          Reactivar
+                        </button>
+                      )}
+                      <button type="button" disabled={pendiente} onClick={() => pedirEliminar(u)} className="inline-flex min-h-11 items-center text-red-700 underline">
+                        Eliminar cuenta
+                      </button>
+                    </p>
+                  )}
+                  {historial?.usuarioId === u.id && (
+                    <div className="mt-1 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
+                      <p className="font-medium">
+                        {nombreDe(u)} tiene registros en el sistema, así que no se borra: se perdería quién hizo qué.
+                      </p>
+                      <ul className="my-1 list-disc pl-5">
+                        {historial.areas.map((a) => (
+                          <li key={a.area}>
+                            {a.area}: {a.filas} {a.filas === 1 ? "registro" : "registros"}
+                          </li>
+                        ))}
+                      </ul>
+                      {u.activo ? (
+                        <p>
+                          Lo que corresponde es darle de baja: no puede entrar, no aparece para asignarle trabajo y su nombre
+                          sigue en lo que hizo.{" "}
+                          <button type="button" disabled={pendiente} onClick={() => pedirBaja(u)} className="inline-flex min-h-11 items-center font-semibold underline">
+                            Dar de baja
+                          </button>
+                        </p>
+                      ) : (
+                        <p>Ya está dado de baja: así se queda. No puede entrar y su nombre sigue en lo que hizo.</p>
+                      )}
+                      <button type="button" onClick={() => setHistorial(null)} className="inline-flex min-h-11 items-center text-slate-600 underline">
+                        Cerrar
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <select
                   value={u.rolId ?? ""}
-                  disabled={soyYo || pendiente}
-                  title={soyYo ? "No puedes cambiar tu propio rol" : undefined}
+                  disabled={soyYo || !u.activo || pendiente}
+                  title={soyYo ? "No puedes cambiar tu propio rol" : !u.activo ? "Dado de baja: reactívalo para darle rol" : undefined}
                   onChange={(e) =>
                     correr(
                       () => asignarRol(u.id, e.target.value || null),

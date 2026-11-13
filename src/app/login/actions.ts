@@ -15,7 +15,12 @@ export async function login(formData: FormData) {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    const params = new URLSearchParams({ error: error.message });
+    // Cuenta dada de baja en Configuración → Usuarios (bloqueada en Auth): se dice claro, no "User is banned".
+    const mensaje =
+      error.code === "user_banned"
+        ? "Tu usuario está dado de baja. Si es un error, habla con el administrador del sistema."
+        : error.message;
+    const params = new URLSearchParams({ error: mensaje });
     if (next !== "/") params.set("next", next);
     redirect(`/login?${params}`);
   }

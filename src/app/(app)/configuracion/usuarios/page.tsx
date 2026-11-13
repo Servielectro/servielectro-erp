@@ -12,7 +12,7 @@ export default async function UsuariosPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [usuariosRes, rolesRes, modulosRes, permisosRes, personalesRes, seccionesRes, recortesRes] = await Promise.all([
+  const [usuariosRes, rolesRes, modulosRes, permisosRes, personalesRes, seccionesRes, recortesRes, bajasRes] = await Promise.all([
     supabase.rpc("fn_listar_usuarios"),
     supabase.from("roles").select("id, nombre").order("nombre"),
     supabase.from("modulos").select("id, nombre, orden").order("orden"),
@@ -22,7 +22,18 @@ export default async function UsuariosPage() {
     // Permisos por sección (migración 122). Sin ella, la pantalla sigue como antes.
     supabase.from("modulo_secciones").select("modulo_id, seccion_id, nombre, orden").order("orden"),
     supabase.from("permisos_rol_seccion").select("rol_id, modulo_id, seccion_id, visible, nivel"),
+    // Baja de usuarios (migración 153). Sin ella, no hay botones de baja/eliminar y todo sigue igual.
+    supabase.from("perfiles").select("id, activo, desactivado_en, motivo_desactivacion, rol_id_antes_baja"),
   ]);
+  const bajas = new Map(
+    ((bajasRes.error ? [] : bajasRes.data ?? []) as {
+      id: string;
+      activo: boolean;
+      desactivado_en: string | null;
+      motivo_desactivacion: string | null;
+      rol_id_antes_baja: string | null;
+    }[]).map((b) => [b.id, b]),
+  );
   const personales = new Map(
     ((personalesRes.data ?? []) as { id: string; cedula: string | null; telefono: string | null }[]).map((p) => [p.id, p]),
   );
@@ -37,6 +48,7 @@ export default async function UsuariosPage() {
   const datos: DatosUsuariosAdmin = {
     miId: user?.id ?? "",
     puedeCrearUsuarios: hayClaveSecreta(),
+    bajaDisponible: !bajasRes.error,
     usuarios: ((usuariosRes.data ?? []) as {
       id: string;
       email: string;
@@ -51,6 +63,10 @@ export default async function UsuariosPage() {
       telefono: personales.get(u.id)?.telefono ?? null,
       rolId: u.rol_id,
       ultimoIngreso: u.ultimo_ingreso,
+      activo: bajas.get(u.id)?.activo ?? true,
+      desactivadoEn: bajas.get(u.id)?.desactivado_en ?? null,
+      motivoBaja: bajas.get(u.id)?.motivo_desactivacion ?? null,
+      rolAntesBaja: bajas.get(u.id)?.rol_id_antes_baja ?? null,
     })),
     roles: (rolesRes.data ?? []) as { id: string; nombre: string }[],
     modulos: (modulosRes.data ?? []) as { id: string; nombre: string }[],
